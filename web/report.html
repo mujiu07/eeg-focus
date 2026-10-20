@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>训练报告 - 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    .curve-card { background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.78)); }
+    .parent-note {
+      background: linear-gradient(135deg, rgba(255,232,210,.5), rgba(255,255,255,.7));
+      border: 1px solid rgba(247,164,85,.35);
+      border-radius: 20px; padding: 18px 22px;
+      font-size: 15.5px; line-height: 1.9; color: var(--ink);
+    }
+    .parent-note .em { font-size: 22px; }
+  </style>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="brand">
+        <div class="logo-badge">🏆</div>
+        <div>
+          <h1>训练报告</h1>
+          <div class="slogan" id="sub">看看这一局，专注有多厉害</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="report" style="text-align:center">
+      <p class="hint">正在读取报告……</p>
+    </div>
+
+    <div class="card curve-card">
+      <div class="section-title"><span class="dot"></span>专注曲线（实时脑电驱动）</div>
+      <canvas id="curve" width="880" height="230"></canvas>
+      <p class="hint" style="font-size:13.5px;margin-top:10px">
+        <span class="badge">浅绿色区域</span> 专注状态（蓄力/跳出）&nbsp;·&nbsp;
+        <span class="badge">橙色虚线</span> 你的专注基线
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>💬 给家长的话</div>
+      <div class="parent-note" id="parent-note">专注训练需要每天坚持，一点点进步都值得鼓励！</div>
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-again" class="btn btn-primary">再来一局</button>
+      <button id="btn-home" class="btn btn-ghost">🏠 回首页</button>
+    </div>
+  </div>
+
+  <script src="assets/api.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const sid = new URLSearchParams(location.search).get("id");
+
+    async function load() {
+      try {
+        const r = await API.get("/api/report/" + sid);
+        render(r);
+      } catch (e) {
+        $("report").innerHTML = `<p class="hint">读取失败：${e.message}</p>`;
+      }
+    }
+
+    function render(r) {
+      const above = r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null;
+      const srcName = r.source && r.source.file ? r.source.file.replace(/^Subject(\d+)_(\d)\.edf$/, "被试$1 · $2段") : "手动模拟";
+      $("report").innerHTML = `
+        <div class="stat-grid" style="justify-content:center">
+          <div class="stat"><div class="icon">🐸</div><div class="label">得分（跳荷叶）</div><div class="value">${r.score ?? "—"}</div></div>
+          <div class="stat"><div class="icon">⏱️</div><div class="label">专注时长占比</div><div class="value">${above ?? "—"}%</div></div>
+          <div class="stat"><div class="icon">📈</div><div class="label">专注指数均值</div><div class="value">${r.focus_mean != null ? Math.round(r.focus_mean * 100) + "%" : "—"}</div></div>
+          <div class="stat"><div class="icon">🎯</div><div class="label">专注基线</div><div class="value">${r.baseline != null ? Math.round(r.baseline * 100) + "%" : "—"}</div></div>
+          <div class="stat"><div class="icon">⌛</div><div class="label">用时</div><div class="value">${r.played_sec != null ? Math.round(r.played_sec) + "s" : "—"}</div></div>
+        </div>
+        <p class="hint" style="margin-top:12px;font-size:13.5px">
+          信号源：${srcName} · 会话 ${sid}
+        </p>
+      `;
+      drawCurve(r.curve || [], r.baseline);
+      const pct = above != null ? above : 0;
+      $("parent-note").innerHTML = pct >= 60
+        ? `<span class="em">🎉</span> 这局专注状态很好！孩子保持专注的时间超过 <strong>60%</strong>，青蛙跳了 ${r.score ?? 0} 片荷叶。记得夸夸他/她，正向反馈很重要！`
+        : pct >= 30
+          ? `<span class="em">💪</span> 这局有不错的专注表现（${pct}%）。专注力像肌肉一样，练一次强一点，建议明天再玩一局。`
+          : `<span class="em">🌱</span> 这局比较放松（专注 ${pct}%）。别着急，训练初期走神很正常，坚持练习就能看到进步。`;
+      $("sub").textContent = `会话 ${sid} · ${r.created_at || ""}`;
+    }
+
+    function drawCurve(curve, baseline) {
+      const c = $("curve");
+      const ctx = c.getContext("2d");
+      const W = c.width, H = c.height, padL = 58, padR = 20, padT = 26, padB = 34;
+      ctx.clearRect(0, 0, W, H);
+      if (!curve.length) return;
+      const xs = curve.map(p => p.t);
+      const xmax = Math.max(Math.max(...xs), 10);
+      const X = t => padL + (W - padL - padR) * (t / xmax);
+      const Y = v => padT + (H - padT - padB) * (1 - Math.min(Math.max(v, 0), 1));
+
+      // 网格 + 纵轴刻度
+      ctx.font = "12px 'PingFang SC', sans-serif";
+      for (let gy = 0; gy <= 4; gy++) {
+        const y = Y(gy / 4);
+        ctx.strokeStyle = "rgba(58, 108, 122, .10)";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        ctx.fillStyle = "rgba(92,123,131,.9)";
+        ctx.textAlign = "right";
+        ctx.fillText(Math.round(gy / 4 * 100) + "%", padL - 10, y + 4);
+      }
+
+      // 基线虚线 + 专注区间淡色
+      if (baseline != null) {
+        const by = Y(baseline);
+        ctx.fillStyle = "rgba(159,227,163,.28)";
+        let seg = [];
+        curve.forEach((p, i) => {
+          if (p.focus >= baseline) {
+            if (!seg.length) seg = [i, i];
+            seg[1] = i;
+            const x0 = X(curve[seg[0]].t), x1 = X(curve[i].t);
+            ctx.fillRect(x0, by, x1 - x0, H - padB - by);
+          } else seg = [];
+        });
+        ctx.setLineDash([7, 6]);
+        ctx.strokeStyle = "rgba(247,164,85,.85)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(padL, by); ctx.lineTo(W - padR, by); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#e8893a";
+        ctx.font = "700 13px 'PingFang SC', sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("基线 " + Math.round(baseline * 100) + "%", W - padR - 132, by - 10);
+      }
+
+      // 面积渐变
+      const g = ctx.createLinearGradient(0, padT, 0, H - padB);
+      g.addColorStop(0, "rgba(58,167,160,.30)");
+      g.addColorStop(1, "rgba(58,167,160,.02)");
+      ctx.beginPath();
+      curve.forEach((p, i) => {
+        const x = X(p.t), y = Y(p.focus);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.lineTo(X(curve[curve.length - 1].t), H - padB);
+      ctx.lineTo(X(curve[0].t), H - padB);
+      ctx.closePath();
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      // 曲线
+      ctx.beginPath();
+      curve.forEach((p, i) => {
+        const x = X(p.t), y = Y(p.focus);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = "#2f9c93";
+      ctx.lineWidth = 3;
+      ctx.lineJoin = "round";
+      ctx.stroke();
+      // 起点圆点
+      ctx.fillStyle = "#2f9c93";
+      ctx.beginPath();
+      ctx.arc(X(curve[0].t), Y(curve[0].focus), 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 横轴
+      ctx.fillStyle = "rgba(92,123,131,.9)";
+      ctx.textAlign = "center";
+      ctx.font = "12px 'PingFang SC', sans-serif";
+      ctx.fillText("0s", padL, H - 12);
+      ctx.textAlign = "right";
+      ctx.fillText(Math.round(xmax) + "s", W - padR, H - 12);
+    }
+
+    $("btn-again").addEventListener("click", () => { location.href = "game.html"; });
+    $("btn-home").addEventListener("click", () => { location.href = "index.html"; });
+    load();
+  </script>
+</body>
+</html>

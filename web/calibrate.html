@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>脑电校准 - 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    .calib-hero { text-align: center; padding: 22px 30px 10px; }
+    .stage { min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+    .stage.hidden { display: none; }
+    .idle-icon { font-size: 64px; filter: drop-shadow(0 10px 18px rgba(58,167,160,.35)); animation: frogBreathe 3.4s ease-in-out infinite; }
+    .guide-pill {
+      background: rgba(255,255,255,.8); border-radius: 999px;
+      padding: 9px 22px; font-size: 17px; font-weight: 700;
+      box-shadow: 0 4px 12px rgba(47,110,128,.1);
+    }
+    .tip-box {
+      background: linear-gradient(135deg, rgba(159,227,163,.22), rgba(58,167,160,.14));
+      border: 1px solid rgba(58,167,160,.25);
+      border-radius: 18px; padding: 14px 18px;
+      font-size: 14.5px; color: var(--ink-soft); line-height: 1.7;
+      max-width: 640px; margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="brand">
+        <div class="logo-badge">🧠</div>
+        <div>
+          <h1>脑电校准</h1>
+          <div class="slogan">先建立你的专注基线，大概 20 秒就好</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card calib-hero">
+      <!-- 待校准 -->
+      <div class="stage" id="idle">
+        <div class="idle-icon">🌙</div>
+        <div class="guide-text" style="margin:6px 0 2px">准备好了吗？</div>
+        <p class="hint" style="font-size:15.5px;max-width:520px">
+          校准会让游戏判断"专注"时更懂你。点击开始，跟着呼吸球放松就好。
+        </p>
+        <div class="btn-row" style="margin-top:14px">
+          <button id="btn-start" class="btn btn-primary">开始校准</button>
+        </div>
+      </div>
+
+      <!-- 校准中 -->
+      <div class="stage hidden" id="running">
+        <div class="breath-ball"></div>
+        <div class="guide-pill" id="guide">闭上眼睛，深呼吸……</div>
+        <div class="countdown" id="countdown">20</div>
+        <div class="focus-bar-wrap" style="max-width:520px;margin:4px auto 0">
+          <div class="focus-bar-label">
+            <span>你的专注度</span>
+            <span class="pct" id="focus-pct">50%</span>
+          </div>
+          <div class="focus-bar-track">
+            <div class="focus-bar-fill" id="focus-fill"></div>
+          </div>
+        </div>
+        <div id="manual-ctl" class="hidden" style="width:100%;max-width:520px">
+          <div class="slider-row">
+            <span>😌 放松</span>
+            <input type="range" id="manual-slider" min="0" max="100" value="25">
+            <span>🧠 专注</span>
+          </div>
+          <p class="hint" style="font-size:13.5px;text-align:center;margin-top:6px">
+            手动模拟模式：把滑块保持在"放松"一侧完成校准
+          </p>
+        </div>
+      </div>
+
+      <!-- 校准完成 -->
+      <div class="stage hidden" id="done">
+        <div class="ripple-wrap"><div class="ripple">✅</div></div>
+        <div class="guide-text" style="margin-top:8px">基线建立成功！</div>
+        <div class="big-num" id="baseline-show">—</div>
+        <p class="hint" style="max-width:520px">
+          低于这个专注值，青蛙就"跳不动"；达到它，就能蓄力跳出！
+        </p>
+        <div class="btn-row" style="margin-top:10px">
+          <button id="btn-play" class="btn btn-primary">开始游戏 →</button>
+          <button id="btn-again" class="btn btn-ghost">重新校准</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>信号源</div>
+      <div class="tip-box">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <label class="field">
+            <span>演示信号源</span>
+            <select id="source-select">
+              <option value="replay">🎧 真实脑电数据回放（放松段）</option>
+              <option value="manual">🎮 手动模拟</option>
+            </select>
+          </label>
+          <span class="badge">真机模式 MVP 暂未接入硬件</span>
+        </div>
+        <div style="margin-top:8px;font-size:13.5px">
+          回放模式：使用公开 EEG 数据集中"心算专注"与"放松"的真实脑电信号驱动游戏。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/api.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const state = { session: null, es: null, focus: 0.5, running: false, done: false };
+
+    const GUIDES = [
+      ["闭上眼睛，深呼吸……", 0],
+      ["想象一片宁静的湖面……", 6],
+      ["慢慢放松，让大脑安静下来", 11],
+      ["坚持一下，快好啦 ~", 15],
+    ];
+
+    $("source-select").addEventListener("change", e => {
+      $("manual-ctl").classList.toggle("hidden", e.target.value !== "manual");
+    });
+
+    $("manual-slider").addEventListener("input", async e => {
+      if (state.session && state.session.mode === "manual") {
+        await API.post(`/api/session/${state.session.id}/manual`, { focus: e.target.value / 100 });
+      }
+    });
+
+    $("btn-start").addEventListener("click", async () => {
+      const mode = $("source-select").value;
+      try {
+        const info = await API.get("/api/dev/info");
+        const relaxFile = (info.edf_files || []).find(f => f.segment === 1);
+        const body = mode === "replay" ? { mode, file: relaxFile ? relaxFile.path : null } : { mode };
+        const res = await API.post("/api/session", body);
+        state.session = { id: res.session_id, mode, file: (res.source && res.source.file) || null };
+        startCalibration();
+      } catch (err) {
+        toast("启动失败：" + err.message);
+      }
+    });
+
+    function startCalibration() {
+      state.running = true;
+      $("idle").classList.add("hidden");
+      $("done").classList.add("hidden");
+      $("running").classList.remove("hidden");
+      $("source-select").disabled = true;
+      $("manual-ctl").classList.toggle("hidden", state.session.mode !== "manual");
+      $("countdown").textContent = "20";
+
+      state.es = API.stream(state.session.id, {
+        onFrame(f) {
+          state.focus = f.focus;
+          const pct = Math.round(f.focus * 100);
+          $("focus-pct").textContent = pct + "%";
+          $("focus-fill").style.width = pct + "%";
+          $("countdown").textContent = Math.max(0, Math.ceil(20 - f.t));
+          updateGuide(f.t);
+          if (f.t >= 20) finishCalibration();
+        },
+      });
+    }
+
+    function updateGuide(t) {
+      const stage = GUIDES.filter(g => t >= g[1]).pop();
+      if (stage) $("guide").textContent = stage[0];
+    }
+
+    async function finishCalibration() {
+      if (state.done || !state.running) return;
+      state.done = true; state.running = false;
+      if (state.es) state.es.close();
+      try {
+        const res = await API.post(`/api/session/${state.session.id}/calibrate`, { duration: 20 });
+        const baseline = res.baseline;
+        Store.saveCalib(baseline, res.calibration.quantiles);
+        Store.save(state.session.id, baseline, { mode: state.session.mode, file: state.session.file });
+        $("running").classList.add("hidden");
+        $("done").classList.remove("hidden");
+        $("baseline-show").textContent = Math.round(baseline * 100) + "%";
+        $("source-select").disabled = false;
+      } catch (err) {
+        toast("校准失败：" + err.message);
+        location.reload();
+      }
+    }
+
+    $("btn-play").addEventListener("click", () => { location.href = "game.html"; });
+    $("btn-again").addEventListener("click", () => { Store.clear(); location.reload(); });
+  </script>
+</body>
+</html>

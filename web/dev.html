@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>开发者调试页 - 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    .monitor-curve { height: 140px; display: block; border: 1.5px solid rgba(58,167,160,.18); }
+    .report-pre {
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 13px; line-height: 1.7;
+      color: var(--ink-soft);
+      white-space: pre-wrap;
+      background: rgba(58,108,122,.06);
+      border-radius: 16px;
+      padding: 16px;
+      max-height: 300px; overflow: auto;
+    }
+    .src-panel { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+    .session-line {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 9px 4px; border-bottom: 1px dashed rgba(58,108,122,.15);
+      font-size: 14px;
+    }
+    .session-line:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="brand">
+        <div class="logo-badge">🛠️</div>
+        <div>
+          <h1>开发者调试页</h1>
+          <div class="slogan">MVP 阶段：开发与内测调试信息</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card table-card">
+      <div class="section-title"><span class="dot"></span>🧠 专注引擎（模型）</div>
+      <div id="engine" class="hint">加载中……</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>📡 信号源</div>
+      <div class="src-panel">
+        <label class="field">
+          <span>模式</span>
+          <select id="mode-select">
+            <option value="replay">🎧 EDF 真实数据回放</option>
+            <option value="manual">🎮 手动模拟</option>
+            <option value="hardware">📟 真实头环（未接入）</option>
+          </select>
+        </label>
+        <label class="field" id="file-field">
+          <span>数据文件（回放源）</span>
+          <select id="file-select" style="max-width:380px"></select>
+        </label>
+        <div class="btn-row" style="flex-wrap:nowrap">
+          <button id="btn-apply" class="btn btn-sm btn-primary">应用</button>
+          <button id="btn-watch" class="btn btn-sm btn-ghost">开启实时监视</button>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:10px;font-size:13.5px">
+        全局信号源配置将影响之后新建的校准/游戏会话。回放文件按"被试 · 段"列出（1=放松，2=心算专注）。
+      </p>
+    </div>
+
+    <div class="card hidden" id="monitor-card">
+      <div class="section-title" style="margin-bottom:8px">
+        <span class="dot"></span>👀 实时监视
+        <span id="monitor-src" class="mono badge" style="font-weight:600"></span>
+      </div>
+      <div class="focus-bar-wrap" style="max-width:100%">
+        <div class="focus-bar-label">
+          <span>专注指数</span>
+          <span class="pct" id="monitor-pct">—</span>
+        </div>
+        <div class="focus-bar-track">
+          <div class="focus-bar-fill" id="monitor-fill"></div>
+        </div>
+      </div>
+      <canvas class="monitor-curve" id="monitor-canvas" width="880" height="140" style="margin-top:14px"></canvas>
+      <p class="hint" style="margin-top:8px;font-size:13px" id="monitor-meta"></p>
+    </div>
+
+    <div class="card table-card">
+      <div class="section-title"><span class="dot"></span>📋 模型评估报告（LOSO 交叉验证）</div>
+      <pre class="report-pre" id="train-report"></pre>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>🕐 最近会话</div>
+      <div id="sessions" class="hint">加载中……</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="location.href='index.html'">🏠 回首页</button>
+    </div>
+  </div>
+
+  <script src="assets/api.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    let watchSession = null, watchEs = null, watchCurve = [];
+
+    async function init() {
+      try {
+        const info = await API.get("/api/dev/info");
+        renderEngine(info.engine);
+        $("train-report").textContent = info.model_report || "（训练报告缺失，请运行 scripts/train.py）";
+        renderFiles(info.edf_files || []);
+        renderSessions(Object.values(info.sessions || {}).reverse());
+        if (info.source_config) {
+          $("mode-select").value = info.source_config.mode;
+          if (info.source_config.file) {
+            const files = info.edf_files || [];
+            const i = files.findIndex(f => f.path === info.source_config.file);
+            if (i >= 0) $("file-select").selectedIndex = i;
+          }
+        }
+      } catch (e) {
+        $("engine").textContent = "加载失败：" + e.message;
+      }
+    }
+
+    function renderEngine(eng) {
+      $("engine").innerHTML = `
+        <table>
+          <tbody>
+            <tr><th style="width:140px">模型</th><td><span class="badge">${eng.model}</span></td></tr>
+            <tr><th>特征维度</th><td class="mono">${eng.feature_dim} 维（${eng.window_sec}s 窗口 × 21 通道 × 11 特征）</td></tr>
+            <tr><th>频段</th><td class="mono">${eng.bands.join(" / ")} Hz</td></tr>
+            <tr><th>平滑</th><td class="mono">EMA α=0.35</td></tr>
+          </tbody>
+        </table>`;
+    }
+
+    function renderFiles(files) {
+      const sel = $("file-select");
+      sel.innerHTML = "";
+      files.forEach(f => {
+        const o = document.createElement("option");
+        o.value = f.path;
+        o.textContent = `${f.subject} · ${f.segment_name} (${f.segment})`;
+        sel.appendChild(o);
+      });
+    }
+
+    $("mode-select").addEventListener("change", () => {
+      $("file-field").style.visibility = $("mode-select").value === "replay" ? "visible" : "hidden";
+    });
+    $("file-field").style.visibility = "visible";
+
+    $("btn-apply").addEventListener("click", async () => {
+      const mode = $("mode-select").value;
+      const body = { mode, file: mode === "replay" ? $("file-select").value : null };
+      try {
+        const r = await API.post("/api/dev/source", body);
+        toast("信号源已应用：" + r.source_config.mode);
+      } catch (e) {
+        toast("应用失败：" + e.message);
+      }
+    });
+
+    $("btn-watch").addEventListener("click", async () => {
+      if (watchSession) { stopWatch(); return; }
+      const btn = $("btn-watch");
+      btn.disabled = true;
+      btn.textContent = "加载数据中…";
+      try {
+        const res = await API.post("/api/session", { mode: $("mode-select").value, file: $("file-select").value });
+        watchSession = res.session_id;
+        $("monitor-card").classList.remove("hidden");
+        btn.textContent = "停止监视";
+        $("monitor-src").textContent = res.source.label;
+        watchEs = API.stream(watchSession, {
+          onFrame(f) {
+            $("monitor-pct").textContent = Math.round(f.focus * 100) + "%";
+            $("monitor-fill").style.width = Math.round(f.focus * 100) + "%";
+            watchCurve.push(f.focus);
+            if (watchCurve.length > 80) watchCurve.shift();
+            drawMonitor();
+            const m = f.meta || {};
+            $("monitor-meta").textContent =
+              m.source === "replay"
+                ? `回放文件 ${m.file || ""} · 窗口 ${m.window ?? ""} / ${m.n_windows ?? ""}`
+                : "手动模拟";
+          },
+        });
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "开启实时监视";
+        toast("监视启动失败：" + e.message);
+      }
+    });
+
+    function stopWatch() {
+      if (watchEs) watchEs.close();
+      watchSession = null;
+      const btn = $("btn-watch");
+      btn.disabled = false;
+      $("monitor-card").classList.add("hidden");
+      btn.textContent = "开启实时监视";
+    }
+
+    function drawMonitor() {
+      const c = $("monitor-canvas");
+      const ctx = c.getContext("2d");
+      const W = c.width, H = c.height, pad = 18;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(58,108,122,.12)";
+      ctx.lineWidth = 1;
+      for (let gy = 0; gy <= 4; gy++) {
+        const y = pad + (H - pad * 2) * (1 - gy / 4);
+        ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+      }
+      if (watchCurve.length > 1) {
+        const g = ctx.createLinearGradient(0, pad, 0, H - pad);
+        g.addColorStop(0, "rgba(58,167,160,.28)");
+        g.addColorStop(1, "rgba(58,167,160,.02)");
+        ctx.beginPath();
+        watchCurve.forEach((v, i) => {
+          const x = pad + (W - pad * 2) * (i / (watchCurve.length - 1));
+          const y = pad + (H - pad * 2) * (1 - v);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.lineTo(W - pad, H - pad); ctx.lineTo(pad, H - pad);
+        ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+
+        ctx.beginPath();
+        watchCurve.forEach((v, i) => {
+          const x = pad + (W - pad * 2) * (i / (watchCurve.length - 1));
+          const y = pad + (H - pad * 2) * (1 - v);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = "#2f9c93";
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = "round";
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(92,123,131,.9)";
+      ctx.font = "12px 'PingFang SC', sans-serif";
+      ctx.fillText("最近 80 帧专注指数（实时）", pad, H - 4);
+    }
+
+    function renderSessions(list) {
+      const box = $("sessions");
+      if (!list.length) { box.textContent = "暂无会话"; return; }
+      box.innerHTML = "";
+      list.slice(0, 10).forEach(s => {
+        const d = document.createElement("div");
+        d.className = "session-line";
+        d.innerHTML = `
+          <span class="mono">${s.id}</span>
+          <span class="badge">${s.source.label}</span>
+          ${s.source.file ? `<span class="mono">${s.source.file}</span>` : ""}
+          ${s.baseline != null ? `<span class="badge">基线 ${Math.round(s.baseline * 100)}%</span>` : ""}`;
+        box.appendChild(d);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
