@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>专注小蛙 - 看得见的专注力，玩出来的好状态</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    .hero-card { position: relative; overflow: hidden; padding: 0; }
+    .hero-top { display: flex; align-items: center; gap: 14px; padding: 24px 30px 6px; }
+    .hero-body { padding: 10px 30px 8px; text-align: center; }
+    .hero-body .title { font-size: 30px; font-weight: 900; letter-spacing: 2px; }
+    .hero-body .sub { color: var(--ink-soft); font-size: 16.5px; margin-top: 6px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 8px 30px 26px; }
+    .step {
+      background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.6));
+      border: 1px solid rgba(255,255,255,.9);
+      border-radius: 20px;
+      padding: 18px 14px 16px;
+      text-align: center;
+      box-shadow: 0 6px 18px rgba(47,110,128,.1);
+    }
+    .step .num {
+      width: 34px; height: 34px; margin: 0 auto 8px;
+      display: grid; place-items: center;
+      border-radius: 50%;
+      font-size: 17px; font-weight: 900; color: #fff;
+      background: linear-gradient(135deg, #5fc47a, var(--accent-dark));
+      box-shadow: 0 4px 10px rgba(88,194,112,.4);
+    }
+    .step .t { font-weight: 800; font-size: 16.5px; }
+    .step .d { color: var(--ink-soft); font-size: 13.5px; margin-top: 5px; line-height: 1.6; }
+    @media (max-width: 700px) { .steps { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <div class="wrap">
+    <!-- 品牌 -->
+    <div class="card" style="padding:20px 26px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div class="brand">
+        <div class="logo-badge">🐸</div>
+        <div>
+          <h1>专注小蛙</h1>
+          <div class="slogan">看得见的专注力，玩出来的好状态</div>
+        </div>
+      </div>
+      <span class="badge">🧠 脑电驱动 · MVP</span>
+    </div>
+
+    <!-- 英雄区 -->
+    <div class="card hero-card">
+      <div class="hero-top">
+        <span style="font-size:26px">🌅</span>
+        <div>
+          <div style="font-weight:800;font-size:18px">梦境池塘</div>
+          <div class="hint" style="font-size:13.5px">让专注变成前进的动力</div>
+        </div>
+      </div>
+      <div class="hero-body">
+        <div class="title">和小蛙一起，练出好专注！</div>
+        <div class="sub">保持专注 → 蓄力 → 青蛙跳过一片片荷叶</div>
+      </div>
+      <div style="padding:4px 30px 0">
+        <svg class="hero-svg" viewBox="0 0 880 210" aria-hidden="true">
+          <defs>
+            <linearGradient id="hSky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#dff4fb"/><stop offset="1" stop-color="#a8dce6"/>
+            </linearGradient>
+            <linearGradient id="hWater" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#9fd8e2"/><stop offset="1" stop-color="#6fb8c9"/>
+            </linearGradient>
+            <radialGradient id="hLeaf" cx="35%" cy="30%">
+              <stop offset="0" stop-color="#b7eebb"/><stop offset="1" stop-color="#58c270"/>
+            </radialGradient>
+          </defs>
+          <rect width="880" height="210" fill="url(#hSky)"/>
+          <circle cx="790" cy="46" r="26" fill="#ffe9b8" opacity=".9"/>
+          <circle cx="790" cy="46" r="40" fill="#ffe9b8" opacity=".3"/>
+          <g fill="#ffffff" opacity=".85">
+            <ellipse cx="120" cy="52" rx="34" ry="11"/><ellipse cx="148" cy="46" rx="26" ry="10"/>
+            <ellipse cx="520" cy="34" rx="30" ry="10"/><ellipse cx="546" cy="29" rx="22" ry="9"/>
+          </g>
+          <path d="M0 150 Q 180 84 360 132 T 880 118 L 880 210 L 0 210 Z" fill="#c9e9df" opacity=".8"/>
+          <path d="M0 172 Q 260 116 520 158 T 880 150 L 880 210 L 0 210 Z" fill="#b3ddd6" opacity=".9"/>
+          <rect y="150" width="880" height="60" fill="url(#hWater)"/>
+          <path d="M0 160 Q 220 152 440 162 T 880 156" stroke="#ffffff" stroke-width="2.5" fill="none" opacity=".5"/>
+          <path d="M0 176 Q 240 170 480 178 T 880 172" stroke="#ffffff" stroke-width="2" fill="none" opacity=".35"/>
+          <g>
+            <ellipse cx="180" cy="150" rx="52" ry="26" fill="url(#hLeaf)"/>
+            <path d="M180 150 L 232 150 M180 150 L 180 124 M180 150 L 128 150 M180 150 L 180 176" stroke="#3da45c" stroke-width="2" opacity=".55"/>
+            <ellipse cx="470" cy="162" rx="42" ry="21" fill="url(#hLeaf)"/>
+            <ellipse cx="700" cy="150" rx="48" ry="24" fill="url(#hLeaf)" opacity=".92"/>
+            <ellipse cx="120" cy="176" rx="36" ry="18" fill="url(#hLeaf)" opacity=".7"/>
+          </g>
+        </svg>
+      </div>
+      <div class="hero-frog">🐸</div>
+      <div style="padding:14px 30px 26px;text-align:center">
+        <div class="btn-row">
+          <button id="btn-start" class="btn btn-primary">开始游戏</button>
+          <button id="btn-calib" class="btn btn-warm">进入脑电校准</button>
+        </div>
+        <p class="hint" style="margin-top:14px;font-size:14px">
+          首次使用请先完成 <strong>脑电校准</strong>，建立你的专注基线，玩起来才更准
+        </p>
+      </div>
+    </div>
+
+    <!-- 三步玩法 -->
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>三步玩法</div>
+      <div class="steps">
+        <div class="step">
+          <div class="num">1</div>
+          <div class="t">🧘 校准基线</div>
+          <div class="d">跟着呼吸球放松 20 秒<br>建立你的专属专注基线</div>
+        </div>
+        <div class="step">
+          <div class="num">2</div>
+          <div class="t">🎯 保持专注</div>
+          <div class="d">专注指数高于基线<br>蓄力条就会不断上升</div>
+        </div>
+        <div class="step">
+          <div class="num">3</div>
+          <div class="t">🐸 蓄力跳出</div>
+          <div class="d">蓄满能量青蛙向前跳<br>专注越久，跳得越远</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 最近训练 -->
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>最近训练</div>
+      <div id="recent" style="min-height:70px">
+        <p class="hint">还没有训练记录，快开始第一局吧！</p>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-dev" class="btn btn-sm btn-ghost">🛠️ 开发者</button>
+      <button id="btn-settings" class="btn btn-sm btn-ghost">⚙️ 设置</button>
+    </div>
+  </div>
+
+  <script src="assets/api.js"></script>
+  <script>
+    const calib = Store.loadCalib();
+    const btnStart = document.getElementById("btn-start");
+
+    btnStart.addEventListener("click", () => {
+      if (calib && calib.baseline != null) {
+        location.href = "game.html";
+      } else {
+        toast("先建立专注基线吧！");
+        location.href = "calibrate.html";
+      }
+    });
+    document.getElementById("btn-calib").addEventListener("click", () => {
+      location.href = "calibrate.html";
+    });
+    document.getElementById("btn-dev").addEventListener("click", () => {
+      location.href = "dev.html";
+    });
+    document.getElementById("btn-settings").addEventListener("click", () => {
+      toast("MVP 阶段：请在开发者页调整信号源。");
+    });
+
+    async function loadRecent() {
+      try {
+        const info = await API.get("/api/dev/info");
+        const sessions = Object.values(info.sessions || {}).filter(s => s.baseline != null).slice(-3).reverse();
+        const box = document.getElementById("recent");
+        if (!sessions.length) return;
+        box.innerHTML = `<div class="stat-grid">` + sessions.map(s => `
+          <div class="stat">
+            <div class="icon">🏆</div>
+            <div class="label">会话 ${s.id} · ${s.source.file ? s.source.file.replace(/^Subject(\d+)_(\d)\.edf$/, "被试$1·$2") : "手动"}</div>
+            <div class="value">${Math.round((s.baseline || 0) * 100)}%</div>
+            <div class="label">专注基线</div>
+          </div>`).join("") + `</div>`;
+      } catch (e) {
+        console.warn("读取最近记录失败", e);
+      }
+    }
+    loadRecent();
+  </script>
+</body>
+</html>

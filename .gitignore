@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# 本地脑电数据与会话记录（隐私/许可：不公开）
+data/
+outputs/sessions/
+
+# DeepWorks 工作区
+.deepworks/
+
+# 日志与系统文件
+*.log
+.DS_Store
