@@ -337,6 +337,14 @@ def get_report(sid: str):
 # 静态前端
 # ---------------------------------------------------------------------------
 if os.path.isdir(WEB_DIR):
+    # no-cache：开发迭代频繁，确保浏览器每次刷新拿到最新页面（API 响应不动）
+    @app.middleware("http")
+    async def no_cache_static(request, call_next):
+        response = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
