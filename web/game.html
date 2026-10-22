@@ -418,9 +418,9 @@
     }
 
     function drawFrog(t) {
-      // 荷叶上表面 = 荷叶中心 y - 26；青蛙中心 = 上表面 - 18（身体坐进叶面一点，视觉贴叶）
+      // 荷叶上表面 = 荷叶中心 y - 26；青蛙中心 = 交点 y - 28（半高），青蛙底部正好落在三条直线交点（荷叶中心 y）
       const lilyTop = i => lilies[i].y - 26;
-      const frogBase = i => lilyTop(i) - 18;
+      const frogBase = i => lilies[i].y - 28;
       const k = state.jumping.active ? Math.min(state.jumping.t / 0.55, 1) : 0;
       let fx, fy;
       const focused = state.focus >= baseline;
