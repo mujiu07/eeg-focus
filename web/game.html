@@ -482,15 +482,6 @@
         ctx.fill();
         ctx.restore();
       }
-      // 基线刻度
-      ctx.fillStyle = "rgba(247,164,85,.95)";
-      const bx = x + w * Math.min(baseline, 1);
-      roundRect(ctx, bx - 3, y - 5, 6, h + 10, 3);
-      ctx.fill();
-      ctx.fillStyle = "#f7a455";
-      ctx.font = "600 13px 'PingFang SC', sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText("基线", bx + 10, y + h / 2 + 4);
       // 标签
       ctx.textAlign = "right";
       ctx.font = "800 17px 'PingFang SC', sans-serif";
