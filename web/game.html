@@ -107,7 +107,7 @@
     function resetLilies() {
       const n = 6;
       lilies = [];
-      let x = CX - 60;
+      let x = CX;   // 青蛙初始位置 = 荷叶正中心（叶脉交点）
       for (let i = 0; i < n; i++) {
         lilies.push({ x, y: 340 - (i % 2) * 26, bob: Math.random() * Math.PI * 2 });
         x += 170 + (i * 37) % 40;
@@ -201,16 +201,16 @@
           state.jumping.fromX = 0;
           state.energy = 15;
           // 落点水花（shift 后 lilies[0] 已是青蛙站的新荷叶，水花贴水面）
-          spawnSplash(lilies[0].x + 60, lilies[0].y + 10);
+          spawnSplash(lilies[0].x, lilies[0].y + 10);
           // 进入归位：青蛙与新荷叶一起平滑左移回屏幕中间
           state.settling = true;
         }
       } else if (state.settling) {
         // 归位：所有荷叶同步左移，直到 lilies[0] 中心回到 CX（青蛙回中间）
         // ease-out 平滑减速；距离很小时转线性收尾，保证精确归位（渐近逼近会永远到不了 0）
-        const dist = lilies[0].x + 60 - CX;
+        const dist = lilies[0].x - CX;
         if (dist <= 0.5) {
-          lilies[0].x = CX - 60;   // 精确归位：青蛙中心正好在屏幕中间
+          lilies[0].x = CX;   // 精确归位：青蛙正中心回到屏幕中间
           state.settling = false;
         } else {
           const step = Math.min(dist, Math.max(24 * dt, dist * dt * 4));
@@ -230,11 +230,11 @@
     }
 
     function startJump() {
-      state.jumping = { active: true, t: 0, fromX: CX, toX: lilies[1].x + 60 };
+      state.jumping = { active: true, t: 0, fromX: lilies[0].x, toX: lilies[1].x };
       state.score += 1;
       $("score").textContent = state.score;
-      state.popups.push({ x: lilies[0].x + 60, y: lilies[0].y - 150, text: "+1", t: 0 });
-      spawnSplash(lilies[0].x + 60, lilies[0].y + 10);
+      state.popups.push({ x: lilies[0].x, y: lilies[0].y - 150, text: "+1", t: 0 });
+      spawnSplash(lilies[0].x, lilies[0].y + 10);
     }
 
     function spawnSplash(x, y) {
@@ -428,7 +428,7 @@
         fx = interpolateJump(state.jumping.t);
         fy = frogBase(0) + (frogBase(1) - frogBase(0)) * k - jumpArc(state.jumping.t);
       } else {
-        fx = lilies[0].x + 60;
+        fx = lilies[0].x;   // 荷叶正中心（叶脉交点）
         fy = frogBase(0) + Math.sin(t * 2.2) * 2;
       }
       // 专注光环
@@ -537,8 +537,8 @@
     }
 
     function interpolateJump(tt) {
-      const from = lilies[0].x + 60;
-      const to = lilies[1].x + 60;
+      const from = lilies[0].x;
+      const to = lilies[1].x;
       const k = Math.min(tt / 0.55, 1);
       return from + (to - from) * k;
     }
