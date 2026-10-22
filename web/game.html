@@ -86,6 +86,8 @@
       score: 0,
       timeLeft: 60,
       lastTs: null,
+      stale: false,       // 数据无效/断流：暂停蓄力
+      lastFrameTs: 0,     // 最近一次有效帧时间（新鲜度检查）
       over: false,
       manualMode: false,
       jumping: { active: false, t: 0, fromX: 0, toX: 0 },
@@ -132,8 +134,16 @@
       $("manual-card").classList.toggle("hidden", !state.manualMode);
 
       state.es = API.stream(res.session_id, {
-        onFrame(f) { state.focus = f.focus; state.raw = f.raw; },
+        onHello() { state.lastFrameTs = performance.now(); },
+        onFrame(f) {
+          state.lastFrameTs = performance.now();
+          if (f.meta && f.meta.error) { state.stale = true; return; }  // 异常帧：显式无效
+          state.stale = false;
+          state.focus = f.focus; state.raw = f.raw;
+        },
         onEnd() { finishGame(); },
+        onError() { state.stale = true; },
+        onStatus(s) { if (s === "reconnecting") state.stale = true; },
       });
 
       requestAnimationFrame(loop);
@@ -164,8 +174,11 @@
       state.splashes = state.splashes.filter(p => (p.t += dt) < p.life);
       state.popups = state.popups.filter(p => (p.t += dt) < 1.2);
 
-      const focused = state.focus >= baseline;
-      if (!state.jumping.active) {
+      // 数据新鲜度：超过 3 秒无有效帧 → 视为断流，暂停蓄力（旧分数不得继续驱动游戏）
+      if (performance.now() - state.lastFrameTs > 3000) state.stale = true;
+
+      const focused = !state.stale && state.focus >= baseline;
+      if (!state.jumping.active && !state.stale) {
         if (focused) {
           const gain = (state.focus - baseline + 0.03) * dt * 8.5;
           state.energy = Math.min(100, state.energy + gain);
@@ -192,8 +205,9 @@
 
       const lamp = $("lamp");
       lamp.classList.toggle("lamp-on", focused);
-      $("lamp-text").textContent = focused ? "专注中" : "分心了";
-      $("warn").classList.toggle("show", !focused && state.energy < 25);
+      $("lamp-text").textContent = state.stale ? "信号中断" : (focused ? "专注中" : "分心了");
+      $("warn").classList.toggle("show", state.stale || (!focused && state.energy < 25));
+      $("warn").textContent = state.stale ? "数据中断，蓄力已暂停" : "专注度较低，蓄力正在减少";
 
       state.timeLeft -= dt;
       $("timer").textContent = Math.max(0, Math.ceil(state.timeLeft));
@@ -499,7 +513,7 @@
       ctx.fillStyle = "#23464f";
       ctx.font = "700 16px 'PingFang SC', sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("🧠 专注 " + Math.round(state.focus * 100) + "%", 30, 41);
+      ctx.fillText("🧠 脑波分数 " + Math.round(state.focus * 100) + "%", 30, 41);
     }
 
     function interpolateJump(tt) {

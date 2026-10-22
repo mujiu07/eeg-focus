@@ -86,6 +86,7 @@ class Session:
                 entry = {"t": round(time.time() - self.created_at, 2),
                          "raw": round(float(raw), 3),
                          "focus": round(float(focus), 3),
+                         "valid": True,
                          "meta": meta}
                 self.history.append(entry)
                 if len(self.history) > 30000:
@@ -100,7 +101,7 @@ class Session:
                     self._queue.put_nowait(entry)
             except Exception as e:  # noqa: BLE001
                 entry = {"t": round(time.time() - self.created_at, 2),
-                         "raw": 0.5, "focus": 0.5,
+                         "raw": None, "focus": None, "valid": False,
                          "meta": {"source": self.source.name, "error": str(e)}}
                 self.history.append(entry)
                 try:
@@ -114,8 +115,11 @@ class Session:
             return self
         self.finished = True
         self.finished_at = time.time()
-        focuses = [e["focus"] for e in self.history]
-        raws = [e["raw"] for e in self.history]
+        # 报告统计只使用有效帧（异常帧 focus=None/valid=False，不得进入均值与曲线）
+        valid = [e for e in self.history if e.get("valid")]
+        focuses = [e["focus"] for e in valid]
+        raws = [e["raw"] for e in valid]
+        n_invalid = len(self.history) - len(valid)
         dur = self.finished_at - self.created_at
         self.stats = {
             "session_id": self.id,
@@ -128,12 +132,14 @@ class Session:
             "baseline": self.baseline,
             "calibration": self.calibration,
             "n_frames": len(self.history),
+            "n_valid_frames": len(valid),
+            "n_invalid_frames": n_invalid,
             "focus_mean": round(float(np_mean(focuses)), 3) if focuses else None,
             "focus_max": round(float(max(focuses)), 3) if focuses else None,
             "focus_min": round(float(min(focuses)), 3) if focuses else None,
             "above_baseline_ratio": (round(float(sum(f >= (self.baseline or 0) for f in focuses)) / len(focuses), 3)
                                       if focuses and self.baseline is not None else None),
-            "curve": [{"t": e["t"], "focus": e["focus"], "raw": e["raw"]} for e in self.history[::2]],
+            "curve": [{"t": e["t"], "focus": e["focus"], "raw": e["raw"]} for e in valid[::2]],
         }
         if self._task:
             self._task.cancel()
