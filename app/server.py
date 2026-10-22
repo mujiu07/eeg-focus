@@ -259,16 +259,19 @@ async def calibrate(sid: str, body: CalibrateStart):
     deadline = time.time() + duration
     while time.time() < deadline and not s.finished:
         await asyncio.sleep(0.2)
-    # 取校准期间产生的 focus
+    # 取校准期间产生的有效帧（异常帧不含 focus，须排除；frames 按时间 t 递增）
     frames = [e for e in s.history
-              if e["t"] <= duration + 0.5]
-    focuses = [e["focus"] for e in frames]
-    raws = [e["raw"] for e in frames]
-    if not focuses:
+              if e["t"] <= duration + 0.5 and e.get("valid", True) and e["focus"] is not None]
+    if not frames:
         raise HTTPException(500, "校准期间未采集到足够信号帧")
-    focuses = sorted(focuses)
-    n = len(focuses)
-    q10, q50, q90 = (focuses[int(n * 0.1)], focuses[int(n * 0.5)], focuses[int(n * 0.9)])
+    n = len(frames)
+    raws = [e["raw"] for e in frames if e["raw"] is not None]
+    # 基线取校准窗口时间上后半段的中位数：前半段用户仍在过渡/放松过程，后半段更接近稳态
+    # （校准页引导"跟着呼吸球放松"，专注度前高后低时，全窗口中位数会偏高导致基线过紧；
+    #   注意必须先按时间切段、再排序，排序后再切会取到高分值段而非后段）
+    half = max(1, n // 2)
+    tail = sorted(e["focus"] for e in frames[half:])
+    q10, q50, q90 = (tail[int(len(tail) * 0.1)], tail[int(len(tail) * 0.5)], tail[int(len(tail) * 0.9)])
     s.baseline = round(q50, 3)
     s.baseline_quantiles = {"q10": round(q10, 3), "q50": round(q50, 3), "q90": round(q90, 3)}
     s.calibration = {

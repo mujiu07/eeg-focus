@@ -112,7 +112,6 @@
       }
     }
     resetLilies();
-    const frogY = 300;
     const FROG_SIZE = 56;
 
     // ---- 创建会话 ----
@@ -198,8 +197,8 @@
           });
           state.jumping.fromX = 0;
           state.energy = 15;
-          // 落点水花
-          spawnSplash(lilies[0].x + 60, frogY);
+          // 落点水花（shift 后 lilies[0] 已是新荷叶，水花贴水面）
+          spawnSplash(lilies[0].x + 60, lilies[0].y + 10);
         }
       }
 
@@ -218,8 +217,8 @@
       state.jumping = { active: true, t: 0, fromX: 60, toX: 0 };
       state.score += 1;
       $("score").textContent = state.score;
-      state.popups.push({ x: lilies[0].x + 60, y: frogY - 90, text: "+1", t: 0 });
-      spawnSplash(lilies[0].x + 60, frogY);
+      state.popups.push({ x: lilies[0].x + 60, y: lilies[0].y - 150, text: "+1", t: 0 });
+      spawnSplash(lilies[0].x + 60, lilies[0].y + 10);
     }
 
     function spawnSplash(x, y) {
@@ -403,14 +402,18 @@
     }
 
     function drawFrog(t) {
+      // 荷叶上表面 = 荷叶中心 y - 26；青蛙视觉中心 = 上表面 - 28（半高贴叶）
+      const lilyTop = i => lilies[i].y - 26;
+      const frogBase = i => lilyTop(i) - 28;
+      const k = state.jumping.active ? Math.min(state.jumping.t / 0.55, 1) : 0;
       let fx, fy;
       const focused = state.focus >= baseline;
       if (state.jumping.active) {
         fx = interpolateJump(state.jumping.t);
-        fy = frogY - jumpArc(state.jumping.t);
+        fy = frogBase(0) + (frogBase(1) - frogBase(0)) * k - jumpArc(state.jumping.t);
       } else {
         fx = lilies[0].x + 60;
-        fy = frogY + Math.sin(t * 2.2) * 2;
+        fy = frogBase(0) + Math.sin(t * 2.2) * 2;
       }
       // 专注光环
       if (focused && !state.jumping.active) {
@@ -423,12 +426,13 @@
         ctx.fill();
         ctx.restore();
       }
-      // 阴影
+      // 阴影：贴荷叶/水面，随跳跃高度缩小
       ctx.save();
-      ctx.globalAlpha = 0.2;
+      ctx.globalAlpha = 0.2 * (1 - 0.55 * Math.sin(k * Math.PI));
       ctx.fillStyle = "#1d6f86";
       ctx.beginPath();
-      ctx.ellipse(fx, frogY + 14, 24, 9, 0, 0, Math.PI * 2);
+      ctx.ellipse(fx, (lilyTop(0) + 2) + (lilyTop(1) - lilyTop(0)) * k,
+                 24 * (1 - 0.4 * Math.sin(k * Math.PI)), 9 * (1 - 0.4 * Math.sin(k * Math.PI)), 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
       // 青蛙本体
