@@ -91,6 +91,7 @@
       over: false,
       manualMode: false,
       jumping: { active: false, t: 0, fromX: 0, toX: 0 },
+      settling: false,  // 跳完后青蛙与荷叶一起平滑移回屏幕中间
       popups: [],     // 浮动文字 {x,y,text,t}
       splashes: [],   // 水花 {x,y,r0,r1,t,life}
       clouds: [
@@ -100,12 +101,13 @@
       ],
     };
 
-    // 荷叶布局
+    // 荷叶布局（青蛙等待位固定在屏幕中间 cx=450：lilies[0] 中心 = cx）
     let lilies = [];
+    const CX = canvas.width / 2;
     function resetLilies() {
-      const n = 5;
+      const n = 6;
       lilies = [];
-      let x = 90;
+      let x = CX - 60;
       for (let i = 0; i < n; i++) {
         lilies.push({ x, y: 340 - (i % 2) * 26, bob: Math.random() * Math.PI * 2 });
         x += 170 + (i * 37) % 40;
@@ -177,7 +179,8 @@
       if (performance.now() - state.lastFrameTs > 3000) state.stale = true;
 
       const focused = !state.stale && state.focus >= baseline;
-      if (!state.jumping.active && !state.stale) {
+      // 等待（蓄力）阶段：青蛙停在屏幕中间，场景静止
+      if (!state.jumping.active && !state.settling && !state.stale) {
         if (focused) {
           const gain = (state.focus - baseline + 0.03) * dt * 8.5;
           state.energy = Math.min(100, state.energy + gain);
@@ -185,11 +188,11 @@
           state.energy = Math.max(0, state.energy - dt * 4.2);
         }
         if (state.energy >= 100) startJump();
-      } else {
+      } else if (state.jumping.active) {
         state.jumping.t += dt;
         if (state.jumping.t >= 0.55) {
           state.jumping.active = false;
-          const from = lilies.shift();
+          lilies.shift();
           lilies.push({
             x: lilies[lilies.length - 1].x + 170 + Math.random() * 60,
             y: 340 - (lilies.length % 2) * 26,
@@ -197,8 +200,21 @@
           });
           state.jumping.fromX = 0;
           state.energy = 15;
-          // 落点水花（shift 后 lilies[0] 已是新荷叶，水花贴水面）
+          // 落点水花（shift 后 lilies[0] 已是青蛙站的新荷叶，水花贴水面）
           spawnSplash(lilies[0].x + 60, lilies[0].y + 10);
+          // 进入归位：青蛙与新荷叶一起平滑左移回屏幕中间
+          state.settling = true;
+        }
+      } else if (state.settling) {
+        // 归位：所有荷叶同步左移，直到 lilies[0] 中心回到 CX（青蛙回中间）
+        // ease-out 平滑减速；距离很小时转线性收尾，保证精确归位（渐近逼近会永远到不了 0）
+        const dist = lilies[0].x + 60 - CX;
+        if (dist <= 0.5) {
+          lilies[0].x = CX - 60;   // 精确归位：青蛙中心正好在屏幕中间
+          state.settling = false;
+        } else {
+          const step = Math.min(dist, Math.max(24 * dt, dist * dt * 4));
+          lilies.forEach(l => { l.x -= step; });
         }
       }
 
@@ -214,7 +230,7 @@
     }
 
     function startJump() {
-      state.jumping = { active: true, t: 0, fromX: 60, toX: 0 };
+      state.jumping = { active: true, t: 0, fromX: CX, toX: lilies[1].x + 60 };
       state.score += 1;
       $("score").textContent = state.score;
       state.popups.push({ x: lilies[0].x + 60, y: lilies[0].y - 150, text: "+1", t: 0 });
@@ -402,9 +418,9 @@
     }
 
     function drawFrog(t) {
-      // 荷叶上表面 = 荷叶中心 y - 26；青蛙视觉中心 = 上表面 - 28（半高贴叶）
+      // 荷叶上表面 = 荷叶中心 y - 26；青蛙中心 = 上表面 - 18（身体坐进叶面一点，视觉贴叶）
       const lilyTop = i => lilies[i].y - 26;
-      const frogBase = i => lilyTop(i) - 28;
+      const frogBase = i => lilyTop(i) - 18;
       const k = state.jumping.active ? Math.min(state.jumping.t / 0.55, 1) : 0;
       let fx, fy;
       const focused = state.focus >= baseline;
