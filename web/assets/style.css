@@ -399,9 +399,10 @@ label.field {
 
 /* ---------- 页面各自微调 ---------- */
 .hero { position: relative; overflow: hidden; }
+.hero-art { position: relative; }
 .hero-svg { display: block; width: 100%; height: auto; }
 .hero-frog {
-  position: absolute; left: 50%; bottom: 2px;
+  position: absolute; left: 50%; bottom: 28.5%;
   transform: translateX(-50%);
   font-size: 58px;
   filter: drop-shadow(0 8px 10px rgba(47,110,128,.3));
