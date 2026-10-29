@@ -452,11 +452,14 @@
       ctx.fill();
       ctx.restore();
       // 青蛙本体
+      // 注意：ctx.fillStyle / globalAlpha 是全局状态，若不显式重置会继承上一步画叶脉的
+      // rgba(30, 96, 56, .4)，导致青蛙看起来是半透明的。
       ctx.save();
-      ctx.font = `${FROG_SIZE}px serif`;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#1d3f2f";
+      ctx.font = `${FROG_SIZE}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      if (!focused && !state.jumping.active) ctx.globalAlpha = 0.72;
       ctx.fillText("🐸", fx, fy);
       ctx.restore();
     }

@@ -212,7 +212,11 @@
       $("running").classList.add("hidden");
       $("loading").classList.remove("hidden");
       try {
+        const t0 = performance.now();
         const res = await API.post(`/api/session/${state.session.id}/calibrate`, { duration: 20 });
+        // 服务端只补足尚未采满的剩余时间（通常立即返回），保证加载条至少显示 0.9s，避免一闪而过
+        const wait = 900 - (performance.now() - t0);
+        if (wait > 0) await new Promise(r => setTimeout(r, wait));
         const baseline = res.baseline;
         Store.saveCalib(baseline, res.calibration.quantiles);
         Store.save(state.session.id, baseline, { mode: state.session.mode, file: state.session.file });
