@@ -26,6 +26,9 @@ import numpy as np
 import pyedflib
 from scipy import signal
 
+# numpy >= 2.0 移除了 np.trapz，统一指向 np.trapezoid（旧版本回退到 np.trapz）
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 EDF_DIR = os.path.join(DATA_DIR, "eegmat")
 OUT_DIR = os.path.join(DATA_DIR, "processed")
@@ -69,10 +72,10 @@ def band_power(x, fs):
     xw = x * win
     freqs, psd = signal.welch(xw, fs=fs, nperseg=min(x.shape[1], 512))
     out = {}
-    total = np.trapz(psd, freqs, axis=1, ) + 1e-12
+    total = _trapz(psd, freqs, axis=1, ) + 1e-12
     for name, (lo, hi) in BANDS.items():
         idx = (freqs >= lo) & (freqs <= hi)
-        out[name] = np.trapz(psd[:, idx], freqs[idx], axis=1)
+        out[name] = _trapz(psd[:, idx], freqs[idx], axis=1)
     return out, total
 
 

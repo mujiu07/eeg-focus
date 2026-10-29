@@ -17,7 +17,11 @@ import glob
 import os
 
 import numpy as np
-import pyedflib
+
+try:  # 首选 pyedflib；Python 3.13+ 无预编译轮子时回退到纯 Python 的 edfio
+    import pyedflib
+except ImportError:  # pragma: no cover - 取决于运行环境
+    pyedflib = None
 
 from . import features
 
@@ -25,6 +29,30 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 EDF_DIR = os.path.join(DATA_DIR, "eegmat")
 
 STEP_SEC = 0.5  # 回放窗口滑动步长（模拟近实时，2s 窗口重叠 1.5s）
+
+
+def read_edf(path):
+    """读取 EDF 文件 -> (signals, ch_names, fs)。
+
+    signals: (n_ch, n_samples) 物理量（uV）；ch_names: 通道名列表；fs: 采样率。
+    优先使用 pyedflib；不可用时使用纯 Python 的 edfio（API 与结果口径一致）。
+    """
+    if pyedflib is not None:
+        with pyedflib.EdfReader(path) as f:
+            ch_names = list(f.getSignalLabels())
+            fs = float(f.getSampleFrequency(0))
+            n_samples = int(f.getFileDuration() * fs)
+            signals = np.zeros((len(ch_names), n_samples))
+            for i in range(len(ch_names)):
+                signals[i] = f.readSignal(i)
+        return signals, ch_names, fs
+
+    import edfio
+    edf = edfio.read_edf(path)
+    signals = np.array([s.data for s in edf.signals], dtype=float)
+    ch_names = list(edf.labels)
+    fs = float(edf.signals[0].sampling_frequency)
+    return signals, ch_names, fs
 
 
 class EEGSource:
@@ -63,17 +91,12 @@ class EDFReplaySource(EEGSource):
         self._n_windows = 0
 
     def _load(self):
-        with pyedflib.EdfReader(self.file_path) as f:
-            ch_names = f.getSignalLabels()
-            fs = float(f.getSampleFrequency(0))
-            n_samples = int(f.getFileDuration() * fs)
-            signals = np.zeros((len(ch_names), n_samples))
-            for i in range(len(ch_names)):
-                signals[i] = f.readSignal(i)
+        signals, ch_names, fs = read_edf(self.file_path)
         self.fs = fs
         self.ch_names = ch_names
         self._raw = signals
         self._filtered = features.prepare_signal(signals, fs)
+        n_samples = signals.shape[1]
         win = int(features.WINDOW_SEC * fs)
         step = int(STEP_SEC * fs)
         self._n_windows = (n_samples - win) // step + 1

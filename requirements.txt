@@ -1,9 +1,14 @@
-fastapi==0.128.8
-uvicorn==0.39.0
-sse-starlette==3.3.0
-numpy==2.0.2
-scipy==1.13.1
-scikit-learn==1.6.1
-joblib==1.5.3
-pyedflib==0.1.42
-pandas==2.3.3
+# 基础运行依赖（Python 3.10+）
+fastapi>=0.115,<1.0
+uvicorn>=0.30,<1.0
+sse-starlette>=2.1,<4.0
+numpy>=2.0
+scipy>=1.13
+scikit-learn>=1.6
+joblib>=1.4
+pandas>=2.2
+
+# EDF 读取：Python 3.13+ 没有 pyedflib 预编译轮子，
+# 此时改用纯 Python 的 edfio（app/sources.py 会自动选择可用实现）
+pyedflib>=0.1.42; python_version < "3.13"
+edfio>=0.4; python_version >= "3.13"
