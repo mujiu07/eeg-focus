@@ -255,10 +255,11 @@ async def calibrate(sid: str, body: CalibrateStart):
         raise HTTPException(404, "会话不存在")
     duration = max(3.0, min(body.duration, 60.0))
     t_start = time.time()
-    # 等待校准采样窗口结束，期间保持队列消费，避免阻塞后台任务
-    deadline = time.time() + duration
-    while time.time() < deadline and not s.finished:
-        await asyncio.sleep(0.2)
+    # 采样窗口从会话创建时开始计时：前端倒计时结束（t>=duration）后才发起请求，
+    # 这里只补足尚未采满的剩余时间，避免再等满整个 duration 造成长时间空档。
+    remaining = duration - (time.time() - s.created_at)
+    if remaining > 0 and not s.finished:
+        await asyncio.sleep(min(remaining, duration))
     # 取校准期间产生的有效帧（异常帧不含 focus，须排除；frames 按时间 t 递增）
     frames = [e for e in s.history
               if e["t"] <= duration + 0.5 and e.get("valid", True) and e["focus"] is not None]

@@ -11,6 +11,9 @@
 import numpy as np
 from scipy import signal
 
+# numpy >= 2.0 移除了 np.trapz，统一指向 np.trapezoid（旧版本回退到 np.trapz）
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 BANDS = {
     "delta": (0.5, 4.0),
     "theta": (4.0, 8.0),
@@ -43,10 +46,10 @@ def band_power(x, fs):
     xw = x * win
     freqs, psd = signal.welch(xw, fs=fs, nperseg=min(x.shape[1], 512))
     out = {}
-    total = np.trapz(psd, freqs, axis=1) + 1e-12
+    total = _trapz(psd, freqs, axis=1) + 1e-12
     for name, (lo, hi) in BANDS.items():
         idx = (freqs >= lo) & (freqs <= hi)
-        out[name] = np.trapz(psd[:, idx], freqs[idx], axis=1)
+        out[name] = _trapz(psd[:, idx], freqs[idx], axis=1)
     return out, total
 
 

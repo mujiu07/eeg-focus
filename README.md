@@ -8,8 +8,25 @@
 
 ## 快速启动
 
+### Windows（推荐）
+
+```powershell
+cd eeg-focus
+.\start.ps1
+```
+
+脚本会自动创建 `.venv-win` 虚拟环境（若不存在）并安装依赖，然后启动服务。手动方式：
+
+```powershell
+python -m venv .venv-win
+.\.venv-win\Scripts\pip install -r requirements.txt
+.\.venv-win\Scripts\python -m uvicorn app.server:app --host 127.0.0.1 --port 8000
+```
+
+### macOS / Linux
+
 ```bash
-# 1. 克隆并安装依赖（Python 3.9+）
+# 1. 克隆并安装依赖（Python 3.10+）
 git clone https://github.com/mujiu07/eeg-focus.git
 cd eeg-focus
 python3 -m venv .venv
