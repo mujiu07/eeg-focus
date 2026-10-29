@@ -21,6 +21,13 @@
 
 ---
 
+## v1.1 — 并入 mujiu07 遗留提交（Cuprum0214）
+
+- 收编远端 mujiu07 遗留提交 `55fdfb6`（2026-10-29 推送）：Windows 支持（`start.ps1`、requirements 更新）、青蛙不透明度修复、校准等待调整、`features.py`/`sources.py`/`preprocess.py` 优化、README 更新。
+- 由 Cuprum0214 创建 merge commit `3b03d83` 完成 main 分支收编。
+
+---
+
 ## v0.9.0 — 脑波专注游戏 MVP 收官（mujiu07 阶段）
 
 历史基线：mujiu07 账户开发阶段的最终版本。关键变更：
