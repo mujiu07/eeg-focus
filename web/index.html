@@ -200,50 +200,6 @@
               <ellipse cx="15" cy="-2.7" rx="9.5" ry="2.4" fill="#eafcff" opacity=".16"/>
               <circle cx="25.4" cy="-1.9" r="1.5" fill="#0c3340" opacity=".55"/>
             </g>
-            <!-- 荷花：外圈六瓣 + 内圈三瓣 + 花蕊 -->
-            <radialGradient id="hPetal" cx="50%" cy="88%" r="78%">
-              <stop offset="0" stop-color="#fff2f7"/>
-              <stop offset=".5" stop-color="#ffc0d8"/>
-              <stop offset="1" stop-color="#ef87ad"/>
-            </radialGradient>
-            <radialGradient id="hPetalIn" cx="50%" cy="90%" r="80%">
-              <stop offset="0" stop-color="#fffafc"/>
-              <stop offset=".6" stop-color="#ffd8e6"/>
-              <stop offset="1" stop-color="#f7a8c4"/>
-            </radialGradient>
-            <g id="hLotus">
-              <ellipse cx="1" cy="6" rx="21" ry="6" fill="#17607a" opacity=".13"/>
-              <g fill="url(#hPetal)" stroke="#e88aae" stroke-opacity=".3" stroke-width=".7">
-                <ellipse cx="0" cy="-15" rx="8.4" ry="16"/>
-                <ellipse cx="0" cy="-15" rx="8.4" ry="16" transform="rotate(60)"/>
-                <ellipse cx="0" cy="-15" rx="8.4" ry="16" transform="rotate(120)"/>
-                <ellipse cx="0" cy="-15" rx="8.4" ry="16" transform="rotate(180)"/>
-                <ellipse cx="0" cy="-15" rx="8.4" ry="16" transform="rotate(240)"/>
-                <ellipse cx="0" cy="-15" rx="8.4" ry="16" transform="rotate(300)"/>
-              </g>
-              <g fill="url(#hPetalIn)" stroke="#f2a2c0" stroke-opacity=".28" stroke-width=".6">
-                <ellipse cx="0" cy="-8.5" rx="6.2" ry="10.5" transform="rotate(30)"/>
-                <ellipse cx="0" cy="-8.5" rx="6.2" ry="10.5" transform="rotate(150)"/>
-                <ellipse cx="0" cy="-8.5" rx="6.2" ry="10.5" transform="rotate(270)"/>
-              </g>
-              <circle cx="0" cy="-1" r="4.6" fill="#ffd76e"/>
-              <circle cx="0" cy="-1" r="2.4" fill="#f7b731"/>
-              <g fill="#c9891b" opacity=".7">
-                <circle cx="-2.6" cy="-2.6" r=".7"/><circle cx="2.4" cy="-2.2" r=".7"/>
-                <circle cx="0" cy="1.6" r=".7"/><circle cx="-2" cy=".8" r=".6"/>
-                <circle cx="2" cy=".6" r=".6"/>
-              </g>
-            </g>
-            <!-- 待放的荷苞 -->
-            <g id="hLotusBud">
-              <ellipse cx="1" cy="5" rx="10" ry="3.6" fill="#17607a" opacity=".12"/>
-              <path d="M0 0 C -8 -9 -7 -24 0 -32 C 7 -24 8 -9 0 0 Z"
-                    fill="url(#hPetal)" stroke="#e88aae" stroke-opacity=".3" stroke-width=".7"/>
-              <path d="M0 -1 C -3.4 -10 -3 -22 0 -29" stroke="#ea92b4"
-                    stroke-opacity=".45" stroke-width="1.1" fill="none"/>
-              <path d="M0 -1 C 3.4 -10 3 -22 0 -29" stroke="#ea92b4"
-                    stroke-opacity=".35" stroke-width="1" fill="none"/>
-            </g>
           </defs>
           <rect width="880" height="210" fill="url(#hSky)"/>
 
@@ -380,19 +336,6 @@
             </g>
             <g class="pond-small-lily" style="--bob-dur:8.8s;--bob-delay:-1.8s">
               <use href="#hLily" transform="translate(62 198) scale(.34)"/>
-            </g>
-          </g>
-
-          <!-- 荷花与荷苞：微风轻摆 -->
-          <g id="heroLotus">
-            <g class="pond-lotus" style="--sway-dur:7.5s;--sway-delay:-2s">
-              <use href="#hLotus" transform="translate(332 152) scale(.95)"/>
-            </g>
-            <g class="pond-lotus" style="--sway-dur:9.2s;--sway-delay:-4.5s">
-              <use href="#hLotus" transform="translate(600 178) scale(.66)"/>
-            </g>
-            <g class="pond-lotus" style="--sway-dur:8.1s;--sway-delay:-3s">
-              <use href="#hLotusBud" transform="translate(140 196) scale(.8)"/>
             </g>
           </g>
 
