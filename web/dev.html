@@ -53,12 +53,17 @@
           <select id="mode-select">
             <option value="replay">🎧 EDF 真实数据回放</option>
             <option value="manual">🎮 手动模拟</option>
-            <option value="hardware">📟 真实头环（未接入）</option>
+            <option value="hardware">📟 Xmuse 脑电波仪（OSC/UDP）</option>
           </select>
         </label>
         <label class="field" id="file-field">
           <span>数据文件（回放源）</span>
           <select id="file-select" style="max-width:380px"></select>
+        </label>
+        <label class="field" id="osc-field" style="visibility:hidden">
+          <span>Xmuse OSC 端口（UDP）</span>
+          <input id="osc-ports" type="text" value="7000,8000" placeholder="7000,8000"
+                 style="max-width:220px;padding:8px 10px;border-radius:8px;border:1px solid #cfd8dc" />
         </label>
         <div class="btn-row" style="flex-wrap:nowrap">
           <button id="btn-apply" class="btn btn-sm btn-primary">应用</button>
@@ -117,12 +122,14 @@
         renderSessions(Object.values(info.sessions || {}).reverse());
         if (info.source_config) {
           $("mode-select").value = info.source_config.mode;
+          if (info.source_config.osc_ports) $("osc-ports").value = info.source_config.osc_ports;
           if (info.source_config.file) {
             const files = info.edf_files || [];
             const i = files.findIndex(f => f.path === info.source_config.file);
             if (i >= 0) $("file-select").selectedIndex = i;
           }
         }
+        syncFields();
       } catch (e) {
         $("engine").textContent = "加载失败：" + e.message;
       }
@@ -133,7 +140,8 @@
         <table>
           <tbody>
             <tr><th style="width:140px">模型</th><td><span class="badge">${eng.model}</span></td></tr>
-            <tr><th>特征维度</th><td class="mono">${eng.feature_dim} 维（${eng.window_sec}s 窗口 × 21 通道 × 11 特征）</td></tr>
+            <tr><th>特征维度</th><td class="mono">${eng.feature_dim} 维（21 通道 × 11 特征；Xmuse 4/6 通道自动切频段指标）</td></tr>
+            <tr><th>当前推理</th><td class="mono">${eng.active_mode === "band" ? "β/(θ+α) 频段指标（Xmuse）" : "21 通道模型"}</td></tr>
             <tr><th>频段</th><td class="mono">${eng.bands.join(" / ")} Hz</td></tr>
             <tr><th>平滑</th><td class="mono">EMA α=0.35</td></tr>
           </tbody>
@@ -151,14 +159,21 @@
       });
     }
 
-    $("mode-select").addEventListener("change", () => {
-      $("file-field").style.visibility = $("mode-select").value === "replay" ? "visible" : "hidden";
-    });
-    $("file-field").style.visibility = "visible";
+    function syncFields() {
+      const mode = $("mode-select").value;
+      $("file-field").style.visibility = mode === "replay" ? "visible" : "hidden";
+      $("osc-field").style.visibility = mode === "hardware" ? "visible" : "hidden";
+    }
+    $("mode-select").addEventListener("change", syncFields);
+    syncFields();
 
     $("btn-apply").addEventListener("click", async () => {
       const mode = $("mode-select").value;
-      const body = { mode, file: mode === "replay" ? $("file-select").value : null };
+      const body = {
+        mode,
+        file: mode === "replay" ? $("file-select").value : null,
+        osc_ports: mode === "hardware" ? $("osc-ports").value : null,
+      };
       try {
         const r = await API.post("/api/dev/source", body);
         toast("信号源已应用：" + r.source_config.mode);
@@ -173,7 +188,11 @@
       btn.disabled = true;
       btn.textContent = "加载数据中…";
       try {
-        const res = await API.post("/api/session", { mode: $("mode-select").value, file: $("file-select").value });
+        const res = await API.post("/api/session", {
+          mode: $("mode-select").value,
+          file: $("file-select").value,
+          osc_ports: $("mode-select").value === "hardware" ? $("osc-ports").value : null,
+        });
         watchSession = res.session_id;
         $("monitor-card").classList.remove("hidden");
         btn.textContent = "停止监视";

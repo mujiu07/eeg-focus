@@ -41,6 +41,23 @@ python3 -m venv .venv
 
 浏览器打开 <http://127.0.0.1:8000>
 
+### Xmuse 脑电波仪（OSC/UDP）
+
+1. 打开 **Xmuse Direct**，蓝牙连接设备，确认波形正常。
+2. 添加 **OSC 输出**：IP `127.0.0.1`、UDP 端口 `7000`（默认）、前缀留空或填 `7000`。
+3. 先验证数据是否进来（会同时监听 7000/8000）：
+
+   ```powershell
+   .\.venv-win\Scripts\python.exe scripts\xmuse_osc_probe.py
+   ```
+
+4. 启动 `.\start.ps1`，打开 `http://127.0.0.1:8000/calibrate.html`，
+   信号源选 **Xmuse 脑电波仪（OSC/UDP）**，端口填 `7000,8000`，完成校准后进入游戏。
+
+> 网页服务是 **TCP 8000**，OSC 是 **UDP 8000**，两者不冲突。
+> 多设备/自定义端口：`XMUSE_OSC_PORTS=7000,8000,8001,8002`；采样率：`XMUSE_OSC_FS=256`。
+> 4/6 通道设备会自动切换到 `β/(θ+α)` 频段指标，21 通道 EDF 回放仍使用原模型。
+
 > **无需数据集也能体验**：不执行第 2 步时，游戏仍可运行（`manual` 手动源）；执行 `scripts/preprocess.py` + `scripts/train.py` 可重建模型。
 
 ## 完整用户旅程（演示）
@@ -53,7 +70,7 @@ python3 -m venv .venv
    - 专注指数 ≥ 基线 → 蓄力条上升 → 蓄满 → 青蛙跳向下一片荷叶（+1 分）
    - 专注指数 < 基线 → 蓄力条回落，青蛙"跳不动"
 4. **报告页**：游戏成绩、脑波分数（教学映射）、高于基线时间占比、有效数据占比
-5. **开发者页**：模型评估报告、信号源切换（72 个 EDF 文件 / 手动 / 硬件占位）、实时监视
+5. **开发者页**：模型评估报告、信号源切换（72 个 EDF 文件 / 手动 / Xmuse OSC）、实时监视
 
 ## 三种信号源（信号源抽象层）
 
@@ -61,7 +78,7 @@ python3 -m venv .venv
 |---|---|---|
 | `replay` | EDF 真实数据回放（默认） | 演示"真实脑电驱动"：放松段低专注、心算段高专注，端到端闭环可复现 |
 | `manual` | 滑块直接控制专注度 | 无数据环境/机制演示：把滑块拉到右侧青蛙一直跳，拉到左侧就跳不动 |
-| `hardware` | 真实脑电头环 | MVP 预留接口（未实现） |
+| `hardware` | Xmuse 脑电波仪（OSC/UDP 实时脑电） | 真机驱动：Xmuse Direct 推流 → 4/6 通道频段指标 → 游戏 |
 
 ## 脑波分数引擎（教学映射）
 
@@ -106,7 +123,7 @@ eeg-focus/
 |---|---|
 | `docs/usage-and-privacy.md` | 使用说明 + 隐私保障（数据本地处理） |
 | `docs/tech-stack.md` | 技术栈（前端/后端/算法/硬件接入） |
-| `docs/xmuse-hardware-integration.md` | Xmuse 脑电波仪硬件接入方案（筹备中） |
+| `docs/xmuse-hardware-integration.md` | Xmuse 接入方案与已落地实现（OSC/UDP 7000/8000） |
 | `docs/ARCHITECTURE.md` | 架构设计 |
 | `docs/PRD-brain-focusing-game-MVP.md` | 产品需求文档 |
 
@@ -116,5 +133,5 @@ eeg-focus/
 - [x] P0 专注映射游戏操作（蓄力→跳出）
 - [x] 结果报告页、开发者页、设置页（入口）
 - [ ] 多孩子账号（可选）
-- [ ] 真实脑电头环接入（hardware 源）
+- [x] 真实脑电头环接入（Xmuse OSC/UDP）
 - [ ] 家长进度趋势报告（多局汇总）

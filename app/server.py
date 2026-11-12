@@ -37,7 +37,14 @@ app = FastAPI(title="Brain-Focusing Game MVP", version="0.1.0")
 # ---------------------------------------------------------------------------
 # 全局状态
 # ---------------------------------------------------------------------------
-DEFAULT_SOURCE_CONFIG = {"mode": "replay", "file": None}
+DEFAULT_SOURCE_CONFIG = {
+    "mode": "replay",
+    "file": None,
+    "osc_host": None,
+    "osc_ports": None,
+    "osc_fs": None,
+    "osc_channels": None,
+}
 _engine = FocusEngine()
 _sessions: dict[str, "Session"] = {}
 _source_config = dict(DEFAULT_SOURCE_CONFIG)
@@ -68,16 +75,25 @@ class Session:
         self.engine.reset()
         # EDF 读取+滤波耗时数秒，在线程池执行，避免阻塞事件循环
         # （否则刚创建会话时 SSE 连接会长时间收不到任何帧）
-        if self.source.name == "replay":
+        # hardware 只做端口绑定，也放到线程池，避免绑定异常卡住事件循环。
+        if self.source.name in ("replay", "hardware"):
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self.source.start)
         self._task = asyncio.create_task(self._run())
 
     async def _run(self):
+        loop = asyncio.get_running_loop()
         while not self.finished:
             t0 = time.time()
             try:
-                seg, meta = self.source.next_window()
+                if self.source.name == "hardware":
+                    # next_window 会阻塞等待 OSC 窗口，必须放线程池，
+                    # 否则整个 FastAPI 事件循环会被卡住。
+                    seg, meta = await loop.run_in_executor(None, self.source.next_window)
+                else:
+                    seg, meta = self.source.next_window()
+                if self.finished:
+                    break
                 if self.source.name == "manual":
                     raw = meta.get("focus", 0.5)
                     focus = raw
@@ -100,6 +116,8 @@ class Session:
                         pass
                     self._queue.put_nowait(entry)
             except Exception as e:  # noqa: BLE001
+                if self.finished:
+                    break
                 entry = {"t": round(time.time() - self.created_at, 2),
                          "raw": None, "focus": None, "valid": False,
                          "meta": {"source": self.source.name, "error": str(e)}}
@@ -115,6 +133,13 @@ class Session:
             return self
         self.finished = True
         self.finished_at = time.time()
+        # 释放硬件源占用的 UDP 端口，避免下一局 hardware 会话绑定失败
+        if self.source.name == "hardware":
+            try:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, self.source.stop)
+            except Exception:  # noqa: BLE001 - 释放失败不影响报告
+                pass
         # 报告统计只使用有效帧（异常帧 focus=None/valid=False，不得进入均值与曲线）
         valid = [e for e in self.history if e.get("valid")]
         focuses = [e["focus"] for e in valid]
@@ -166,6 +191,10 @@ def np_mean(xs):
 class SessionCreate(BaseModel):
     mode: str = "replay"          # replay | manual | hardware
     file: Optional[str] = None    # replay 模式下的 EDF 文件路径
+    osc_host: Optional[str] = None       # hardware: Xmuse OSC 监听地址
+    osc_ports: Optional[str] = None      # hardware: 如 "7000,8000"
+    osc_fs: Optional[float] = None       # hardware: 采样率（默认 256）
+    osc_channels: Optional[int] = None   # hardware: 0=自动
 
 
 class CalibrateStart(BaseModel):
@@ -185,6 +214,10 @@ class SessionFinish(BaseModel):
 class SourceSwitch(BaseModel):
     mode: str = "replay"
     file: Optional[str] = None
+    osc_host: Optional[str] = None
+    osc_ports: Optional[str] = None
+    osc_fs: Optional[float] = None
+    osc_channels: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +225,8 @@ class SourceSwitch(BaseModel):
 # ---------------------------------------------------------------------------
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "model": _engine.describe()["model"]}
+    eng = _engine.describe()
+    return {"status": "ok", "model": eng["model"], "engine_mode": eng["active_mode"]}
 
 
 @app.get("/api/dev/info")
@@ -218,22 +252,47 @@ def dev_switch_source(body: SourceSwitch):
     global _source_config
     if body.mode not in ("replay", "manual", "hardware"):
         raise HTTPException(400, "mode 必须是 replay/manual/hardware")
-    _source_config = {"mode": body.mode, "file": body.file}
+    _source_config = {
+        "mode": body.mode,
+        "file": body.file,
+        "osc_host": body.osc_host,
+        "osc_ports": body.osc_ports,
+        "osc_fs": body.osc_fs,
+        "osc_channels": body.osc_channels,
+    }
     return {"ok": True, "source_config": _source_config}
 
 
 @app.post("/api/session")
 async def create_session(body: SessionCreate):
-    config = {"mode": body.mode, "file": body.file}
+    config = {
+        "mode": body.mode,
+        "file": body.file,
+        "osc_host": body.osc_host,
+        "osc_ports": body.osc_ports,
+        "osc_fs": body.osc_fs,
+        "osc_channels": body.osc_channels,
+    }
     try:
+        # 兜底：同一时间只保留一个硬件会话，避免新旧会话争抢 UDP 7000/8000。
+        # 正常流程校准页会先 finish 旧会话；这里防止前端异常/直接刷新导致端口占用。
+        if config["mode"] == "hardware":
+            for old in list(_sessions.values()):
+                if old.source.name == "hardware" and not old.finished:
+                    try:
+                        await old.finish(notes="replaced-by-new-hardware-session")
+                    except Exception:  # noqa: BLE001
+                        pass
         source = sources.create_source(config)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, f"信号源创建失败: {e}")
-    if source.name == "hardware":
-        raise HTTPException(400, "真实硬件头环尚未接入（MVP 演示请使用 replay/manual）")
     s = Session(source, config)
     _sessions[s.id] = s
-    await s.start()
+    try:
+        await s.start()
+    except Exception as e:  # noqa: BLE001 - 端口占用/依赖缺失时给出可读错误
+        _sessions.pop(s.id, None)
+        raise HTTPException(400, f"信号源启动失败: {e}")
     return {"session_id": s.id, "source": source.describe()}
 
 

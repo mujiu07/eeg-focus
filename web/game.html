@@ -118,7 +118,8 @@
 
     // ---- 创建会话 ----
     async function init() {
-      const mode = (prev && prev.source && prev.source.mode === "manual") ? "manual" : "replay";
+      const prevMode = prev && prev.source ? prev.source.mode : null;
+      const mode = prevMode === "manual" ? "manual" : (prevMode === "hardware" ? "hardware" : "replay");
       let body = { mode };
       if (mode === "replay") {
         const info = await API.get("/api/dev/info");
@@ -128,9 +129,11 @@
         const focusFiles = (info.edf_files || []).filter(f => f.segment === 2);
         const match = focusFiles.find(f => subj && f.subject === subj[1]);
         body.file = (match || focusFiles[0]).path;
+      } else if (mode === "hardware") {
+        body.osc_ports = (prev && prev.source && prev.source.osc_ports) || null;
       }
       const res = await API.post("/api/session", body);
-      state.session = { id: res.session_id, mode };
+      state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null };
       state.manualMode = mode === "manual";
       $("manual-card").classList.toggle("hidden", !state.manualMode);
 
