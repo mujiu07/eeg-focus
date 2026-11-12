@@ -34,7 +34,7 @@
 - 公共层：
   - `assets/api.js`：REST + SSE 封装，含 6s 无数据自愈重连（最多 4 次）与 `onStatus("live"/"reconnecting")`
   - `assets/style.css`：梦境池塘视觉与通用组件
-  - `assets/sky.css` + `assets/sky.js`：全站天空模式（黎明/白天/傍晚/黑夜/跟随系统时间），按日出日落估算自动切换，`localStorage` 跨页保存
+  - `assets/sky.css` + `assets/sky.js`：全站天空模式（黎明/白天/傍晚/黑夜/跟随系统时间），按日出日落估算自动切换，`localStorage` 跨页保存；`sky.js` 同时导出 `window.SkyTheme` 色板，首页 SVG 与游戏画布 `game.html` 共用同一套天空 / 水面 / 远山 / 日月星配色
   - `assets/music.js` + `assets/vinyl.css`：黑胶唱片机播放器，结构由脚本注入，跨页保留曲目与进度
   - `assets/hero-pond.js`：首页动态池塘（青蛙跳跃、荷叶弹簧、水花、鱼群）
 - 数据通道：浏览器 `EventSource` 消费 SSE

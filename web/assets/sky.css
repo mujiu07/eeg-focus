@@ -419,18 +419,15 @@ html[data-sky="dawn"] #heroGlints { opacity: .55; }
 html[data-sky="dusk"] #heroGlints { opacity: .45; }
 html[data-sky="night"] #heroGlints { opacity: .32; }
 
-#heroLilies, #heroSmallLilies, #heroLotus { transition: filter 1s ease; }
+#heroLilies, #heroSmallLilies { transition: filter 1s ease; }
 html[data-sky="dawn"] #heroLilies,
-html[data-sky="dawn"] #heroSmallLilies,
-html[data-sky="dawn"] #heroLotus { filter: brightness(.9) saturate(.95) sepia(.08); }
+html[data-sky="dawn"] #heroSmallLilies { filter: brightness(.9) saturate(.95) sepia(.08); }
 html[data-sky="dusk"] #heroLilies,
-html[data-sky="dusk"] #heroSmallLilies,
-html[data-sky="dusk"] #heroLotus { filter: brightness(.8) saturate(.9) sepia(.14); }
+html[data-sky="dusk"] #heroSmallLilies { filter: brightness(.8) saturate(.9) sepia(.14); }
 html[data-sky="night"] #heroLilies,
 html[data-sky="night"] #heroSmallLilies { filter: brightness(.62) saturate(.85); }
-html[data-sky="night"] #heroLotus { filter: brightness(.72) saturate(.9); }
 
-/* ---------- 小荷叶浮动 / 荷花轻摆 / 水下游鱼 ---------- */
+/* ---------- 小荷叶浮动 / 水下游鱼 ---------- */
 .pond-small-lily {
   animation: lilyBob var(--bob-dur, 7s) ease-in-out infinite;
   animation-delay: var(--bob-delay, 0s);
@@ -438,17 +435,6 @@ html[data-sky="night"] #heroLotus { filter: brightness(.72) saturate(.9); }
 @keyframes lilyBob {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-1.8px); }
-}
-
-.pond-lotus {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  animation: lotusSway var(--sway-dur, 8s) ease-in-out infinite;
-  animation-delay: var(--sway-delay, 0s);
-}
-@keyframes lotusSway {
-  0%, 100% { transform: rotate(-1.6deg); }
-  50%      { transform: rotate(1.8deg); }
 }
 
 #heroFish { color: #2a6b78; transition: color 1s ease, opacity 1s ease; }
@@ -503,14 +489,13 @@ html[data-sky="night"] #heroStars circle {
   #heroBirds .bird,
   #heroBirds .bird-wings,
   .pond-small-lily,
-  .pond-lotus,
   html[data-sky="night"] #heroStars circle { animation: none !important; }
 }
 
 html[data-sky="dusk"] .vinyl-sub.is-error { color: #ffb3a1; }
 html[data-sky="night"] .vinyl-sub.is-error { color: #ff9c8c; }
-html[data-sky="dusk"] #game-canvas { filter: brightness(.92) saturate(.97) sepia(.05); }
-html[data-sky="night"] #game-canvas { filter: brightness(.82) saturate(.92); }
+/* 游戏画布的天空与环境由 game.html 按天空模式重绘，这里不再叠加滤镜，
+   否则会与画布内的黎明 / 傍晚 / 黑夜配色重复压暗 */
 html[data-sky="dusk"] .step,
 html[data-sky="night"] .step {
   background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));

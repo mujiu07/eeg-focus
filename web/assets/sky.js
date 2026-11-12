@@ -18,6 +18,93 @@
     night: "\uD83C\uDF19",
   };
 
+  // 四档天空的完整配色：首页 SVG 场景与游戏画布共用同一份色板，
+  // 保证「游戏界面」和「初始界面」的黎明 / 白天 / 傍晚 / 黑夜完全同步。
+  // sky / water 为渐变，hills / trees 为实色，glow / mist 为晨昏地平线光。
+  var PALETTES = {
+    day: {
+      sky: ["#dff4fb", "#c9edf4", "#b3e3e8"],
+      water: ["#9fd8e2", "#6fb8c9"],
+      hills: ["rgba(201, 233, 223, .86)", "rgba(179, 221, 214, .92)"],
+      trees: "rgba(88, 178, 128, .8)",
+      waves: 1,
+      cloud: { fill: "rgba(255, 255, 255, .92)", alpha: .88 },
+      mist: { color: "255, 233, 216", alpha: 0 },
+      glow: null,
+      sun: { x: 828, y: 62, core: "#ffdf8e", mid: "#ffe9b8", halo: "#ffe9b8" },
+      moon: null,
+      stars: false,
+      flora: "none",
+      frog: "none",
+      energy: ["#8fe3a0", "#2f9c93"],
+      hud: { pill: "rgba(255, 255, 255, .92)", ink: "#23464f", inkSoft: "rgba(35, 70, 79, .75)" },
+    },
+    dawn: {
+      sky: ["#9fb0e6", "#e7b6d4", "#ffd7a4"],
+      water: ["#f5c0ad", "#6f9fbd"],
+      hills: ["rgba(169, 178, 201, .84)", "rgba(143, 154, 180, .9)"],
+      trees: "rgba(96, 142, 133, .8)",
+      waves: .86,
+      cloud: { fill: "rgba(255, 223, 213, .9)", alpha: .7 },
+      mist: { color: "255, 217, 198", alpha: .42 },
+      glow: { x: 327, y: 300, rx: 120, ry: 18, color: "255, 210, 168" },
+      sun: { x: 327, y: 136, core: "#fff3cf", mid: "#ffe1b0", halo: "#ffd2ac" },
+      moon: null,
+      stars: false,
+      flora: "brightness(.9) saturate(.95) sepia(.08)",
+      frog: "brightness(.92) sepia(.06)",
+      energy: ["#e0a8c0", "#8f4d6b"],
+      hud: { pill: "rgba(255, 250, 252, .9)", ink: "#4a3c4c", inkSoft: "rgba(74, 60, 76, .74)" },
+    },
+    dusk: {
+      sky: ["#4f5590", "#d97e83", "#ffb968"],
+      water: ["#e39482", "#4a6684"],
+      hills: ["rgba(134, 119, 154, .88)", "rgba(108, 95, 128, .92)"],
+      trees: "rgba(92, 104, 122, .82)",
+      waves: .7,
+      cloud: { fill: "rgba(255, 201, 186, .9)", alpha: .75 },
+      mist: { color: "255, 208, 180", alpha: .36 },
+      glow: { x: 744, y: 302, rx: 136, ry: 19, color: "255, 184, 122" },
+      sun: { x: 744, y: 152, core: "#ffd08a", mid: "#ffb066", halo: "#ff9f6a" },
+      moon: null,
+      stars: false,
+      flora: "brightness(.8) saturate(.9) sepia(.14)",
+      frog: "brightness(.85) sepia(.12)",
+      energy: ["#ffb496", "#ff8d68"],
+      hud: { pill: "rgba(255, 255, 255, .14)", ink: "#f7eae8", inkSoft: "rgba(247, 234, 232, .8)" },
+    },
+    night: {
+      sky: ["#0a1730", "#142a4d", "#244a70"],
+      water: ["#16405a", "#0d2a3e"],
+      hills: ["rgba(26, 56, 84, .95)", "rgba(19, 45, 70, .97)"],
+      trees: "rgba(38, 74, 96, .82)",
+      waves: .52,
+      cloud: null,
+      mist: { color: "188, 214, 255", alpha: 0 },
+      glow: null,
+      sun: null,
+      moon: { x: 808, y: 66, core: "#f4f8ff", halo: "#cfe0ff" },
+      stars: true,
+      flora: "brightness(.62) saturate(.85)",
+      frog: "brightness(.8)",
+      energy: ["#8fdbea", "#58b6d4"],
+      hud: { pill: "rgba(255, 255, 255, .13)", ink: "#e6f0f8", inkSoft: "rgba(230, 240, 248, .8)" },
+    },
+  };
+
+  // 供 canvas 页面读取（game.html）：与 CSS 的 data-sky 保持同一份状态
+  window.SkyTheme = {
+    sky: function () {
+      var sky = root.getAttribute("data-sky");
+      return PALETTES[sky] ? sky : "day";
+    },
+    palette: function (name) {
+      return PALETTES[name] || PALETTES.day;
+    },
+    palettes: PALETTES,
+    names: SKY_NAMES
+  };
+
   // 黎明 / 傍晚的过渡窗口（以日出、日落为基准，单位：分钟）
   var DAWN_LEAD = 40;   // 日出前 40 分钟进入黎明
   var DAWN_TAIL = 32;   // 日出后 32 分钟结束黎明

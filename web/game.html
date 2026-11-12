@@ -9,7 +9,8 @@
   <style>
     #game-canvas {
       display: block;
-      background: linear-gradient(180deg, #cfeef5 0%, #a8dce6 62%, #6fb8c9 100%);
+      /* 首帧绘制前先铺一层与当前天空模式一致的底色，避免白天/黑夜闪一下 */
+      background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 34%, var(--sky-low) 62%, var(--water-top) 100%);
       box-shadow: var(--shadow-soft);
       border: 3px solid rgba(255,255,255,.75);
     }
@@ -96,6 +97,47 @@
     const $ = id => document.getElementById(id);
     const canvas = $("game-canvas");
     const ctx = canvas.getContext("2d");
+
+    // ---- 天空主题：与首页（index.html）共用 sky.js 里的同一份色板 ----
+    // 黎明 / 白天 / 傍晚 / 黑夜切换时，画布的天空、日月星、云、远山、水面、
+    // 水面反光与荷叶明度都会跟着重绘，和初始界面的梦境池塘保持一致。
+    function theme() {
+      return window.SkyTheme ? SkyTheme.palette(SkyTheme.sky()) : SkyThemeFake;
+    }
+    const SkyThemeFake = {
+      sky: ["#dff4fb", "#c9edf4", "#b3e3e8"],
+      water: ["#9fd8e2", "#6fb8c9"],
+      hills: ["rgba(201, 233, 223, .86)", "rgba(179, 221, 214, .92)"],
+      trees: "rgba(88, 178, 128, .8)",
+      waves: 1,
+      cloud: { fill: "rgba(255, 255, 255, .92)", alpha: .88 },
+      mist: { color: "255, 233, 216", alpha: 0 },
+      glow: null,
+      sun: { x: 828, y: 62, core: "#ffdf8e", mid: "#ffe9b8", halo: "#ffe9b8" },
+      moon: null,
+      stars: false,
+      flora: "none",
+      frog: "none",
+      energy: ["#8fe3a0", "#2f9c93"],
+      hud: { pill: "rgba(255, 255, 255, .92)", ink: "#23464f", inkSoft: "rgba(35, 70, 79, .75)" },
+    };
+
+    // 星图：固定随机种子，每次打开位置一致；避开月亮周围留出干净的月光
+    const stars = (function () {
+      let seed = 20261112;
+      const rnd = () => {
+        seed = (seed * 1664525 + 1013904223) % 4294967296;
+        return seed / 4294967296;
+      };
+      const out = [];
+      for (let i = 0; i < 76; i++) {
+        const x = 14 + rnd() * 872;
+        const y = 8 + rnd() * 174;
+        if (Math.pow(x - 808, 2) + Math.pow(y - 66, 2) < 52 * 52) continue;
+        out.push({ x, y, r: 0.6 + rnd() * 1.5, ph: rnd() * Math.PI * 2, sp: 0.5 + rnd() * 1.1 });
+      }
+      return out;
+    })();
 
     // ---- 会话与基线 ----
     // 校准基线有效期 1 小时：有效期内刷新/关闭页面都无需重新校准；
@@ -386,51 +428,93 @@
     // ---- 绘制 ----
     function draw(ts) {
       const t = ts / 1000;
+      const p = theme();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      drawSky(t);
-      drawSun(t);
-      drawClouds(t);
-      drawMountains();
-      drawTrees();
-      drawWater(t);
+      drawSky(p);
+      drawStars(p, t);
+      drawSun(p, t);
+      drawClouds(p, t);
+      drawMist(p);
+      drawMountains(p);
+      drawTrees(p);
+      drawWater(p, t);
+      drawReflection(p, t);
       drawSplashes();   // 涟漪在水面上、荷叶之下：被荷叶遮住内圈，叶缘外才露出
-      drawLilies(t);
-      drawFrog(t);
+      drawLilies(p, t);
+      drawFrog(p, t);
       drawDroplets();
       drawPopups();
-      drawEnergy();
-      drawHudText();
+      drawEnergy(p);
+      drawHudText(p);
     }
 
-    function drawSky() {
+    function drawSky(p) {
       const g = ctx.createLinearGradient(0, 0, 0, 240);
-      g.addColorStop(0, "#dff4fb");
-      g.addColorStop(1, "#b7e6ec");
+      g.addColorStop(0, p.sky[0]);
+      g.addColorStop(0.5, p.sky[1]);
+      g.addColorStop(1, p.sky[2]);
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, canvas.width, 240);
     }
 
-    function drawSun(t) {
-      const sx = 828, sy = 62;
-      const pulse = 1 + Math.sin(t * 1.1) * 0.04;
+    // 夜空星星：与首页一样缓慢明暗交替
+    function drawStars(p, t) {
+      if (!p.stars) return;
       ctx.save();
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = "#ffe9b8";
-      ctx.beginPath(); ctx.arc(sx, sy, 46 * pulse, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.5;
-      ctx.beginPath(); ctx.arc(sx, sy, 28, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = "#ffdf8e";
-      ctx.beginPath(); ctx.arc(sx, sy, 21, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        const tw = 0.5 + 0.5 * Math.sin(t * s.sp + s.ph);
+        ctx.globalAlpha = 0.25 + 0.7 * tw;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r * (0.85 + 0.3 * tw), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
 
-    function drawClouds(t) {
+    // 白天太阳 / 黎明与傍晚的低日 / 黑夜月亮，位置与首页一致
+    function drawSun(p, t) {
+      if (p.sun) {
+        const s = p.sun;
+        const pulse = 1 + Math.sin(t * 1.1) * 0.04;
+        ctx.save();
+        ctx.globalAlpha = 0.24;
+        ctx.fillStyle = s.halo;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 46 * pulse, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.48;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 29, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = s.core;
+        ctx.beginPath(); ctx.arc(s.x, s.y, 21, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      if (p.moon) {
+        const m = p.moon;
+        ctx.save();
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = m.halo;
+        ctx.beginPath(); ctx.arc(m.x, m.y, 48, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = m.core;
+        ctx.beginPath(); ctx.arc(m.x, m.y, 27, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#dbe6f8";
+        ctx.beginPath(); ctx.arc(m.x - 9, m.y - 9, 5.6, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = .9;
+        ctx.beginPath(); ctx.arc(m.x + 9, m.y + 3, 4.2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = .8;
+        ctx.beginPath(); ctx.arc(m.x - 4, m.y + 11, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawClouds(p, t) {
+      if (!p.cloud) return;   // 黑夜不显示云
       state.clouds.forEach(c => {
         ctx.save();
-        ctx.globalAlpha = 0.88;
-        ctx.fillStyle = "rgba(255,255,255,.92)";
+        ctx.globalAlpha = p.cloud.alpha;
+        ctx.fillStyle = p.cloud.fill;
         const s = c.s;
         // 相位固定为 c.phase，不能拿移动中的 c.x 当相位，否则云会随漂移上下颤
         const bob = Math.sin(t * 0.45 + c.phase) * 2.2;
@@ -443,8 +527,20 @@
       });
     }
 
-    function drawMountains() {
-      ctx.fillStyle = "rgba(176, 214, 205, 0.85)";
+    // 晨昏时地平线附近的薄雾（首页 #heroMist 同款）
+    function drawMist(p) {
+      if (!p.mist || !p.mist.alpha) return;
+      ctx.save();
+      ctx.filter = "blur(7px)";
+      ctx.fillStyle = "rgba(" + p.mist.color + ", " + p.mist.alpha + ")";
+      ctx.beginPath(); ctx.ellipse(140, 196, 130, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(470, 208, 160, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(770, 198, 138, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawMountains(p) {
+      ctx.fillStyle = p.hills[0];
       ctx.beginPath();
       ctx.moveTo(0, 210);
       ctx.quadraticCurveTo(180, 108, 400, 180);
@@ -452,7 +548,7 @@
       ctx.quadraticCurveTo(800, 150, 900, 196);
       ctx.lineTo(900, 250); ctx.lineTo(0, 250);
       ctx.closePath(); ctx.fill();
-      ctx.fillStyle = "rgba(133, 195, 184, 0.9)";
+      ctx.fillStyle = p.hills[1];
       ctx.beginPath();
       ctx.moveTo(0, 230);
       ctx.quadraticCurveTo(240, 160, 470, 216);
@@ -461,35 +557,37 @@
       ctx.closePath(); ctx.fill();
     }
 
-    function drawTrees() {
+    function drawTrees(p) {
       // 左岸树丛
-      ctx.fillStyle = "rgba(88, 178, 128, .8)";
+      ctx.fillStyle = p.trees;
       for (let i = 0; i < 5; i++) {
         const x = 18 + i * 34, y = 216 + (i % 2) * 8, s = 16 + (i % 3) * 4;
         ctx.beginPath();
         ctx.moveTo(x, y); ctx.lineTo(x - s, y + 16); ctx.lineTo(x + s, y + 16);
         ctx.closePath(); ctx.fill();
       }
-      ctx.fillStyle = "rgba(88, 178, 128, .65)";
+      ctx.save();
+      ctx.globalAlpha = .8;
       for (let i = 0; i < 4; i++) {
         const x = 780 + i * 30, y = 212 + (i % 2) * 10, s = 14 + (i % 3) * 4;
         ctx.beginPath();
         ctx.moveTo(x, y); ctx.lineTo(x - s, y + 16); ctx.lineTo(x + s, y + 16);
         ctx.closePath(); ctx.fill();
       }
+      ctx.restore();
     }
 
-    function drawWater(t) {
+    function drawWater(p, t) {
       const g = ctx.createLinearGradient(0, 230, 0, canvas.height);
-      g.addColorStop(0, "#9fd8e2");
-      g.addColorStop(1, "#6fb8c9");
+      g.addColorStop(0, p.water[0]);
+      g.addColorStop(1, p.water[1]);
       ctx.fillStyle = g;
       ctx.fillRect(0, 230, canvas.width, canvas.height - 230);
 
       // 水波层
       ctx.lineWidth = 3;
       for (let layer = 0; layer < 4; layer++) {
-        ctx.strokeStyle = `rgba(255,255,255,${0.42 - layer * 0.09})`;
+        ctx.strokeStyle = `rgba(255,255,255,${(0.42 - layer * 0.09) * p.waves})`;
         const base = 268 + layer * 42;
         ctx.beginPath();
         for (let x = 0; x <= canvas.width; x += 10) {
@@ -499,7 +597,7 @@
         ctx.stroke();
       }
       // 水面高光
-      ctx.fillStyle = "rgba(255,255,255,.14)";
+      ctx.fillStyle = `rgba(255,255,255,${0.14 * p.waves})`;
       for (let i = 0; i < 6; i++) {
         const hx = (i * 173 + 40) % 860 + 20;
         const hy = 300 + ((i * 97) % 120);
@@ -509,7 +607,34 @@
       }
     }
 
-    function drawLilies(t) {
+    // 黎明（左侧暖阳）/ 傍晚（右侧落日）的水面反光
+    function drawReflection(p, t) {
+      const gl = p.glow;
+      if (!gl) return;
+      const shimmer = 1 + Math.sin(t * 0.9) * 0.04;
+      ctx.save();
+      ctx.filter = "blur(6px)";
+      ctx.globalAlpha = .34;
+      ctx.fillStyle = "rgb(" + gl.color + ")";
+      ctx.beginPath();
+      ctx.ellipse(gl.x, gl.y, gl.rx * shimmer, gl.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = .4;
+      ctx.strokeStyle = "rgb(" + gl.color + ")";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(gl.x - gl.rx * 0.8, gl.y - 12);
+      ctx.lineTo(gl.x + gl.rx * 0.8, gl.y - 12);
+      ctx.moveTo(gl.x - gl.rx * 0.55, gl.y - 4);
+      ctx.lineTo(gl.x + gl.rx * 0.55, gl.y - 4);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawLilies(p, t) {
       lilies.forEach((l, i) => {
         const bob = Math.sin(t * 1.4 + l.bob) * 2.5;
         const dip = l.dip || 0;
@@ -525,8 +650,9 @@
         ctx.ellipse(l.x + 4, l.y + 14 + bob * 0.4 + dip * 0.5, 44 * s, 18 * s, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
-        // 荷叶
+        // 荷叶：明度随天空模式变化（与首页 #heroLilies 的滤镜一致）
         ctx.save();
+        ctx.filter = p.flora;
         ctx.translate(l.x, y);
         ctx.scale(s * (1 + squash * 0.5), s * (1 - squash));
         const g = ctx.createRadialGradient(6, -8, 4, 0, 0, 48);
@@ -556,7 +682,7 @@
       });
     }
 
-    function drawFrog(t) {
+    function drawFrog(p, t) {
       // 荷叶上表面 = 荷叶中心 y - 26；青蛙中心 = 交点 y - 28（半高），青蛙底部正好落在三条直线交点（荷叶中心 y）
       // 荷叶下沉/上浮时青蛙跟着一起动，避免落地瞬间"悬空"
       const i0 = state.cur, i1 = state.cur + 1;
@@ -603,6 +729,7 @@
       // rgba(30, 96, 56, .4)，导致青蛙看起来是半透明的。
       ctx.save();
       ctx.globalAlpha = 1;
+      ctx.filter = p.frog;
       ctx.fillStyle = "#1d3f2f";
       ctx.font = `${FROG_SIZE}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
       ctx.textAlign = "center";
@@ -657,7 +784,7 @@
       });
     }
 
-    function drawEnergy() {
+    function drawEnergy(p) {
       const w = canvas.width - 32 - 96, h = 22, x = 16, y = 62;
       // 轨道
       ctx.fillStyle = "rgba(255,255,255,.5)";
@@ -670,8 +797,8 @@
       // 填充
       if (state.energy > 0) {
         const g = ctx.createLinearGradient(x, 0, x + w, 0);
-        g.addColorStop(0, "#8fe3a0");
-        g.addColorStop(1, "#2f9c93");
+        g.addColorStop(0, p.energy[0]);
+        g.addColorStop(1, p.energy[1]);
         ctx.fillStyle = g;
         roundRect(ctx, x + 2, y + 2, Math.max(6, (w - 4) * state.energy / 100), h - 4, 9);
         ctx.fill();
@@ -686,18 +813,18 @@
       // 标签
       ctx.textAlign = "right";
       ctx.font = "800 17px 'PingFang SC', sans-serif";
-      ctx.fillStyle = "#23464f";
+      ctx.fillStyle = p.hud.ink;
       ctx.fillText("蓄力", x + w + 12, y + h / 2 + 6);
-      ctx.fillStyle = "rgba(35,70,79,.75)";
+      ctx.fillStyle = p.hud.inkSoft;
       ctx.font = "700 15px 'PingFang SC', sans-serif";
       ctx.fillText(Math.round(state.energy) + "%", x + w + 58, y + h / 2 + 6);
     }
 
-    function drawHudText() {
-      ctx.fillStyle = "rgba(255,255,255,.92)";
+    function drawHudText(p) {
+      ctx.fillStyle = p.hud.pill;
       roundRect(ctx, 16, 18, 150, 32, 16);
       ctx.fill();
-      ctx.fillStyle = "#23464f";
+      ctx.fillStyle = p.hud.ink;
       ctx.font = "700 16px 'PingFang SC', sans-serif";
       ctx.textAlign = "left";
       ctx.fillText("🧠 脑波分数 " + Math.round(state.focus * 100) + "%", 30, 41);
