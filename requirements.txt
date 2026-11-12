@@ -4,9 +4,12 @@ uvicorn>=0.30,<1.0
 sse-starlette>=2.1,<4.0
 numpy>=2.0
 scipy>=1.13
-scikit-learn>=1.6
+scikit-learn>=1.6,<1.7
 joblib>=1.4
 pandas>=2.2
+
+# Xmuse 脑电波仪 OSC/UDP 接收（Xmuse Direct -> 127.0.0.1:7000/8000）
+python-osc>=1.8,<2.0
 
 # EDF 读取：Python 3.13+ 没有 pyedflib 预编译轮子，
 # 此时改用纯 Python 的 edfio（app/sources.py 会自动选择可用实现）

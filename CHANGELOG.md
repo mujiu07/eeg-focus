@@ -11,6 +11,21 @@
 
 ---
 
+## v1.2 — Xmuse 脑电波仪 OSC/UDP 接入（mujiu07）
+
+- 新增 `app/xmuse_osc.py`：多端口 OSC/UDP 接收（默认 `7000`、`8000`），2 s 窗 / 0.5 s 步长，自动识别 4/6 通道与 `/eeg` 地址后缀，解析 `/elements/is_good` 与 `/batt`。
+- `HardwareSource` 从占位改为真实 Xmuse 源；`app/server.py` 放开 hardware 会话、新增 `osc_host/osc_ports/osc_fs/osc_channels`、阻塞接收放入线程池、会话结束释放 UDP 端口、同一时间只保留一个硬件会话。
+- `app/focus_engine.py`：4/6 通道自动回退 `β/(θ+α)` 频段指标，21 通道 EDF 回放仍走原 231 维模型。
+- 前端 `web/dev.html`、`web/calibrate.html`、`web/game.html` 增加 Xmuse 选项、OSC 端口输入与游戏局间端口交接。
+- 新增 `scripts/xmuse_osc_probe.py` 端口探针；`requirements.txt` 增加 `python-osc`，固定 `scikit-learn<1.7` 以匹配模型。
+- `start.ps1` 支持自动建 venv、默认 `XMUSE_OSC_HOST=127.0.0.1`、`XMUSE_OSC_PORTS=7000,8000`、`XMUSE_OSC_FS=256`。
+- 文档更新：`README.md`、`docs/xmuse-hardware-integration.md`、`docs/tech-stack.md`、`docs/usage-and-privacy.md`。
+- 验证：合成 OSC 666 报文窗口 `(4,512)`；频段回退 theta `0.148` / beta `0.98`；HTTP 端到端 `n_valid_frames=4`；连续两局重绑定同一 UDP 端口成功。
+- 端口依据：Xmuse Direct 默认 `127.0.0.1:7000`；官方示例另用 `8000/8001/8002`；Xmuse Lab 的 `1234` 是授权桥接，不是脑电流。
+- 本轮提交与推送使用 mujiu07 账户（本机未配置 Cuprum0214 SSH key）。
+
+---
+
 ## v1.0 — 版本迭代管理启用（Cuprum0214）
 
 - 建立 CHANGELOG 与 Git tag 版本迭代机制。

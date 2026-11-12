@@ -44,7 +44,7 @@
   - 首帧 `hello`（元信息），随后每 0.5 s 一帧 `frame`（`t`、`focus`、`raw` 等）
   - **分隔符为 CRLF `\r\n\r\n`**（uvicorn/sse-starlette 行为，测试脚本必须兼容 `\r?\n\r?\n`）
 - 会话模型：`Session` 内存态（`_sessions` 字典），`start()` 内 EDF 加载走线程池（`run_in_executor`）避免阻塞事件循环
-- 信号源抽象：`EEGSource.start() + next_window() -> (seg, meta)`，三实现 `ReplaySource / ManualSource / HardwareSource`（硬件为占位，待 Xmuse 接入）
+- 信号源抽象：`EEGSource.start() + next_window() -> (seg, meta)`，三实现 `ReplaySource / ManualSource / HardwareSource`（HardwareSource 已接入 Xmuse OSC/UDP 7000/8000）
 
 ---
 

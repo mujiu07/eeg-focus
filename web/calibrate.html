@@ -130,12 +130,19 @@
             <select id="source-select">
               <option value="replay">🎧 真实脑电数据回放（放松段）</option>
               <option value="manual">🎮 手动模拟</option>
+              <option value="hardware">📟 Xmuse 脑电波仪（OSC/UDP）</option>
             </select>
           </label>
-          <span class="badge">真机模式 MVP 暂未接入硬件</span>
+          <label class="field hidden" id="osc-field">
+            <span>OSC 端口（UDP）</span>
+            <input id="osc-ports" type="text" value="7000,8000"
+                   style="max-width:180px;padding:8px 10px;border-radius:8px;border:1px solid #cfd8dc" />
+          </label>
+          <span class="badge">Xmuse Direct 默认推流到 127.0.0.1:7000</span>
         </div>
         <div style="margin-top:8px;font-size:13.5px">
           回放模式：使用公开 EEG 数据集中"心算专注"与"放松"的真实脑电信号驱动游戏。
+          Xmuse 模式：先在 Xmuse Direct 连接设备并添加 OSC 输出，再回到这里开始校准。
         </div>
       </div>
     </div>
@@ -155,6 +162,7 @@
 
     $("source-select").addEventListener("change", e => {
       $("manual-ctl").classList.toggle("hidden", e.target.value !== "manual");
+      $("osc-field").classList.toggle("hidden", e.target.value !== "hardware");
     });
 
     $("manual-slider").addEventListener("input", async e => {
@@ -168,9 +176,16 @@
       try {
         const info = await API.get("/api/dev/info");
         const relaxFile = (info.edf_files || []).find(f => f.segment === 1);
-        const body = mode === "replay" ? { mode, file: relaxFile ? relaxFile.path : null } : { mode };
+        const body = mode === "replay"
+          ? { mode, file: relaxFile ? relaxFile.path : null }
+          : { mode, osc_ports: mode === "hardware" ? $("osc-ports").value : null };
         const res = await API.post("/api/session", body);
-        state.session = { id: res.session_id, mode, file: (res.source && res.source.file) || null };
+        state.session = {
+          id: res.session_id,
+          mode,
+          file: (res.source && res.source.file) || null,
+          osc_ports: (res.source && res.source.osc_ports) || null,
+        };
         startCalibration();
       } catch (err) {
         toast("启动失败：" + err.message);
@@ -219,7 +234,17 @@
         if (wait > 0) await new Promise(r => setTimeout(r, wait));
         const baseline = res.baseline;
         Store.saveCalib(baseline, res.calibration.quantiles);
-        Store.save(state.session.id, baseline, { mode: state.session.mode, file: state.session.file });
+        Store.save(state.session.id, baseline, {
+          mode: state.session.mode,
+          file: state.session.file,
+          osc_ports: state.session.osc_ports,
+        });
+        // 校准会话到此结束：释放硬件 UDP 端口，游戏页会新建一局硬件会话
+        try {
+          await API.post(`/api/session/${state.session.id}/finish`, {
+            score: 0, played_sec: 0, notes: "calibration",
+          });
+        } catch (_) { /* 释放失败不阻塞进入游戏，后端仍会兜底 */ }
         $("loading").classList.add("hidden");
         $("done").classList.remove("hidden");
         $("baseline-show").textContent = Math.round(baseline * 100) + "%";

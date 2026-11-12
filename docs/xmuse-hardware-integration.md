@@ -1,9 +1,9 @@
 # Xmuse 脑电波仪硬件接入方案
 
 > 项目：梦境池塘脑波专注游戏 MVP（`eeg-focus/`）
-> 状态：方案（未编码）
-> 日期：2026-10-20
-> 素材来源：设备商 GitHub 组织 `AI-Xmuse`（厦门北洋瑞恒智慧健康有限公司）公开仓库调研结论
+> 状态：**已实现（OSC/UDP 多端口接收 + 4 通道频段回退）**
+> 日期：2026-11-12（原方案 2026-10-20）
+> 素材来源：设备商 GitHub 组织 `AI-Xmuse`（厦门北洋瑞恒智慧健康有限公司）公开仓库 + 本机 Xmuse Lab 1.5.8 / Xmuse Direct 1.5.11 安装目录调研
 
 ---
 
@@ -15,7 +15,7 @@
 |---|---|
 | `replay` | EDF 真实数据回放（默认演示） |
 | `manual` | 滑块手动模拟专注度 |
-| `hardware` | **占位**，`start()` 直接抛 `RuntimeError` |
+| `hardware` | **已接入**：Xmuse OSC/UDP 实时脑电（`app/xmuse_osc.py`） |
 
 本次目标：把 `hardware` 信号源落地为真实的 **Xmuse 便携式脑电波仪** 接入，
 让游戏由真实脑电驱动专注度，替代/补充 EDF 回放演示。
@@ -53,7 +53,14 @@ Xmuse 是 **Muse 2 的国产兼容版**（官方仓库同时提到 "Muse 2 和 M
 #### 管道 A：OSC（Open Sound Control）
 
 - 拓扑：`Xmuse Direct 软件（发） → 本地 UDP 端口（收）`
-- 官方 OSC 客户端监听 `127.0.0.1`，示例端口 **8000 / 7000 / 8001 / 8002**
+- **Xmuse Direct 默认值（本机 1.5.11 二进制证据）**：`DefaultIPAddress = 127.0.0.1`、`DefaultUdpPort = 7000`
+  （`Xmuse Direct.dll` 资源字符串中 `DefaultIPAddress / DefaultUdpPort / CustomPrefix` 与 `127.0.0.1 / 7000` 相邻）
+- 官方代码/示例还使用 **8000 / 8001 / 8002**：`/8000/eeg`（OSC_client/Server.py）、多设备 8001/8002（Plenty Machine Recording）、示例脚本 7000（osc_test.py）
+- 因此本项目默认**同时监听 UDP 7000 与 8000**，可用 `XMUSE_OSC_PORTS` 追加 8001/8002
+- **端口冲突说明**：本项目的网页服务是 **TCP 8000**，OSC 是 **UDP 8000**，协议不同，可同时占用
+- 地址前缀（prefix）在 Xmuse Direct 中可配置，留空时是 `/eeg`，填端口号时是 `/7000/eeg` 或 `/8000/eeg`
+- 接收器只匹配“最后一段为 `eeg`”的地址，因此 `/eeg`、`/7000/eeg`、`/8000/eeg`、`/muse/eeg` 都能收；
+  会排除 `/elements/eeg/eeg[0]` 这类单通道镜像
 - 已证实的 OSC 地址（从官方游戏/工具源码提取）：
 
 | 地址 | 内容 | 出处 |
@@ -64,6 +71,7 @@ Xmuse 是 **Muse 2 的国产兼容版**（官方仓库同时提到 "Muse 2 和 M
 | `{prefix}/elements/touching_forehead` | 触摸额头 | Tank-Game |
 | `{prefix}/elements/eeg/eeg[0]` | EEG 单通道原始值 | Tank-Game |
 | `/8000/eeg` | EEG（prefix 为端口号时的写法） | OSC_client/Server.py |
+| `/7000/eeg` | EEG（Xmuse Direct 默认端口 7000 + 端口前缀） | Xmuse Direct 默认值推导 |
 
 - `prefix` 由用户在 Xmuse Direct 软件中配置，**可为空**（Tank-Game 明确支持留空，此时地址为 `/elements/...`）
 - 官方 OSC 工具用 `dispatcher.map("*")` 通配符接收**所有路径**，说明设备实际推送的地址多于上表
@@ -123,9 +131,26 @@ class HardwareSource(EEGSource):
 
 ---
 
-## 4. 推荐方案（分两阶段落地）
+### 3.4 本次已落地实现（2026-11-12）
 
-> 原则：**先打通数据管道拿真实 EEG，再解决专注度算法**；两阶段可独立交付。
+| 文件 | 改动 |
+|---|---|
+| `app/xmuse_osc.py` | **新增**：多端口 OSC/UDP 接收器，2 s 窗 / 0.5 s 步长，自动识别 4/6 通道与批量报文，输出质量/电量/断流诊断 |
+| `app/sources.py` | `HardwareSource` 由占位改为真实 OSC 源；`create_source("hardware")` 传递 `osc_*` 配置 |
+| `app/focus_engine.py` | 4/6 通道（如 Xmuse）自动切换 `β / (θ + α)` 频段指标；21 通道回放仍走原 231 维模型 |
+| `app/server.py` | 放开 hardware 会话；新增 `osc_host / osc_ports / osc_fs / osc_channels` 参数；阻塞接收放入线程池；会话结束释放 UDP 端口，并兜底保证同一时间只有一个硬件会话 |
+| `web/dev.html`、`web/calibrate.html`、`web/game.html` | 增加“Xmuse 脑电波仪（OSC/UDP）”选项、OSC 端口输入，并在校准→游戏之间沿用硬件模式 |
+| `scripts/xmuse_osc_probe.py` | **新增**：端口探针，实测 Xmuse Direct 到底推到哪个 UDP 端口/OSC 地址 |
+| `requirements.txt` | 新增 `python-osc>=1.8,<2.0`；`scikit-learn` 固定 `<1.7` 以匹配已训练模型 |
+
+**实测结果（合成 OSC）**：4 通道 / 512 样本窗口正确产出；端口识别 17000、地址 `/17000/eeg`；HTTP 全链路（创建会话 → 校准 → 报告）通过，`n_valid_frames=4`、基线 0.98。
+
+---
+
+## 4. 推荐方案（历史设计，已按 OSC 路线落地）
+
+> 实际落地选择了 **OSC** 而不是 LSL：Xmuse Direct 默认就提供 OSC 输出（127.0.0.1:7000），
+> 不需要额外的 `pylsl` 原生库，Windows 部署更简单；LSL 方案保留为后续多模态对齐的备选。
 
 ### 阶段 1：LSL 管道 + 频带指标直接算专注度（最快可用）
 
@@ -172,23 +197,27 @@ class HardwareSource(EEGSource):
 
 ```
 app/
-├── sources.py        # HardwareSource: 阶段1=LSL 订阅；阶段2=OSC 订阅
-├── features.py       # 不变（band_power 可复用）
-├── focus_engine.py   # 阶段2: 支持 model_path 参数
-├── xmuse_source.py   # (新增) LSL/OSC 订阅器：连接、环形缓冲、2s 出窗
-└── server.py         # 不变（create_source("hardware") 已接通）
+├── sources.py        # HardwareSource: 真实 OSC 源；replay/manual 不变
+├── features.py       # 不变（band_power 复用）
+├── focus_engine.py   # 231 维模型 + 4/6 通道 β/(θ+α) 自动回退
+├── xmuse_osc.py      # (新增) 多端口 OSC/UDP 接收器：环形缓冲、2s 出窗
+└── server.py         # hardware 会话、osc_* 参数、线程池隔离阻塞接收
 scripts/
-├── collect_xmuse.py  # (新增) 阶段2 采集脚本（放松/心算标注录制）
-├── train_xmuse.py    # (新增) 4 通道模型训练
-web/assets/api.js     # 不变
+├── xmuse_osc_probe.py # (新增) 端口/地址探针（先跑它再联调）
+└── ...                # collect_xmuse.py / train_xmuse.py 仍为阶段 2 可选
+web/
+├── dev.html          # 硬件模式 + OSC 端口输入
+├── calibrate.html    # 硬件模式 + 端口
+└── game.html         # 沿用校准时的硬件模式
 ```
 
 关键实现点：
 
-1. **环形缓冲**：LSL 256 Hz × 2 s = 512 样本/窗；维护 `deque(maxlen=512)`，每满一窗即出（与 STEP 0.5 s 不同——硬件源按"满窗即出"，节奏由设备驱动，SSE 帧率随之变化，前端按帧渲染无碍）
-2. **断连处理**：LSL 流丢失 → `start()` 重试/`describe()` 上报 `connected: false`，前端显示未连接（沿用 dev 页现有提示）
-3. **通道顺序**：按流内通道 label 映射到 `[TP9, AF7, AF8, TP10]` 固定顺序，避免模型输入错位
-4. **信号质量**：官方有"数据质量判断"与"接触指示"信号，接入后可做 `meta["quality"]`，低质量帧前端给提示
+1. **环形缓冲**：256 Hz × 2 s = 512 样本/窗；`deque(maxlen=512)`，每累计 0.5 s 产出一次重叠窗口，节奏由设备报文驱动
+2. **断连处理**：`next_window()` 超时抛出带诊断的中文错误（已收报文数、最近报文年龄、监听端口）；`describe()` 上报 `connected: false`
+3. **通道顺序**：默认 `[TP9, AF7, AF8, TP10, AUX1, AUX2]`；收到首包后按实际通道数截断/补齐
+4. **信号质量**：订阅 `*/elements/is_good` 作为 `meta["quality"]`，订阅 `*/batt` 作为 `meta["battery"]`
+5. **多端口**：7000/8000 可同时监听；多设备时用 `XMUSE_OSC_PORTS=7000,8000,8001,8002`
 
 ---
 
@@ -198,12 +227,12 @@ web/assets/api.js     # 不变
 
 | # | 待确认事项 | 为什么重要 | 影响 |
 |---|---|---|---|
-| 1 | Xmuse Direct 软件是否输出 **brainwaves / 脑波频段功率** 的 OSC 地址？具体地址与字段？ | 决定阶段 2' 是否可行（最省事路线） | 阶段 2' 取舍 |
-| 2 | OSC 模式下地址前缀规则与完整地址表（除已发现的 acc / elements/... 外） | 阶段 2' 需要精确地址；通配符实测 | 阶段 2' 实现 |
-| 3 | LSL 流名/type 全表（EEG / ACC / GYRO / PPG / elements / brainwaves?）及各自采样率、通道数 | 阶段 1 依赖 LSL 流定义 | 阶段 1 细节 |
-| 4 | Xmuse Direct 连接流程：是否必须蓝牙配对后软件推流？有无 API 直达设备（不经 Direct）？ | 决定产品使用流程（是否要求用户开 Direct） | 产品化 |
-| 5 | 2 个扩展电极的通道名/位置；能否只输出 4 通道 | 模型通道对齐 | 阶段 2 采集 |
-| 6 | 设备采样率确认（256 Hz?）与数据单位（µV?） | 特征口径一致性 | 全阶段 |
+| 1 | Xmuse Direct 软件是否输出 **brainwaves / 脑波频段功率** 的 OSC 地址？ | 决定是否可省掉自算 PSD | 目前未发现该地址，已按自算 PSD 落地 |
+| 2 | OSC 完整地址表（除 eeg / acc / elements 外） | 当前只消费 `/eeg` 与 elements 质量信号 | 已满足专注度需求 |
+| 3 | LSL 流名/type 全表（EEG / ACC / GYRO / PPG / elements / brainwaves?） | LSL 为后续备选 | 暂不影响 |
+| 4 | Xmuse Direct 连接流程：是否必须蓝牙配对后软件推流？ | 决定产品使用流程 | 当前要求用户开 Direct |
+| 5 | 2 个扩展电极的通道名/位置；能否只输出 4 通道 | 模型通道对齐 | 已支持 4/6 通道自适应 |
+| 6 | 设备采样率确认（256 Hz?）与数据单位（µV?） | 特征口径一致性 | 默认 256 Hz，可用 `XMUSE_OSC_FS` 覆盖 |
 | 7 | 儿童佩戴的舒适度/尺寸建议、最小年龄限制 | 产品约束（儿童友好） | 产品化 |
 
 > 若厂商回复明确支持 brainwaves OSC 地址（事项 1），阶段 2' 可直接替代阶段 1 的 PSD 自算，是成本最低的方案。
@@ -224,10 +253,32 @@ web/assets/api.js     # 不变
 
 ## 8. 交付顺序建议
 
-1. （0.5 天）采购/借到 Xmuse 设备 + 装 Xmuse Direct，人工验证 OSC/LSL 推流，抓一份真实地址表 → **同时发厂商确认邮件**
-2. （1–2 天）阶段 1：`HardwareSource(LSL)` + 频带指标，dev 页真机联调
+1. ~~（0.5 天）采购/借到 Xmuse 设备 + 装 Xmuse Direct，人工验证 OSC/LSL 推流~~ → 已完成端口/协议调研，并实现端口探针
+2. ~~（1–2 天）阶段 1：`HardwareSource` + 频带指标，dev 页真机联调~~ → 已改为 OSC 实现并通过合成数据 E2E
 3. （按需）阶段 2：采集 + 重训 4 通道模型
 4. （按需）阶段 2'：若厂商确认 brainwaves 流，简化实现
+
+---
+
+## 9. 真机联调步骤（Windows）
+
+1. 打开 **Xmuse Direct**，蓝牙连接 Xmuse 设备，确认波形正常。
+2. 在 Xmuse Direct 中添加 **OSC 输出**：
+   - IP：`127.0.0.1`
+   - UDP 端口：`7000`（默认；也可用 8000）
+   - 前缀：留空（地址为 `/eeg`）或填端口号（地址为 `/7000/eeg`）
+3. 在 `eeg-focus` 目录先跑端口探针，确认真的有报文进来：
+
+   ```powershell
+   .\.venv-win\Scripts\python.exe scripts\xmuse_osc_probe.py
+   ```
+
+   正常会看到 `packets=... port=7000 address=/7000/eeg channels=4`。
+4. 双击 `start.ps1` 启动网页服务（HTTP TCP 8000）。
+5. 打开 `http://127.0.0.1:8000/calibrate.html`，信号源选 **Xmuse 脑电波仪（OSC/UDP）**，
+   端口填 `7000,8000`，按页面提示完成放松校准，然后进入游戏。
+6. 若 7000 被其它软件占用，探针会报绑定失败；用 `XMUSE_OSC_PORTS` 或页面端口框改成空闲端口，
+   并在 Xmuse Direct 里填同一个端口。
 
 ---
 

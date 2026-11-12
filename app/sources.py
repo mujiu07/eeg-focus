@@ -4,7 +4,7 @@ EEG 信号源抽象层
 MVP 阶段的三种信号源:
   1. replay   : 从 EEGMAT 真实 EDF 数据按滑动窗口回放（真实脑电驱动，默认演示模式）
   2. manual   : 手动模拟专注度（滑块控制，用于演示机制/无数据环境）
-  3. hardware : 真实脑电头环接口（预留，MVP 返回未连接）
+   3. hardware : Xmuse 脑电波仪，通过 OSC/UDP 实时接收（见 app/xmuse_osc.py）
 
 每个源的产出: next_window() -> (seg, meta)
   seg : (n_ch, n_samples) 2 秒窗口的原始脑电信号（未滤波）
@@ -75,6 +75,10 @@ class EEGSource:
 
     def describe(self):
         return {"name": self.name, "label": self.label}
+
+    def stop(self):
+        """释放连接/端口。默认无资源需要释放。"""
+        return None
 
 
 class EDFReplaySource(EEGSource):
@@ -158,21 +162,61 @@ class ManualSource(EEGSource):
 
 
 class HardwareSource(EEGSource):
-    """真实脑电头环接入占位（MVP 未实现硬件驱动）。"""
+    """Xmuse 脑电波仪接入：通过 OSC/UDP 接收 Xmuse Direct 推送的脑电。
+
+    默认同时监听 UDP 7000（Xmuse Direct 默认）与 8000（官方示例默认），
+    地址匹配 /eeg、/7000/eeg、/8000/eeg 等以 /eeg 结尾的路径。
+    端口/采样率/通道数可通过 config 或环境变量覆盖：
+
+      XMUSE_OSC_HOST / XMUSE_OSC_PORTS / XMUSE_OSC_FS / XMUSE_OSC_CHANNELS
+    """
 
     name = "hardware"
-    label = "真实头环（预留，未连接）"
+    label = "Xmuse 脑电波仪（OSC/UDP）"
+
+    def __init__(self, config=None):
+        super().__init__()
+        self.config = config or {}
+        self._impl = None
 
     def start(self):
-        raise RuntimeError("MVP 阶段尚未接入真实硬件头环")
+        from .xmuse_osc import XmuseOSCSource
+
+        self._impl = XmuseOSCSource(
+            host=self.config.get("osc_host") or os.getenv("XMUSE_OSC_HOST"),
+            ports=self.config.get("osc_ports") or os.getenv("XMUSE_OSC_PORTS"),
+            fs=self.config.get("osc_fs") or os.getenv("XMUSE_OSC_FS"),
+            channels=self.config.get("osc_channels") or os.getenv("XMUSE_OSC_CHANNELS"),
+        )
+        self._impl.start()
+        self.fs = self._impl.fs
+        self.ch_names = list(self._impl.ch_names)
+        return self
 
     def next_window(self):
-        raise RuntimeError("MVP 阶段尚未接入真实硬件头环")
+        if self._impl is None:
+            self.start()
+        seg, meta = self._impl.next_window()
+        self.fs = meta.get("fs", self.fs)
+        self.ch_names = meta.get("ch_names") or self.ch_names
+        return seg, meta
 
     def describe(self):
         d = super().describe()
-        d["connected"] = False
+        if self._impl is not None:
+            d.update(self._impl.describe())
+        else:
+            d.update({
+                "connected": False,
+                "transport": "OSC/UDP",
+                "ports": [],
+                "osc_ports": self.config.get("osc_ports") or os.getenv("XMUSE_OSC_PORTS", "7000,8000"),
+            })
         return d
+
+    def stop(self):
+        if self._impl is not None:
+            self._impl.stop()
 
 
 def list_edf_files():
@@ -215,5 +259,5 @@ def create_source(config):
     if mode == "manual":
         return ManualSource()
     if mode == "hardware":
-        return HardwareSource()
+        return HardwareSource(config)
     raise ValueError(f"未知信号源模式: {mode}")
