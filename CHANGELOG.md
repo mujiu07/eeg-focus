@@ -11,6 +11,42 @@
 
 ---
 
+## v1.3.0 — 全站体验升级：天空主题 / 背景音乐 / 家长报告（mujiu07）
+
+> 说明：本轮提交与推送使用 mujiu07 账户（本机未配置 Cuprum0214 SSH key），版本记录与 tag 仍按上述约定执行。
+
+### 新增
+
+- **全站天空模式**：黎明 / 白天 / 傍晚 / 黑夜 / 跟随系统时间（按日出日落估算自动切换），选择跨页保存；新增 `web/assets/sky.js` + `sky.css`，五个页面统一接入。
+- **动态梦境池塘首页**：重做首页场景，青蛙在三片荷叶间跳跃、荷叶弹簧回弹、水花、鱼群与莲花随天空时段变色（`web/assets/hero-pond.js`）。
+- **黑胶唱片机背景音乐**：新增 `app/music.py` 代理网易云公开歌单与播放直链（8 分钟缓存、并发探测可播性），新增 `web/assets/music.js` + `vinyl.css`；落针播放/抬针暂停、左右切歌、跨页保留进度。
+- **网易云登录（可选）**：新增 `scripts/ncm_login.py`，登录后可取完整歌单；凭据仅存 `data/music_cookie.txt` 或 `NCM_COOKIE` 环境变量。
+- **游戏时长选择**：1 / 3 / 5 / 10 分钟或自定义 1–60 分钟（默认 3 分钟），首页弹窗选择后进入游戏。
+- **首页“最近训练”**：展示最近几局的校准基线。
+- **报告页庆祝卡片与“给家长的话”**：自动生成本局表现概述、训练建议与免责声明；无基线/有效数据不足时给出明确提示。
+- **校准基线 1 小时有效**：刷新/关闭页面无需重新校准，首页显示剩余分钟数，过期引导重新校准。
+
+### 变更
+
+- `app/server.py`：新增 `/api/music/playlist`、`/api/music/url/{track_id}`；创建会话支持 `baseline` 参数，保证游戏会话与报告页拿到同一基线。
+- 前端 `index / calibrate / game / report / dev` 统一视觉与导航；校准页与开发者页的 Xmuse 端口默认值统一为 `7000,8000`，提示改为 Xmuse Direct 默认口径。
+- 开发者页补回 Xmuse OSC 端口输入，并显示引擎当前模式（模型 / 频段回退）与硬件报文、质量信息。
+- `.gitignore` 增加 `music_cookie.txt`、`*.cookie`、`.env`、`._*`，防止凭据与 macOS 垃圾文件入库。
+
+### 修复
+
+- 报告页缺少基线时不再留白：隐藏“高于基线占比”并提示重新校准。
+- 超过 3 秒无有效数据时暂停蓄力，避免旧分数继续驱动游戏。
+- 校准页 default 端口与文档/启动脚本不一致（8000 → 7000,8000）。
+- `/api/dev/current` 曾被静态文件挂载抢先匹配而返回 404；调整路由顺序，静态挂载固定在最后注册。
+
+### 验证
+
+- Python 模块编译通过（`app/server.py`、`sources.py`、`focus_engine.py`、`music.py`、`xmuse_osc.py`、`scripts/ncm_login.py`、`scripts/xmuse_osc_probe.py`）。
+- 前端内联脚本通过 `node --check`；Xmuse OSC 端口输入、音乐播放器、天空主题资源均已接入五个页面。
+
+---
+
 ## v1.2.1 — 端口决策说明补充（mujiu07）
 
 - 在 `docs/xmuse-hardware-integration.md` 增加“端口选择决策记录（默认 7000/8000）”与“变更守则”，固化 AI-Xmuse ToolBox（7000 / 8001）、Xmuse-Coding（8000 / 8001 / 8002）与本机 Xmuse Direct 1.5.11（7000）的证据链。

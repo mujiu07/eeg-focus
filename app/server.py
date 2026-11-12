@@ -27,6 +27,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from .focus_engine import FocusEngine, features
 from . import sources
+from .music import music
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
@@ -191,6 +192,7 @@ def np_mean(xs):
 class SessionCreate(BaseModel):
     mode: str = "replay"          # replay | manual | hardware
     file: Optional[str] = None    # replay 模式下的 EDF 文件路径
+    baseline: Optional[float] = None     # 游戏会话沿用校准页算出的个人基线
     osc_host: Optional[str] = None       # hardware: Xmuse OSC 监听地址
     osc_ports: Optional[str] = None      # hardware: 如 "7000,8000"
     osc_fs: Optional[float] = None       # hardware: 采样率（默认 256）
@@ -287,6 +289,15 @@ async def create_session(body: SessionCreate):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, f"信号源创建失败: {e}")
     s = Session(source, config)
+    # 游戏会话由前端带着校准基线创建（校准会话本身在后面 /calibrate 里写入），
+    # 否则报告页拿不到基线，橙色虚线与"高于基线占比"都会是空值。
+    if body.baseline is not None:
+        try:
+            b = float(body.baseline)
+        except (TypeError, ValueError):
+            b = None
+        if b is not None and 0.0 <= b <= 1.0:
+            s.baseline = round(b, 3)
     _sessions[s.id] = s
     try:
         await s.start()
@@ -394,7 +405,38 @@ def get_report(sid: str):
 
 
 # ---------------------------------------------------------------------------
-# 静态前端
+# 背景音乐（网易云歌单代理）
+# ---------------------------------------------------------------------------
+@app.get("/api/music/playlist")
+def music_playlist(refresh: bool = False):
+    """歌单曲目列表（按歌单顺序），带登录 cookie 时返回全量曲目。"""
+    try:
+        return music.playlist(refresh=refresh)
+    except Exception as e:
+        raise HTTPException(502, f"歌单获取失败：{e}")
+
+
+@app.get("/api/music/url/{track_id}")
+def music_track_url(track_id: str):
+    """取单曲播放直链（服务端缓存，直链本身有时效）。"""
+    try:
+        return music.url_for(track_id)
+    except Exception as e:
+        raise HTTPException(502, str(e))
+
+
+@app.get("/api/dev/current")
+def dev_current():
+    """当前全局源配置 + 最近会话（供开发者页）。"""
+    recent = list(_sessions.values())[-5:] if _sessions else []
+    return {
+        "source_config": _source_config,
+        "recent_sessions": [s.to_public() for s in recent],
+    }
+
+
+# ---------------------------------------------------------------------------
+# 静态前端（必须最后挂载，否则会抢先匹配 /api/* 路由）
 # ---------------------------------------------------------------------------
 if os.path.isdir(WEB_DIR):
     # no-cache：开发迭代频繁，确保浏览器每次刷新拿到最新页面（API 响应不动）
@@ -406,13 +448,3 @@ if os.path.isdir(WEB_DIR):
         return response
 
     app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
-
-
-@app.get("/api/dev/current")
-def dev_current():
-    """当前全局源配置 + 最近会话（供开发者页）。"""
-    recent = list(_sessions.values())[-5:] if _sessions else []
-    return {
-        "source_config": _source_config,
-        "recent_sessions": [s.to_public() for s in recent],
-    }

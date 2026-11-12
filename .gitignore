@@ -8,9 +8,17 @@ __pycache__/
 data/
 outputs/sessions/
 
+# 网易云登录凭据（严禁提交/公开）
+data/music_cookie.txt
+music_cookie.txt
+*.cookie
+.env
+
 # DeepWorks 工作区
 .deepworks/
 
 # 日志与系统文件
 *.log
 .DS_Store
+._*
+Thumbs.db

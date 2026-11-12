@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-sky="day">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>专注小蛙 - 游戏</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/vinyl.css">
   <style>
     #game-canvas {
       display: block;
@@ -34,16 +35,38 @@
       z-index: 20;
     }
     .warn-banner.show { opacity: 1; transform: translate(-50%, -50%) translateY(4px); }
+
+    /* 画面较窄时唱片机会压到顶部 HUD，给 HUD 让位 */
+    @media (max-width: 1320px) { .hud { padding-right: 210px; } }
+    @media (max-width: 860px) {
+      .wrap { padding-top: 136px; }
+      .hud { padding-right: 0; }
+    }
   </style>
+  <link rel="stylesheet" href="assets/sky.css">
+  <script src="assets/sky.js"></script>
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
 
   <div class="wrap">
+    <div class="page-skybar">
+      <span class="page-skybar-label">🎨 页面配色</span>
+      <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
+        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
+        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span aria-hidden="true">☀️</span>白天</button>
+        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span aria-hidden="true">🌇</span>傍晚</button>
+        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span aria-hidden="true">🌙</span>黑夜</button>
+        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
+      </div>
+    </div>
     <div class="card" style="padding:16px 22px">
       <div class="hud">
         <span class="hud-item" id="lamp"><span class="icon">🧘</span><span class="lamp-dot"></span><span id="lamp-text">专注中</span></span>
-        <span class="hud-item"><span class="icon">⏱️</span><span id="timer">60</span><span style="font-weight:600;font-size:14px">秒</span></span>
+        <span class="hud-item"><span class="icon">⏱️</span><span id="timer" style="min-width:5.5ch;text-align:center">01:00</span></span>
         <span class="hud-item"><span class="icon">🐸</span><span>得分</span><span id="score" style="color:var(--accent-dark);min-width:2ch;text-align:center">0</span></span>
       </div>
     </div>
@@ -75,52 +98,103 @@
     const ctx = canvas.getContext("2d");
 
     // ---- 会话与基线 ----
-    const calib = Store.loadCalib();
+    // 校准基线有效期 1 小时：有效期内刷新/关闭页面都无需重新校准；
+    // 过期（或从未校准）时不允许用旧基线开局，先回校准页。
+    const calibInfo = Store.calibInfo();
+    const calib = calibInfo.calib;
     const prev = Store.load();
-    const baseline = calib ? calib.baseline : (prev ? prev.baseline : 0.4);
+    const baseline = calib ? calib.baseline : 0.4;
+    const calibExpired = calibInfo.expired;
+    if (!calib) {
+      Store.clearCalib();
+      toast(calibExpired ? "校准已超过 1 小时，需要重新校准" : "先建立专注基线吧！");
+      setTimeout(() => {
+        location.replace(calibExpired ? "calibrate.html?reason=expired" : "calibrate.html");
+      }, 1200);
+    }
+
+    // ---- 本局时长（开始前由首页弹窗选择：game.html?sec=180）----
+    const DURATION_MIN_SEC = 60;
+    const DURATION_MAX_SEC = 3600;
+    function readDurationSec() {
+      const raw = new URLSearchParams(location.search).get("sec")
+                || localStorage.getItem("bf-duration-sec");
+      const n = Math.round(Number(raw));
+      if (!Number.isFinite(n) || n <= 0) return 60;
+      return Math.min(DURATION_MAX_SEC, Math.max(DURATION_MIN_SEC, n));
+    }
+    const totalSec = readDurationSec();
+
+    // 计时显示：始终 mm:ss，避免 10 分钟时数字过长
+    function formatClock(sec) {
+      const s = Math.max(0, Math.ceil(sec));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
+    }
 
     const state = {
       session: null, es: null,
       focus: baseline, raw: baseline,
       energy: 0,
       score: 0,
-      timeLeft: 60,
+      totalSec,
+      timeLeft: totalSec,
       lastTs: null,
       stale: false,       // 数据无效/断流：暂停蓄力
       lastFrameTs: 0,     // 最近一次有效帧时间（新鲜度检查）
       over: false,
       manualMode: false,
       jumping: { active: false, t: 0, fromX: 0, toX: 0 },
+      cur: 0,           // 青蛙当前所在荷叶在 lilies 中的下标；左侧旧荷叶保留不清除
+      pendingSettle: false,  // 落地后等待水花散尽、荷叶上浮稳定，再开始平移
       settling: false,  // 跳完后青蛙与荷叶一起平滑移回屏幕中间
       popups: [],     // 浮动文字 {x,y,text,t}
-      splashes: [],   // 水花 {x,y,r0,r1,t,life}
+      splashes: [],   // 水花涟漪 {x,y,r0,r1,t,life}
+      droplets: [],   // 溅起的水珠 {x,y,vx,vy,r,t,life}
       clouds: [
-        { x: 120, y: 52, s: 1.0, v: 8 },
-        { x: 520, y: 38, s: 0.8, v: 12 },
-        { x: 780, y: 72, s: 0.62, v: 6 },
+        { x: 120, y: 52, s: 1.0, v: 8, phase: 0.6 },
+        { x: 520, y: 38, s: 0.8, v: 12, phase: 2.4 },
+        { x: 780, y: 72, s: 0.62, v: 6, phase: 4.1 },
       ],
     };
 
-    // 荷叶布局（青蛙等待位固定在屏幕中间 cx=450：lilies[0] 中心 = cx）
+    $("timer").textContent = formatClock(state.totalSec);
+
+    // 荷叶布局（青蛙等待位固定在屏幕中间 cx=450：当前荷叶中心 = cx）
     let lilies = [];
     const CX = canvas.width / 2;
+    const LEFT_BOUND = 50;   // 荷叶左移的下限：整片叶子留在游戏框内，不越过左边框
     function resetLilies() {
       const n = 6;
       lilies = [];
+      state.cur = 0;
       let x = CX;   // 青蛙初始位置 = 荷叶正中心（叶脉交点）
       for (let i = 0; i < n; i++) {
-        lilies.push({ x, y: 340 - (i % 2) * 26, bob: Math.random() * Math.PI * 2 });
+        lilies.push({ x, y: 340 - (i % 2) * 26, bob: Math.random() * Math.PI * 2, dip: 0, dipVel: 0 });
         x += 170 + (i * 37) % 40;
       }
+    }
+    // 前方补一片新荷叶（落在最右侧荷叶的右边）
+    function addLily() {
+      const last = lilies[lilies.length - 1];
+      lilies.push({
+        x: last.x + 170 + Math.random() * 60,
+        y: 340 - (lilies.length % 2) * 26,
+        bob: Math.random() * Math.PI * 2,
+        dip: 0, dipVel: 0,
+      });
     }
     resetLilies();
     const FROG_SIZE = 56;
 
     // ---- 创建会话 ----
     async function init() {
+      if (!calib) return;   // 无有效校准：已在上面安排跳转回校准页，不创建会话
       const prevMode = prev && prev.source ? prev.source.mode : null;
       const mode = prevMode === "manual" ? "manual" : (prevMode === "hardware" ? "hardware" : "replay");
-      let body = { mode };
+      // baseline 必须随会话一起上报：报告页的橙色虚线与"高于基线占比"都依赖它
+      let body = { mode, baseline: calib.baseline };
       if (mode === "replay") {
         const info = await API.get("/api/dev/info");
         const calibFile = prev && prev.source ? prev.source.file : null;
@@ -171,18 +245,32 @@
     }
 
     function updateGame(dt) {
-      // 云漂移
-      state.clouds.forEach(c => { c.x += c.v * dt; if (c.x > 940) c.x = -120; });
+      // 云漂移（到屏幕右侧完全离开后再回到左侧，避免边缘处突然消失/出现）
+      state.clouds.forEach(c => {
+        c.x += c.v * dt;
+        if (c.x > canvas.width + 80) c.x = -90;
+      });
 
       // 水花/浮字更新
       state.splashes = state.splashes.filter(p => (p.t += dt) < p.life);
       state.popups = state.popups.filter(p => (p.t += dt) < 1.2);
+      state.droplets = state.droplets.filter(d => {
+        d.t += dt;
+        if (d.t >= d.life) return false;
+        d.vy += 700 * dt;   // 水滴受重力回落
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        return true;
+      });
+
+      // 荷叶下沉/上浮（弹簧阻尼）：dip > 0 沉入水面，dip < 0 回弹上浮
+      updateLilyDips(dt);
 
       // 数据新鲜度：超过 3 秒无有效帧 → 视为断流，暂停蓄力（旧分数不得继续驱动游戏）
       if (performance.now() - state.lastFrameTs > 3000) state.stale = true;
 
       const focused = !state.stale && state.focus >= baseline;
-      // 等待（蓄力）阶段：青蛙停在屏幕中间，场景静止
+      // 蓄力：跳跃中与平移中不蓄力；落地后等待水花/上浮的这段时间仍可蓄力
       if (!state.jumping.active && !state.settling && !state.stale) {
         if (focused) {
           const gain = (state.focus - baseline + 0.03) * dt * 8.5;
@@ -190,35 +278,44 @@
         } else {
           state.energy = Math.max(0, state.energy - dt * 4.2);
         }
-        if (state.energy >= 100) startJump();
+      }
+
+      if (state.pendingSettle) {
+        // 等水花和涟漪全部散尽、新荷叶回弹上浮停稳，再开始平移
+        const l = lilies[state.cur];
+        const calm = Math.abs(l.dip || 0) < 0.4 && Math.abs(l.dipVel || 0) < 2;
+        if (!state.splashes.length && !state.droplets.length && calm) {
+          state.pendingSettle = false;
+          state.settling = true;
+        }
       } else if (state.jumping.active) {
         state.jumping.t += dt;
         if (state.jumping.t >= 0.55) {
+          const landing = lilies[state.cur + 1];   // 目标荷叶
           state.jumping.active = false;
-          lilies.shift();
-          lilies.push({
-            x: lilies[lilies.length - 1].x + 170 + Math.random() * 60,
-            y: 340 - (lilies.length % 2) * 26,
-            bob: Math.random() * Math.PI * 2,
-          });
-          state.jumping.fromX = 0;
+          state.cur += 1;                          // 青蛙落到下一片，旧荷叶保留在左侧
+          if (!lilies[state.cur + 1]) addLily();   // 前方始终留一片下一跳的荷叶
           state.energy = 15;
-          // 落点水花（shift 后 lilies[0] 已是青蛙站的新荷叶，水花贴水面）
-          spawnSplash(lilies[0].x, lilies[0].y + 10);
-          // 进入归位：青蛙与新荷叶一起平滑左移回屏幕中间
-          state.settling = true;
+          // 落地：新荷叶被压得下沉一截，四周溅起水花，随后回弹上浮
+          dipLily(landing, 250);
+          spawnLandingSplash(landing.x, landing.y + 6);
+          // 先等特效结束、上浮稳定，再平移（见 pendingSettle 分支）
+          state.pendingSettle = true;
         }
       } else if (state.settling) {
-        // 归位：所有荷叶同步左移，直到 lilies[0] 中心回到 CX（青蛙回中间）
-        // ease-out 平滑减速；距离很小时转线性收尾，保证精确归位（渐近逼近会永远到不了 0）
-        const dist = lilies[0].x - CX;
+        // 平移：所有荷叶同步左移，直到当前荷叶中心回到 CX（青蛙回中间）
+        // 旧荷叶最多停到左边界，不会越过游戏框左边；ease-out 平滑减速，距离很小时转线性收尾
+        const cur = lilies[state.cur];
+        const dist = cur.x - CX;
         if (dist <= 0.5) {
-          lilies[0].x = CX;   // 精确归位：青蛙正中心回到屏幕中间
+          cur.x = CX;   // 精确归位：青蛙正中心回到屏幕中间
           state.settling = false;
         } else {
           const step = Math.min(dist, Math.max(24 * dt, dist * dt * 4));
-          lilies.forEach(l => { l.x -= step; });
+          lilies.forEach(l => { l.x = Math.max(LEFT_BOUND, l.x - step); });
         }
+      } else if (!state.stale && state.energy >= 100) {
+        startJump();
       }
 
       const lamp = $("lamp");
@@ -228,26 +325,60 @@
       $("warn").textContent = state.stale ? "数据中断，蓄力已暂停" : "专注度较低，蓄力正在减少";
 
       state.timeLeft -= dt;
-      $("timer").textContent = Math.max(0, Math.ceil(state.timeLeft));
+      $("timer").textContent = formatClock(state.timeLeft);
       if (state.timeLeft <= 0) finishGame();
     }
 
     function startJump() {
-      state.jumping = { active: true, t: 0, fromX: lilies[0].x, toX: lilies[1].x };
+      const from = lilies[state.cur], to = lilies[state.cur + 1];
+      state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x };
       state.score += 1;
       $("score").textContent = state.score;
-      state.popups.push({ x: lilies[0].x, y: lilies[0].y - 150, text: "+1", t: 0 });
-      spawnSplash(lilies[0].x, lilies[0].y + 10);
+      state.popups.push({ x: from.x, y: from.y - 150, text: "+1", t: 0 });
+      // 蹬水起跳：脚下荷叶被踩得小幅度下沉，随后自动回弹上浮
+      dipLily(from, 170);
     }
 
-    function spawnSplash(x, y) {
-      for (let i = 0; i < 4; i++) {
+    // 荷叶弹簧阻尼：给一次向下的冲量 → 下沉 → 回弹（略微上浮）→ 稳定
+    const LILY_SPRING_K = 150;
+    const LILY_SPRING_C = 9;
+    function updateLilyDips(dt) {
+      lilies.forEach(l => {
+        if (l.dip === undefined) { l.dip = 0; l.dipVel = 0; }
+        const acc = -LILY_SPRING_K * l.dip - LILY_SPRING_C * l.dipVel;
+        l.dipVel += acc * dt;
+        l.dip += l.dipVel * dt;
+        if (Math.abs(l.dip) < 0.02 && Math.abs(l.dipVel) < 0.4) { l.dip = 0; l.dipVel = 0; }
+      });
+    }
+    function dipLily(lily, impulse) {
+      if (!lily) return;
+      if (lily.dip === undefined) { lily.dip = 0; lily.dipVel = 0; }
+      lily.dipVel += impulse;
+    }
+
+    // 落水水花：涟漪圈 + 一圈向外上方飞溅的水珠
+    function spawnLandingSplash(x, y) {
+      for (let i = 0; i < 3; i++) {
         state.splashes.push({
-          x: x + (Math.random() - 0.5) * 26,
-          y: y + 18 + Math.random() * 8,
-          r0: 3 + Math.random() * 4,
-          r1: 16 + Math.random() * 10,
-          t: 0, life: 0.9 + Math.random() * 0.5,
+          x, y: y + 2,
+          r0: 44 + i * 7,
+          r1: 82 + i * 18,
+          t: -i * 0.07,
+          life: 0.75 + i * 0.14,
+        });
+      }
+      const n = 14;
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.45;
+        state.droplets.push({
+          x: x + Math.cos(a) * 34,
+          y: y + Math.sin(a) * 12 - 2,
+          vx: Math.cos(a) * (50 + Math.random() * 75),
+          vy: -(185 + Math.random() * 135) + Math.sin(a) * 35,
+          r: 2 + Math.random() * 2.3,
+          t: 0,
+          life: 0.5 + Math.random() * 0.42,
         });
       }
     }
@@ -263,9 +394,10 @@
       drawMountains();
       drawTrees();
       drawWater(t);
+      drawSplashes();   // 涟漪在水面上、荷叶之下：被荷叶遮住内圈，叶缘外才露出
       drawLilies(t);
       drawFrog(t);
-      drawSplashes();
+      drawDroplets();
       drawPopups();
       drawEnergy();
       drawHudText();
@@ -300,7 +432,8 @@
         ctx.globalAlpha = 0.88;
         ctx.fillStyle = "rgba(255,255,255,.92)";
         const s = c.s;
-        const bob = Math.sin(t * 0.6 + c.x) * 3;
+        // 相位固定为 c.phase，不能拿移动中的 c.x 当相位，否则云会随漂移上下颤
+        const bob = Math.sin(t * 0.45 + c.phase) * 2.2;
         ctx.beginPath();
         ctx.ellipse(c.x, c.y + bob, 34 * s, 13 * s, 0, 0, Math.PI * 2);
         ctx.ellipse(c.x + 18 * s, c.y - 9 * s + bob, 22 * s, 11 * s, 0, 0, Math.PI * 2);
@@ -379,20 +512,23 @@
     function drawLilies(t) {
       lilies.forEach((l, i) => {
         const bob = Math.sin(t * 1.4 + l.bob) * 2.5;
-        const y = l.y + bob;
-        const s = i === 0 ? 1.15 : 1;
+        const dip = l.dip || 0;
+        const y = l.y + bob + dip;   // 下沉量直接加在荷叶中心
+        const s = i === state.cur ? 1.15 : 1;
+        // 下沉时轻微压扁、回弹上浮时轻微拉伸，让"被踩下去"更有重量感
+        const squash = Math.max(-0.075, Math.min(0.13, dip * 0.013));
         // 水面倒影
         ctx.save();
         ctx.globalAlpha = 0.16;
         ctx.fillStyle = "#1d6f86";
         ctx.beginPath();
-        ctx.ellipse(l.x + 4, y + 14 + bob * 0.4, 44 * s, 18 * s, 0, 0, Math.PI * 2);
+        ctx.ellipse(l.x + 4, l.y + 14 + bob * 0.4 + dip * 0.5, 44 * s, 18 * s, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         // 荷叶
         ctx.save();
         ctx.translate(l.x, y);
-        ctx.scale(s, s);
+        ctx.scale(s * (1 + squash * 0.5), s * (1 - squash));
         const g = ctx.createRadialGradient(6, -8, 4, 0, 0, 48);
         g.addColorStop(0, "#c6f3c8");
         g.addColorStop(0.65, "#74d484");
@@ -422,17 +558,22 @@
 
     function drawFrog(t) {
       // 荷叶上表面 = 荷叶中心 y - 26；青蛙中心 = 交点 y - 28（半高），青蛙底部正好落在三条直线交点（荷叶中心 y）
-      const lilyTop = i => lilies[i].y - 26;
-      const frogBase = i => lilies[i].y - 28;
+      // 荷叶下沉/上浮时青蛙跟着一起动，避免落地瞬间"悬空"
+      const i0 = state.cur, i1 = state.cur + 1;
+      const lilyTop = i => lilies[i].y + (lilies[i].dip || 0) - 26;
+      const frogBase = i => lilies[i].y + (lilies[i].dip || 0) - 28;
+      // 空中轨迹用不含下沉的基准：青蛙已离叶，不该被起跳荷叶的下沉带着抖
+      const lilyTopRaw = i => lilies[i].y - 26;
+      const frogBaseRaw = i => lilies[i].y - 28;
       const k = state.jumping.active ? Math.min(state.jumping.t / 0.55, 1) : 0;
       let fx, fy;
       const focused = state.focus >= baseline;
       if (state.jumping.active) {
         fx = interpolateJump(state.jumping.t);
-        fy = frogBase(0) + (frogBase(1) - frogBase(0)) * k - jumpArc(state.jumping.t);
+        fy = frogBaseRaw(i0) + (frogBaseRaw(i1) - frogBaseRaw(i0)) * k - jumpArc(state.jumping.t);
       } else {
-        fx = lilies[0].x;   // 荷叶正中心（叶脉交点）
-        fy = frogBase(0) + Math.sin(t * 2.2) * 2;
+        fx = lilies[i0].x;   // 荷叶正中心（叶脉交点）
+        fy = frogBase(i0) + Math.sin(t * 2.2) * 2;
       }
       // 专注光环
       if (focused && !state.jumping.active) {
@@ -450,7 +591,10 @@
       ctx.globalAlpha = 0.2 * (1 - 0.55 * Math.sin(k * Math.PI));
       ctx.fillStyle = "#1d6f86";
       ctx.beginPath();
-      ctx.ellipse(fx, (lilyTop(0) + 2) + (lilyTop(1) - lilyTop(0)) * k,
+      const shadowY = state.jumping.active
+        ? (lilyTopRaw(i0) + 2) + (lilyTopRaw(i1) - lilyTopRaw(i0)) * k
+        : lilyTop(i0) + 2;
+      ctx.ellipse(fx, shadowY,
                  24 * (1 - 0.4 * Math.sin(k * Math.PI)), 9 * (1 - 0.4 * Math.sin(k * Math.PI)), 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
@@ -469,14 +613,31 @@
 
     function drawSplashes() {
       state.splashes.forEach(p => {
+        if (p.t < 0) return;   // 多圈涟漪可以错开出现
         const k = p.t / p.life;
+        const r = p.r0 + (p.r1 - p.r0) * k;
         ctx.save();
-        ctx.globalAlpha = 0.55 * (1 - k);
-        ctx.strokeStyle = "rgba(255,255,255,.95)";
-        ctx.lineWidth = 2.5 * (1 - k) + 0.5;
+        ctx.globalAlpha = 0.78 * (1 - k);
+        ctx.strokeStyle = "rgba(255,255,255,.98)";
+        ctx.lineWidth = 3 * (1 - k) + 0.8;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r0 + (p.r1 - p.r0) * k, 0, Math.PI * 2);
+        // 贴水面的椭圆涟漪（透视压扁）
+        ctx.ellipse(p.x, p.y, r, r * 0.42, 0, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.restore();
+      });
+    }
+
+    function drawDroplets() {
+      state.droplets.forEach(d => {
+        const k = d.t / d.life;
+        const stretch = 1 + Math.min(1.1, Math.abs(d.vy) / 520);
+        ctx.save();
+        ctx.globalAlpha = 0.92 * (1 - k * k);
+        ctx.fillStyle = "rgba(255,255,255,.96)";
+        ctx.beginPath();
+        ctx.ellipse(d.x, d.y, d.r, d.r * stretch, 0, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
       });
     }
@@ -543,8 +704,8 @@
     }
 
     function interpolateJump(tt) {
-      const from = lilies[0].x;
-      const to = lilies[1].x;
+      const from = lilies[state.cur].x;
+      const to = lilies[state.cur + 1].x;
       const k = Math.min(tt / 0.55, 1);
       return from + (to - from) * k;
     }
@@ -571,8 +732,8 @@
       try {
         const res = await API.post(`/api/session/${state.session.id}/finish`, {
           score: state.score,
-          played_sec: 60 - Math.max(0, state.timeLeft),
-          notes: "完整一局",
+          played_sec: state.totalSec - Math.max(0, state.timeLeft),
+          notes: "完整一局（" + formatClock(state.totalSec) + "）",
         });
         location.href = "report.html?id=" + state.session.id;
       } catch (e) {
@@ -588,5 +749,6 @@
       console.error(e);
     });
   </script>
+  <script src="assets/music.js" defer></script>
 </body>
 </html>

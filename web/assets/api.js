@@ -74,8 +74,13 @@ const API = {
   },
 };
 
-// 跨页共享：会话参数存 localStorage，校准基线存 sessionStorage
+// 跨页共享：会话参数与校准基线都存 localStorage。
+// 校准基线有效期 1 小时：期间刷新、关闭页面/标签页甚至浏览器都无需重新校准；
+// 超过 1 小时自动失效，必须回到校准页重新校准。
 const Store = {
+  CALIB_KEY: "bf-calib",
+  CALIB_TTL_MS: 60 * 60 * 1000,   // 1 小时
+
   save(sid, baseline, source) {
     localStorage.setItem("bf-session", JSON.stringify({
       session_id: sid, baseline, source, at: Date.now(),
@@ -85,14 +90,60 @@ const Store = {
     try { return JSON.parse(localStorage.getItem("bf-session")) || null; }
     catch (_) { return null; }
   },
-  clear() { localStorage.removeItem("bf-session"); },
+  clear() {
+    localStorage.removeItem("bf-session");
+    this.clearCalib();
+  },
+
+  // 读取校准记录并判断是否仍在有效期内。
+  // 返回 { calib, expired, remainMs }：calib 为 null 表示不可用。
+  calibInfo() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(this.CALIB_KEY)) || null; }
+    catch (_) { raw = null; }
+
+    // 兼容旧版本（曾经写在 sessionStorage，且没有时间戳）：迁移一次，按当前时间起算
+    if (!raw) {
+      try {
+        const legacy = JSON.parse(sessionStorage.getItem(this.CALIB_KEY)) || null;
+        if (legacy && legacy.baseline != null) {
+          raw = { baseline: legacy.baseline, quantiles: legacy.quantiles, at: Date.now() };
+          localStorage.setItem(this.CALIB_KEY, JSON.stringify(raw));
+        }
+        sessionStorage.removeItem(this.CALIB_KEY);
+      } catch (_) { /* ignore */ }
+    }
+
+    if (!raw || raw.baseline == null) return { calib: null, expired: false, remainMs: 0 };
+    const at = Number(raw.at);
+    if (!Number.isFinite(at)) return { calib: null, expired: true, remainMs: 0 };
+    const remainMs = this.CALIB_TTL_MS - (Date.now() - at);
+    if (remainMs <= 0) return { calib: null, expired: true, remainMs: 0 };
+    return { calib: raw, expired: false, remainMs };
+  },
 
   saveCalib(baseline, quantiles) {
-    sessionStorage.setItem("bf-calib", JSON.stringify({ baseline, quantiles }));
+    const payload = { baseline, quantiles, at: Date.now() };
+    localStorage.setItem(this.CALIB_KEY, JSON.stringify(payload));
+    try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }
+    return payload;
   },
+
+  // 只返回仍在有效期内的校准；过期的会被清理掉
   loadCalib() {
-    try { return JSON.parse(sessionStorage.getItem("bf-calib")) || null; }
-    catch (_) { return null; }
+    const info = this.calibInfo();
+    if (info.expired) this.clearCalib();
+    return info.calib;
+  },
+
+  // 距离校准失效还剩多少毫秒（无有效校准时为 0）
+  calibRemainMs() {
+    return this.calibInfo().remainMs;
+  },
+
+  clearCalib() {
+    localStorage.removeItem(this.CALIB_KEY);
+    try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }
   },
 };
 
