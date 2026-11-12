@@ -4,6 +4,8 @@
 > 状态：**已实现（OSC/UDP 多端口接收 + 4 通道频段回退）**
 > 日期：2026-11-12（原方案 2026-10-20）
 > 素材来源：设备商 GitHub 组织 `AI-Xmuse`（厦门北洋瑞恒智慧健康有限公司）公开仓库 + 本机 Xmuse Lab 1.5.8 / Xmuse Direct 1.5.11 安装目录调研
+>
+> **端口默认值：UDP `7000` + `8000`。修改前必读 §2.3.1。**
 
 ---
 
@@ -55,7 +57,7 @@ Xmuse 是 **Muse 2 的国产兼容版**（官方仓库同时提到 "Muse 2 和 M
 - 拓扑：`Xmuse Direct 软件（发） → 本地 UDP 端口（收）`
 - **Xmuse Direct 默认值（本机 1.5.11 二进制证据）**：`DefaultIPAddress = 127.0.0.1`、`DefaultUdpPort = 7000`
   （`Xmuse Direct.dll` 资源字符串中 `DefaultIPAddress / DefaultUdpPort / CustomPrefix` 与 `127.0.0.1 / 7000` 相邻）
-- 官方代码/示例还使用 **8000 / 8001 / 8002**：`/8000/eeg`（OSC_client/Server.py）、多设备 8001/8002（Plenty Machine Recording）、示例脚本 7000（osc_test.py）
+- 官方代码/示例还使用 **8000 / 8001 / 8002**：`/8000/eeg`（OSC_client/Server.py）、多设备 8001/8002（Plenty Machine Recording）；ToolBox 单设备示例同样默认 7000（详见 §2.3.1）
 - 因此本项目默认**同时监听 UDP 7000 与 8000**，可用 `XMUSE_OSC_PORTS` 追加 8001/8002
 - **端口冲突说明**：本项目的网页服务是 **TCP 8000**，OSC 是 **UDP 8000**，协议不同，可同时占用
 - 地址前缀（prefix）在 Xmuse Direct 中可配置，留空时是 `/eeg`，填端口号时是 `/7000/eeg` 或 `/8000/eeg`
@@ -75,6 +77,46 @@ Xmuse 是 **Muse 2 的国产兼容版**（官方仓库同时提到 "Muse 2 和 M
 
 - `prefix` 由用户在 Xmuse Direct 软件中配置，**可为空**（Tank-Game 明确支持留空，此时地址为 `/elements/...`）
 - 官方 OSC 工具用 `dispatcher.map("*")` 通配符接收**所有路径**，说明设备实际推送的地址多于上表
+
+#### 2.3.1 端口选择决策记录（默认 7000/8000，修改需附证据）
+
+> **结论：本项目默认同时监听 UDP `7000` 与 `8000`。这是交叉验证后的结果，不是随手取的，也不是只照搬某一个官方示例。**
+>
+> 任何成员若要把默认值改成单一端口（例如只留 `8000` 或只留 `7000`），必须在本节补充证据，并同步更新代码、探针与测试；否则视为回归，Review 不予合并。
+
+**证据链**
+
+| 来源 | 具体证据 | 端口 |
+|---|---|---|
+| 本机 Xmuse Direct 1.5.11 | `Xmuse Direct.dll` 资源字符串 `DefaultIPAddress = 127.0.0.1`、`DefaultUdpPort = 7000` | `7000` |
+| AI-Xmuse / ToolBox 单设备 | `Python-ToolBox/Xmuse-Connect/OSC/OSC-single decice.py`：`ip default="127.0.0.1"`、`port default=7000` | `7000` |
+| AI-Xmuse / ToolBox 多设备 | 同目录 `OSC-multi device.py`：第一台 `7000`、第二台 `8001` | `7000` / `8001` |
+| AI-Xmuse / Coding OSC 客户端 | `OSC_client/Server.py` 前缀 `/8000` 并监听 `8000`；`OSC_client/config.py` 连接 `127.0.0.1:8000` | `8000` |
+| AI-Xmuse / Coding 多机录制 | `Xmuse_OSC_For_Plenty_Machine_Recording/main.py`：默认 `[8001, 8002]` | `8001` / `8002` |
+
+**为什么不是只监听 8000**
+
+- 本机 Xmuse Direct 的实际默认是 `7000`，ToolBox 单设备示例也是 `7000`；只监听 `8000` 会让“按默认值连接”的用户完全收不到数据。
+- `8000` 是 Xmuse-Coding 示例的口径，而且该示例把端口号写进了 OSC 前缀（`/8000/eeg`），不是所有用户都会这样配置。
+
+**为什么不是只监听 7000**
+
+- 用户按 Xmuse-Coding 示例配置成 `8000` 时，只监听 `7000` 会完全收不到。
+- 本项目网页服务是 **TCP 8000**，OSC 是 **UDP 8000**，协议不同，可以同时占用，不存在端口冲突。
+
+**实现不变量**
+
+- Python 默认值：`app/xmuse_osc.py` 的 `DEFAULT_PORTS = "7000,8000"`。
+- 页面/环境变量覆盖：`XMUSE_OSC_PORTS=7000,8000,8001,8002`。
+- 地址只要求最后一段为 `eeg`，因此 `/eeg`、`/7000/eeg`、`/8000/eeg` 都接收；同时排除 `/elements/eeg/eeg[0]` 这类单通道镜像。
+- 修改默认端口时，必须同步更新：`app/xmuse_osc.py`、`app/server.py` 默认参数、`start.ps1`、`scripts/xmuse_osc_probe.py` 示例、本文件本节与 `CHANGELOG.md`。
+
+**变更守则（Review 必查）**
+
+1. 先在真机 Xmuse Direct 设置页确认实际 UDP 端口与前缀，不要只看某个仓库示例。
+2. 运行 `scripts/xmuse_osc_probe.py`，把 `packets / port / address / channels` 输出贴到提交说明或 PR。
+3. 若只是“看到某个官方示例用 8000”就想删掉 7000，不予合并。
+4. 若确需修改默认值，必须附：设备型号、Xmuse Direct 版本、操作系统、探针日志，并更新 `CHANGELOG.md` 与版本 tag。
 
 #### 管道 B：LSL（Lab Streaming Layer，科研标准）
 

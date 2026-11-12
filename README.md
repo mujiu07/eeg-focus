@@ -56,6 +56,7 @@ python3 -m venv .venv
 
 > 网页服务是 **TCP 8000**，OSC 是 **UDP 8000**，两者不冲突。
 > 多设备/自定义端口：`XMUSE_OSC_PORTS=7000,8000,8001,8002`；采样率：`XMUSE_OSC_FS=256`。
+> **端口默认值 `7000,8000` 的依据与变更守则见 [`docs/xmuse-hardware-integration.md`](docs/xmuse-hardware-integration.md) §2.3.1；修改前必须附真机探针日志，不能只凭单个官方示例。**
 > 4/6 通道设备会自动切换到 `β/(θ+α)` 频段指标，21 通道 EDF 回放仍使用原模型。
 
 > **无需数据集也能体验**：不执行第 2 步时，游戏仍可运行（`manual` 手动源）；执行 `scripts/preprocess.py` + `scripts/train.py` 可重建模型。
