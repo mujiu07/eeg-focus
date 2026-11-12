@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-sky="day">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>开发者调试页 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/vinyl.css">
   <style>
     .monitor-curve { height: 140px; display: block; border: 1.5px solid rgba(58,167,160,.18); }
     .report-pre {
@@ -25,11 +26,26 @@
     }
     .session-line:last-child { border-bottom: none; }
   </style>
+  <link rel="stylesheet" href="assets/sky.css">
+  <script src="assets/sky.js"></script>
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
 
   <div class="wrap">
+    <div class="page-skybar">
+      <span class="page-skybar-label">🎨 页面配色</span>
+      <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
+        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
+        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span aria-hidden="true">☀️</span>白天</button>
+        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span aria-hidden="true">🌇</span>傍晚</button>
+        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span aria-hidden="true">🌙</span>黑夜</button>
+        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
+      </div>
+    </div>
     <div class="card">
       <div class="brand">
         <div class="logo-badge">🛠️</div>
@@ -140,8 +156,8 @@
         <table>
           <tbody>
             <tr><th style="width:140px">模型</th><td><span class="badge">${eng.model}</span></td></tr>
-            <tr><th>特征维度</th><td class="mono">${eng.feature_dim} 维（21 通道 × 11 特征；Xmuse 4/6 通道自动切频段指标）</td></tr>
-            <tr><th>当前推理</th><td class="mono">${eng.active_mode === "band" ? "β/(θ+α) 频段指标（Xmuse）" : "21 通道模型"}</td></tr>
+            <tr><th>特征维度</th><td class="mono">${eng.feature_dim} 维（${eng.window_sec}s 窗口 × 11 特征/通道）</td></tr>
+            <tr><th>当前模式</th><td class="mono">${eng.active_mode === "band" ? "频段指标 beta/(theta+alpha)（4/6 通道回退）" : "EEGMAT 模型推理"}</td></tr>
             <tr><th>频段</th><td class="mono">${eng.bands.join(" / ")} Hz</td></tr>
             <tr><th>平滑</th><td class="mono">EMA α=0.35</td></tr>
           </tbody>
@@ -205,10 +221,17 @@
             if (watchCurve.length > 80) watchCurve.shift();
             drawMonitor();
             const m = f.meta || {};
-            $("monitor-meta").textContent =
-              m.source === "replay"
-                ? `回放文件 ${m.file || ""} · 窗口 ${m.window ?? ""} / ${m.n_windows ?? ""}`
-                : "手动模拟";
+            let metaText;
+            if (m.source === "replay") {
+              metaText = `回放文件 ${m.file || ""} · 窗口 ${m.window ?? ""} / ${m.n_windows ?? ""}`;
+            } else if (m.source === "hardware") {
+              const q = m.quality != null ? ` · 质量 ${Number(m.quality).toFixed(2)}` : "";
+              const ports = Array.isArray(m.ports) ? m.ports.join(",") : (m.osc_ports || "");
+              metaText = `${m.transport || "osc_udp"} · ${m.address || "等待报文"} · 端口 ${ports} · 报文 ${m.packets ?? 0}${q}`;
+            } else {
+              metaText = "手动模拟";
+            }
+            $("monitor-meta").textContent = metaText;
           },
         });
       } catch (e) {
@@ -231,8 +254,10 @@
       const c = $("monitor-canvas");
       const ctx = c.getContext("2d");
       const W = c.width, H = c.height, pad = 18;
+      const dark = document.documentElement.getAttribute("data-sky") === "night"
+        || document.documentElement.getAttribute("data-sky") === "dusk";
       ctx.clearRect(0, 0, W, H);
-      ctx.strokeStyle = "rgba(58,108,122,.12)";
+      ctx.strokeStyle = dark ? "rgba(255,255,255,.10)" : "rgba(58,108,122,.12)";
       ctx.lineWidth = 1;
       for (let gy = 0; gy <= 4; gy++) {
         const y = pad + (H - pad * 2) * (1 - gy / 4);
@@ -240,8 +265,8 @@
       }
       if (watchCurve.length > 1) {
         const g = ctx.createLinearGradient(0, pad, 0, H - pad);
-        g.addColorStop(0, "rgba(58,167,160,.28)");
-        g.addColorStop(1, "rgba(58,167,160,.02)");
+        g.addColorStop(0, dark ? "rgba(111,211,200,.26)" : "rgba(58,167,160,.28)");
+        g.addColorStop(1, dark ? "rgba(111,211,200,.02)" : "rgba(58,167,160,.02)");
         ctx.beginPath();
         watchCurve.forEach((v, i) => {
           const x = pad + (W - pad * 2) * (i / (watchCurve.length - 1));
@@ -257,12 +282,12 @@
           const y = pad + (H - pad * 2) * (1 - v);
           i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         });
-        ctx.strokeStyle = "#2f9c93";
+        ctx.strokeStyle = dark ? "#6fd3c8" : "#2f9c93";
         ctx.lineWidth = 2.5;
         ctx.lineJoin = "round";
         ctx.stroke();
       }
-      ctx.fillStyle = "rgba(92,123,131,.9)";
+      ctx.fillStyle = dark ? "rgba(214,232,242,.92)" : "rgba(92,123,131,.9)";
       ctx.font = "12px 'PingFang SC', sans-serif";
       ctx.fillText("最近 80 帧脑波分数（实时）", pad, H - 4);
     }
@@ -285,5 +310,6 @@
 
     init();
   </script>
+  <script src="assets/music.js" defer></script>
 </body>
 </html>

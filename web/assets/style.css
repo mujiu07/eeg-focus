@@ -402,15 +402,10 @@ label.field {
 .hero-art { position: relative; }
 .hero-svg { display: block; width: 100%; height: auto; }
 .hero-frog {
-  position: absolute; left: 50%; bottom: 28.5%;
-  transform: translateX(-50%);
-  font-size: 58px;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "PingFang SC", sans-serif;
+  font-size: 56px;
+  user-select: none;
   filter: drop-shadow(0 8px 10px rgba(47,110,128,.3));
-  animation: frogBreathe 3.4s ease-in-out infinite;
-}
-@keyframes frogBreathe {
-  0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
-  50%      { transform: translateX(-50%) translateY(-7px) scale(1.04); }
 }
 
 /* 呼吸球 */

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-sky="day">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>脑电校准 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/vinyl.css">
   <style>
     .calib-hero { text-align: center; padding: 22px 30px 10px; }
     .stage { min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
@@ -44,11 +45,26 @@
       100% { transform: translateX(430%); }
     }
   </style>
+  <link rel="stylesheet" href="assets/sky.css">
+  <script src="assets/sky.js"></script>
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
 
   <div class="wrap">
+    <div class="page-skybar">
+      <span class="page-skybar-label">🎨 页面配色</span>
+      <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
+        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
+        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span aria-hidden="true">☀️</span>白天</button>
+        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span aria-hidden="true">🌇</span>傍晚</button>
+        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span aria-hidden="true">🌙</span>黑夜</button>
+        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
+      </div>
+    </div>
     <div class="card">
       <div class="brand">
         <div class="logo-badge">🧠</div>
@@ -114,6 +130,9 @@
         <p class="hint" style="max-width:520px">
           低于这个专注值，青蛙就"跳不动"；达到它，就能蓄力跳出！
         </p>
+        <p class="hint" id="valid-tip" style="max-width:520px;font-size:13.5px">
+          校准后 1 小时内有效：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。
+        </p>
         <div class="btn-row" style="margin-top:10px">
           <button id="btn-play" class="btn btn-primary">开始游戏 →</button>
           <button id="btn-again" class="btn btn-ghost">重新校准</button>
@@ -135,14 +154,14 @@
           </label>
           <label class="field hidden" id="osc-field">
             <span>OSC 端口（UDP）</span>
-            <input id="osc-ports" type="text" value="7000,8000"
+            <input id="osc-ports" type="text" value="7000,8000" placeholder="7000,8000"
                    style="max-width:180px;padding:8px 10px;border-radius:8px;border:1px solid #cfd8dc" />
           </label>
-          <span class="badge">Xmuse Direct 默认推流到 127.0.0.1:7000</span>
+          <span class="badge">Xmuse Direct 默认推流到 127.0.0.1:7000（可同时监听 8000）</span>
         </div>
         <div style="margin-top:8px;font-size:13.5px">
           回放模式：使用公开 EEG 数据集中"心算专注"与"放松"的真实脑电信号驱动游戏。
-          Xmuse 模式：先在 Xmuse Direct 连接设备并添加 OSC 输出，再回到这里开始校准。
+          Xmuse 模式：先在 Xmuse Direct 连接设备并添加 OSC 输出（目标 127.0.0.1:7000 或 8000），再回到这里开始校准。
         </div>
       </div>
     </div>
@@ -152,6 +171,16 @@
   <script>
     const $ = id => document.getElementById(id);
     const state = { session: null, es: null, focus: 0.5, running: false, done: false };
+
+    // 因"校准超过 1 小时"从首页/游戏页跳过来时，给出明确原因
+    if (new URLSearchParams(location.search).get("reason") === "expired") {
+      const slogan = document.querySelector(".slogan");
+      if (slogan) slogan.textContent = "上次校准已超过 1 小时，需要重新校准一次";
+      const idleHint = document.querySelector("#idle .hint");
+      if (idleHint) {
+        idleHint.textContent = "校准有效期 1 小时，新的基线会重新计时。点击开始，跟着呼吸球放松就好。";
+      }
+    }
 
     const GUIDES = [
       ["闭上眼睛，深呼吸……", 0],
@@ -233,7 +262,11 @@
         const wait = 900 - (performance.now() - t0);
         if (wait > 0) await new Promise(r => setTimeout(r, wait));
         const baseline = res.baseline;
-        Store.saveCalib(baseline, res.calibration.quantiles);
+        const saved = Store.saveCalib(baseline, res.calibration.quantiles);
+        const until = new Date(saved.at + Store.CALIB_TTL_MS);
+        const untilText = until.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+        $("valid-tip").textContent =
+          `校准后 1 小时内有效（至 ${untilText}）：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。`;
         Store.save(state.session.id, baseline, {
           mode: state.session.mode,
           file: state.session.file,
@@ -258,5 +291,6 @@
     $("btn-play").addEventListener("click", () => { location.href = "game.html"; });
     $("btn-again").addEventListener("click", () => { Store.clear(); location.reload(); });
   </script>
+  <script src="assets/music.js" defer></script>
 </body>
 </html>

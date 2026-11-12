@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-sky="day">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>训练报告 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/vinyl.css">
   <style>
     .curve-card { background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.78)); }
     .parent-note {
@@ -14,12 +15,259 @@
       font-size: 15.5px; line-height: 1.9; color: var(--ink);
     }
     .parent-note .em { font-size: 22px; }
+    .pn-block + .pn-block {
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px dashed rgba(247,164,85,.42);
+    }
+    .pn-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 14.5px; font-weight: 900; letter-spacing: .5px;
+      color: #a9683a; margin-bottom: 6px;
+    }
+    .pn-title .emo { font-size: 17px; }
+    .pn-chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 2px 0 8px; }
+    .pn-chip {
+      font-size: 12.5px; font-weight: 700; color: #8a6242;
+      background: rgba(255,255,255,.82);
+      border: 1px solid rgba(247,164,85,.32);
+      border-radius: 999px; padding: 3px 10px;
+    }
+    .pn-chip b { color: #c06a32; }
+    .pn-text { margin: 0; }
+    .pn-text b { color: #a9683a; }
+    .pn-list { list-style: none; margin: 0; padding: 0; }
+    .pn-list li { position: relative; padding-left: 18px; margin: 7px 0; }
+    .pn-list li::before {
+      content: ""; position: absolute; left: 3px; top: .72em;
+      width: 6px; height: 6px; border-radius: 50%; background: #f0a45e;
+    }
+    .pn-list b { color: #a9683a; }
+    .pn-note {
+      margin-top: 13px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(35,70,79,.055);
+      border: 1px dashed rgba(35,70,79,.22);
+      font-size: 13px; line-height: 1.75; color: var(--ink-soft);
+    }
+    .pn-note b { color: #c4553f; }
+    .pn-ref { display: block; margin-top: 4px; font-size: 11.5px; color: rgba(92,123,131,.85); }
+    .pn-badge {
+      font-size: 11.5px; font-weight: 800; letter-spacing: 1px;
+      color: #b5673a;
+      background: rgba(255,232,210,.85);
+      border: 1px dashed rgba(247,164,85,.6);
+      padding: 2px 9px; border-radius: 999px;
+      margin-left: 2px;
+    }
+    html[data-sky="night"] .pn-title,
+    html[data-sky="dusk"] .pn-title { color: #ffd39a; }
+    html[data-sky="night"] .pn-text b,
+    html[data-sky="dusk"] .pn-text b,
+    html[data-sky="night"] .pn-list b,
+    html[data-sky="dusk"] .pn-list b { color: #ffcf9a; }
+    html[data-sky="night"] .pn-chip,
+    html[data-sky="dusk"] .pn-chip {
+      background: rgba(255,255,255,.09);
+      border-color: rgba(255,195,126,.32);
+      color: #eed9c2;
+    }
+    html[data-sky="night"] .pn-chip b,
+    html[data-sky="dusk"] .pn-chip b { color: #ffd9a8; }
+    html[data-sky="night"] .pn-note,
+    html[data-sky="dusk"] .pn-note {
+      background: rgba(0,0,0,.22);
+      border-color: rgba(255,255,255,.16);
+      color: #cfe0e4;
+    }
+    html[data-sky="night"] .pn-note b,
+    html[data-sky="dusk"] .pn-note b { color: #ffb0a0; }
+    html[data-sky="night"] .pn-ref,
+    html[data-sky="dusk"] .pn-ref { color: rgba(207,224,228,.72); }
+    html[data-sky="night"] .pn-badge,
+    html[data-sky="dusk"] .pn-badge {
+      color: #ffd0a1;
+      background: rgba(255,255,255,.08);
+      border-color: rgba(255,195,126,.45);
+    }
+
+    /* ---------- 鼓励卡：随机鼓励语 + 彩带 + 青蛙跳跃 ---------- */
+    .cheer-card {
+      position: relative;
+      overflow: hidden;
+      padding: 24px 26px;
+      background:
+        radial-gradient(130% 170% at 8% 0%, rgba(255, 238, 200, .9), rgba(255, 238, 200, 0) 58%),
+        radial-gradient(120% 170% at 96% 6%, rgba(178, 244, 198, .85), rgba(178, 244, 198, 0) 62%),
+        linear-gradient(135deg, #fffdf7 0%, #eefbf1 52%, #e3f7f8 100%);
+      border: 1.5px solid rgba(255, 255, 255, .95);
+      box-shadow: 0 18px 38px rgba(47, 110, 128, .16), inset 0 1px 0 rgba(255, 255, 255, .95);
+    }
+    .cheer-card::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, .5) 48%, transparent 64%);
+      transform: translateX(-120%);
+      animation: cheerShine 5.6s ease-in-out 1.4s infinite;
+      pointer-events: none;
+      z-index: 3;
+    }
+    @keyframes cheerShine {
+      0% { transform: translateX(-120%); }
+      42%, 100% { transform: translateX(120%); }
+    }
+
+    .cheer-glow {
+      position: absolute; right: -46px; top: -70px;
+      width: 230px; height: 230px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 214, 130, .5), rgba(255, 214, 130, 0) 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .cheer-confetti {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .cheer-inner {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .cheer-frog-wrap {
+      position: relative;
+      width: 104px; height: 96px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: end center;
+    }
+    .cheer-frog {
+      width: 96px; height: 92px;
+      transform-origin: 50% 92%;
+      animation: frogHop 2.4s cubic-bezier(.42, 0, .52, 1) infinite;
+      filter: drop-shadow(0 8px 12px rgba(47, 110, 128, .18));
+      will-change: transform;
+    }
+    .cheer-frog svg { display: block; width: 100%; height: 100%; }
+    @keyframes frogHop {
+      0%, 100% { transform: translateY(0) rotate(0deg) scale(1, 1); }
+      14% { transform: translateY(4px) rotate(-2deg) scale(1.08, .9); }
+      36% { transform: translateY(-16px) rotate(-6deg) scale(.96, 1.06); }
+      52% { transform: translateY(-19px) rotate(0deg) scale(1, 1); }
+      72% { transform: translateY(2px) rotate(4deg) scale(1.06, .92); }
+      86% { transform: translateY(0) rotate(0deg) scale(1, 1); }
+    }
+    .frog-shadow {
+      position: absolute; bottom: 2px; left: 50%;
+      width: 62px; height: 11px; margin-left: -31px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(47, 110, 128, .3), rgba(47, 110, 128, 0) 72%);
+      animation: frogShadowPulse 2.4s cubic-bezier(.42, 0, .52, 1) infinite;
+    }
+    @keyframes frogShadowPulse {
+      0%, 100% { transform: scale(1); opacity: .26; }
+      46% { transform: scale(.66); opacity: .1; }
+    }
+
+    .frog-eye {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: frogBlink 4.8s ease-in-out infinite;
+    }
+    @keyframes frogBlink {
+      0%, 92%, 100% { transform: scaleY(1); }
+      95% { transform: scaleY(.12); }
+    }
+
+    .cheer-copy { min-width: 0; flex: 1; }
+    .cheer-kicker {
+      display: inline-block;
+      font-size: 12.5px; font-weight: 800; letter-spacing: 2px;
+      color: #a9683a;
+      background: rgba(255, 255, 255, .78);
+      border: 1px solid rgba(247, 164, 85, .35);
+      padding: 3px 10px; border-radius: 999px;
+      margin-bottom: 6px;
+    }
+    .cheer-main {
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      line-height: 1.25;
+      background: linear-gradient(100deg, #f07a3a, #ee5f86 55%, #2f9c93);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: #e2622f;
+      animation: cheerPop .55s cubic-bezier(.2, 1.4, .4, 1) both;
+    }
+    .cheer-sub {
+      margin-top: 4px;
+      font-size: 14.5px;
+      font-weight: 600;
+      line-height: 1.6;
+      color: var(--ink-soft);
+    }
+    @keyframes cheerPop {
+      from { opacity: 0; transform: scale(.82) translateY(6px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    .cheer-sparkles { position: relative; width: 62px; height: 84px; flex-shrink: 0; }
+    .spark {
+      position: absolute;
+      font-size: 20px;
+      color: #ffc861;
+      text-shadow: 0 2px 6px rgba(255, 180, 80, .45);
+      animation: sparkTwinkle 2.2s ease-in-out infinite;
+    }
+    .spark.s1 { top: 4px;  left: 18px; font-size: 24px; animation-delay: .1s; }
+    .spark.s2 { top: 34px; left: 0;    font-size: 17px; animation-delay: .7s; color: #8fe0a6; }
+    .spark.s3 { top: 52px; left: 36px; font-size: 14px; animation-delay: 1.2s; color: #7ec8e3; }
+    @keyframes sparkTwinkle {
+      0%, 100% { opacity: .35; transform: scale(.8) rotate(-8deg); }
+      50%      { opacity: 1;   transform: scale(1.15) rotate(8deg); }
+    }
+
+    @media (max-width: 640px) {
+      .cheer-card { padding: 16px 16px; }
+      .cheer-inner { gap: 12px; }
+      .cheer-frog-wrap { width: 78px; height: 76px; }
+      .cheer-frog { width: 74px; height: 72px; }
+      .frog-shadow { width: 50px; margin-left: -25px; }
+      .cheer-main { font-size: 21px; letter-spacing: .5px; }
+      .cheer-sub { font-size: 13px; }
+      .cheer-kicker { font-size: 10.5px; letter-spacing: 1px; }
+      .cheer-sparkles { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .cheer-frog, .frog-shadow, .spark, .frog-eye, .cheer-card::after, .cheer-main { animation: none !important; }
+    }
   </style>
+  <link rel="stylesheet" href="assets/sky.css">
+  <script src="assets/sky.js"></script>
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
 
   <div class="wrap">
+    <div class="page-skybar">
+      <span class="page-skybar-label">🎨 页面配色</span>
+      <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
+        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
+        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span aria-hidden="true">☀️</span>白天</button>
+        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span aria-hidden="true">🌇</span>傍晚</button>
+        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span aria-hidden="true">🌙</span>黑夜</button>
+        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
+      </div>
+    </div>
     <div class="card">
       <div class="brand">
         <div class="logo-badge">🏆</div>
@@ -34,6 +282,66 @@
       <p class="hint">正在读取报告……</p>
     </div>
 
+    <div class="card cheer-card" id="cheer" aria-live="polite">
+      <canvas class="cheer-confetti" id="confetti" aria-hidden="true"></canvas>
+      <div class="cheer-glow" aria-hidden="true"></div>
+      <div class="cheer-inner">
+        <div class="cheer-frog-wrap" aria-hidden="true">
+          <div class="cheer-frog">
+            <svg viewBox="0 0 100 92" role="img" aria-label="笑着跳跃的青蛙">
+              <defs>
+                <radialGradient id="frogBody" cx="38%" cy="26%" r="80%">
+                  <stop offset="0%" stop-color="#a8eca1"/>
+                  <stop offset="55%" stop-color="#5fc96f"/>
+                  <stop offset="100%" stop-color="#36a356"/>
+                </radialGradient>
+                <linearGradient id="frogBelly" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#f6ffe4"/>
+                  <stop offset="100%" stop-color="#d9f6b9"/>
+                </linearGradient>
+              </defs>
+              <g>
+                <ellipse cx="20" cy="68" rx="12" ry="9" fill="#3fae5c" transform="rotate(-18 20 68)"/>
+                <ellipse cx="80" cy="68" rx="12" ry="9" fill="#3fae5c" transform="rotate(18 80 68)"/>
+                <ellipse cx="50" cy="56" rx="30" ry="25" fill="url(#frogBody)"/>
+                <ellipse cx="50" cy="65" rx="20" ry="15" fill="url(#frogBelly)" opacity=".85"/>
+                <ellipse cx="23" cy="63" rx="8" ry="5" fill="#4bb862" transform="rotate(22 23 63)"/>
+                <ellipse cx="77" cy="63" rx="8" ry="5" fill="#4bb862" transform="rotate(-22 77 63)"/>
+                <g class="frog-eye">
+                  <circle cx="32" cy="30" r="14" fill="#7fd98a"/>
+                  <circle cx="32" cy="29" r="10.5" fill="#ffffff"/>
+                  <circle cx="33" cy="30" r="6" fill="#1f3d36"/>
+                  <circle cx="30.4" cy="27.4" r="2.2" fill="#ffffff"/>
+                </g>
+                <g class="frog-eye">
+                  <circle cx="68" cy="30" r="14" fill="#7fd98a"/>
+                  <circle cx="68" cy="29" r="10.5" fill="#ffffff"/>
+                  <circle cx="67" cy="30" r="6" fill="#1f3d36"/>
+                  <circle cx="64.4" cy="27.4" r="2.2" fill="#ffffff"/>
+                </g>
+                <circle cx="25" cy="51" r="5.4" fill="#ff9fae" opacity=".7"/>
+                <circle cx="75" cy="51" r="5.4" fill="#ff9fae" opacity=".7"/>
+                <path d="M35 47 Q50 63 65 47" stroke="#2b7a45" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+                <ellipse cx="26" cy="79" rx="13" ry="6" fill="#4bb862"/>
+                <ellipse cx="74" cy="79" rx="13" ry="6" fill="#4bb862"/>
+              </g>
+            </svg>
+          </div>
+          <span class="frog-shadow"></span>
+        </div>
+        <div class="cheer-copy">
+          <div class="cheer-kicker">小蛙为你庆祝</div>
+          <div class="cheer-main" id="cheer-msg">真棒！</div>
+          <div class="cheer-sub" id="cheer-sub">每一次专注，都算数。</div>
+        </div>
+        <div class="cheer-sparkles" aria-hidden="true">
+          <span class="spark s1">✦</span>
+          <span class="spark s2">✦</span>
+          <span class="spark s3">✧</span>
+        </div>
+      </div>
+    </div>
+
     <div class="card curve-card">
       <div class="section-title"><span class="dot"></span>专注曲线（实时脑电驱动）</div>
       <canvas id="curve" width="880" height="230"></canvas>
@@ -41,11 +349,12 @@
         <span class="badge">浅绿色区域</span> 专注状态（蓄力/跳出）&nbsp;·&nbsp;
         <span class="badge">橙色虚线</span> 你的专注基线
       </p>
+      <p class="hint" id="curve-tip" style="display:none;margin-top:6px;font-size:13px;color:#c26a1b"></p>
     </div>
 
     <div class="card">
-      <div class="section-title"><span class="dot"></span>💬 给家长的话</div>
-      <div class="parent-note" id="parent-note">本页展示本局脑波分数（教学演示用），不构成注意力水平评估。</div>
+      <div class="section-title"><span class="dot"></span>💬 给家长的话<span class="pn-badge">仅供参考</span></div>
+      <div class="parent-note" id="parent-note">正在根据本局数据生成分析与建议……</div>
     </div>
 
     <div class="btn-row">
@@ -59,6 +368,179 @@
     const $ = id => document.getElementById(id);
     const sid = new URLSearchParams(location.search).get("id");
 
+    /* ---------------- 鼓励语：每次随机一句 ---------------- */
+    const CHEER_LINES = [
+      "真棒！",
+      "再接再厉！",
+      "专注的样子超帅气！",
+      "青蛙给你鼓掌啦！",
+      "这一跳，稳稳的！",
+      "继续保持，你能行！",
+      "小小的专注，大大的进步！",
+      "荷叶都被你踩出节奏啦！",
+      "今天的你，闪闪发光！",
+      "稳住心态，越跳越远！",
+      "专注小达人，非你莫属！",
+      "再来一次，还会更棒！"
+    ];
+    const CHEER_SUBS = [
+      "每一次专注，都算数。",
+      "青蛙说：和你一起跳真开心！",
+      "慢慢来，稳稳跳，就是最好的节奏。",
+      "把这股劲儿留到下一局吧。",
+      "你已经比刚才更棒了。",
+      "记得休息一下，眼睛也要放松哦。"
+    ];
+    const pickOne = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    function renderCheer() {
+      $("cheer-msg").textContent = pickOne(CHEER_LINES);
+      $("cheer-sub").textContent = pickOne(CHEER_SUBS);
+    }
+
+    /* ---------------- 彩带庆祝 ---------------- */
+    const CONFETTI_COLORS = [
+      "#ffd166", "#ff8fa3", "#9fe3a3", "#58c270",
+      "#7ec8e3", "#c3a6ff", "#ffb4a2", "#ff9f6e"
+    ];
+    const confettiCanvas = $("confetti");
+    const confettiCtx = confettiCanvas.getContext("2d");
+    let confettiPieces = [];
+    let confettiRaf = null;
+    let confettiLast = 0;
+    let confettiW = 0, confettiH = 0;
+    const confettiDpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    function sizeConfettiCanvas() {
+      const rect = confettiCanvas.getBoundingClientRect();
+      confettiW = Math.max(1, rect.width);
+      confettiH = Math.max(1, rect.height);
+      confettiCanvas.width = Math.round(confettiW * confettiDpr);
+      confettiCanvas.height = Math.round(confettiH * confettiDpr);
+      confettiCtx.setTransform(confettiDpr, 0, 0, confettiDpr, 0, 0);
+    }
+
+    function makePiece(x, y, vx, vy, gravity) {
+      const roll = Math.random();
+      const shape = roll < .55 ? "rect" : roll < .82 ? "ribbon" : "dot";
+      return {
+        x, y, vx, vy,
+        gravity: gravity || 420,
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - .5) * 9,
+        w: shape === "dot" ? 6 + Math.random() * 4 : 7 + Math.random() * 7,
+        h: shape === "dot" ? 0 : shape === "ribbon" ? 13 + Math.random() * 9 : 6 + Math.random() * 6,
+        shape,
+        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+        sway: 6 + Math.random() * 22,
+        wobble: .8 + Math.random() * 2.2,
+        phase: Math.random() * Math.PI * 2,
+        life: 0
+      };
+    }
+
+    /* 顶部飘落 */
+    function rainConfetti(count) {
+      for (let i = 0; i < count; i++) {
+        confettiPieces.push(makePiece(
+          Math.random() * confettiW,
+          -14 - Math.random() * confettiH * .4,
+          (Math.random() - .5) * 70,
+          45 + Math.random() * 85,
+          360
+        ));
+      }
+      ensureConfettiLoop();
+    }
+
+    /* 两侧小礼炮 */
+    function popConfetti() {
+      [
+        { x: 2, y: confettiH * .95, ang: -Math.PI / 2.6 },
+        { x: confettiW - 2, y: confettiH * .95, ang: -Math.PI * 1.6 / 2.6 }
+      ].forEach(spec => {
+        for (let i = 0; i < 30; i++) {
+          const ang = spec.ang + (Math.random() - .5) * .6;
+          const speed = 280 + Math.random() * 220;
+          confettiPieces.push(makePiece(
+            spec.x, spec.y,
+            Math.cos(ang) * speed,
+            Math.sin(ang) * speed,
+            760
+          ));
+        }
+      });
+      ensureConfettiLoop();
+    }
+
+    function confettiTick(t) {
+      const dt = Math.min(Math.max((t - confettiLast) / 1000, .001), .05);
+      confettiLast = t;
+      const ctx = confettiCtx;
+      ctx.clearRect(0, 0, confettiW, confettiH);
+
+      for (let i = confettiPieces.length - 1; i >= 0; i--) {
+        const p = confettiPieces[i];
+        p.life += dt;
+        p.vy += p.gravity * dt;
+        p.vx *= Math.max(0, 1 - 1.1 * dt);
+        p.x += p.vx * dt + Math.sin(p.phase + p.life * p.wobble) * p.sway * dt;
+        p.y += p.vy * dt;
+        p.rot += p.vr * dt;
+
+        if (p.y > confettiH + 30 || p.x < -50 || p.x > confettiW + 50) {
+          confettiPieces.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = Math.max(0, 1 - p.life / 6.5);
+        ctx.fillStyle = p.color;
+        if (p.shape === "dot") {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        }
+        ctx.restore();
+      }
+
+      if (confettiPieces.length) {
+        confettiRaf = requestAnimationFrame(confettiTick);
+      } else {
+        confettiRaf = null;
+        ctx.clearRect(0, 0, confettiW, confettiH);
+      }
+    }
+
+    function ensureConfettiLoop() {
+      if (confettiRaf == null) {
+        confettiLast = performance.now();
+        confettiRaf = requestAnimationFrame(confettiTick);
+      }
+    }
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function celebrate() {
+      sizeConfettiCanvas();
+      if (reduceMotion) return;
+      popConfetti();
+      rainConfetti(30);
+      let extraWaves = 0;
+      const waveTimer = setInterval(() => {
+        if (!document.hidden) rainConfetti(9 + Math.floor(Math.random() * 6));
+        if (++extraWaves >= 3) clearInterval(waveTimer);
+      }, 4000);
+      window.addEventListener("resize", sizeConfettiCanvas);
+    }
+
+    renderCheer();
+    sizeConfettiCanvas();
+
     async function load() {
       try {
         const r = await API.get("/api/report/" + sid);
@@ -66,6 +548,81 @@
       } catch (e) {
         $("report").innerHTML = `<p class="hint">读取失败：${e.message}</p>`;
       }
+    }
+
+    function fmtPlayed(sec) {
+      if (sec == null) return "—";
+      const s = Math.max(0, Math.round(sec));
+      if (s < 60) return s + "s";
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return r ? `${m}分${r}秒` : `${m}分钟`;
+    }
+
+    /* ---------------- 给家长的话：分析 + 建议 + 免责声明 ---------------- */
+    function buildParentNote(r) {
+      const mean = r.focus_mean != null ? Math.round(r.focus_mean * 100) : null;
+      const max = r.focus_max != null ? Math.round(r.focus_max * 100) : null;
+      const above = r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null;
+      const valid = r.n_frames ? Math.round(((r.n_valid_frames || 0) / r.n_frames) * 100) : null;
+      const mins = Math.max(1, Math.round((r.played_sec || r.duration_sec || 0) / 60));
+
+      const chips = [];
+      if (mean != null) chips.push(`<span class="pn-chip">专注分数均值 <b>${mean}%</b></span>`);
+      if (max != null) chips.push(`<span class="pn-chip">本局最高 <b>${max}%</b></span>`);
+      if (above != null) chips.push(`<span class="pn-chip">高于基线 <b>${above}%</b> 时间</span>`);
+      if (valid != null) chips.push(`<span class="pn-chip">有效数据 <b>${valid}%</b></span>`);
+      chips.push(`<span class="pn-chip">本局约 <b>${mins} 分钟</b></span>`);
+
+      let summary = "";
+      if (mean == null) {
+        summary = "本局没有采集到足够的有效数据，暂时无法解读表现，建议先检查设备佩戴与信号。";
+      } else if (mean >= 75) {
+        summary = `本局专注分数均值 <b>${mean}%</b>，整体比较稳定，说明孩子在游戏节奏里能较好地跟上任务。`;
+      } else if (mean >= 60) {
+        summary = `本局专注分数均值 <b>${mean}%</b>，中间有起有落，属于常见的波动范围，不需要因为一两次下滑担心。`;
+      } else {
+        summary = `本局专注分数均值 <b>${mean}%</b>，波动比较明显，可能和疲劳、环境干扰或刚接触任务有关。`;
+      }
+
+      if (above != null) {
+        if (above >= 60) summary += ` 有 <b>${above}%</b> 的时间高于自己的基线，多数时候能跟上节奏。`;
+        else if (above >= 30) summary += ` 有 <b>${above}%</b> 的时间高于基线，状态时好时稳。`;
+        else summary += ` 高于基线的时间占 <b>${above}%</b>，这次更像一次熟悉任务的热身。`;
+      } else {
+        summary += " 本局没有做基线校准，以上只描述本局分数，不适合和其他场次直接比较。";
+      }
+      if (valid != null && valid < 70) {
+        summary += ` 另外，本局有效数据只占 <b>${valid}%</b>，解读时请保守一些。`;
+      }
+
+      let firstTip;
+      if (mean == null) firstTip = "<b>先检查设备</b>：确认头环贴合、电量充足、信号稳定，再开始下一局。";
+      else if (mean >= 75) firstTip = "<b>保持手感</b>：每次 5–10 分钟、每周 3–5 次即可，玩完让眼睛和身体休息一下，不用追求一次练很久。";
+      else if (mean >= 60) firstTip = "<b>把训练拆短</b>：每次 5–10 分钟，中间起身活动 1–2 分钟，比一次练很久更容易坚持。";
+      else firstTip = "<b>先照顾状态</b>：疲劳、饥饿或情绪不好时先不练，可以从 3–5 分钟开始，完成就及时表扬。";
+
+      return `
+        <div class="pn-block">
+          <div class="pn-title"><span class="emo">🔍</span>本局表现</div>
+          <div class="pn-chips">${chips.join("")}</div>
+          <p class="pn-text">${summary}</p>
+        </div>
+        <div class="pn-block">
+          <div class="pn-title"><span class="emo">🌱</span>训练建议</div>
+          <ul class="pn-list">
+            <li>${firstTip}</li>
+            <li><b>打好生活底子</b>：小学生每天约 9–12 小时睡眠（初中生 8–10 小时），累计至少 60 分钟中高强度活动；和孩子约定好娱乐屏幕时间，优先保证睡眠和运动。</li>
+            <li><b>把专注迁移到生活</b>：一次只给一个指令，把任务拆成小步骤，完成后给具体表扬（例如“你刚才连续拼了 5 分钟”），比笼统说“真棒”更有效。</li>
+            <li><b>保护眼睛</b>：屏幕保持 30–40 厘米距离，每玩 20 分钟看 6 米外至少 20 秒；训练结束做几次深呼吸再离开座位。</li>
+            <li><b>需要时求助</b>：如果注意力困难持续 6 个月以上，并在家庭、学校等多个场景影响学习或社交，建议到儿保科或儿童心理科做专业评估。</li>
+          </ul>
+        </div>
+        <div class="pn-note">
+          <b>仅供参考：</b>以上内容由本局游戏数据自动生成，仅供家长了解训练情况，不构成医学诊断、心理评估或治疗建议。脑波分数会受设备佩戴、疲劳、环境等因素影响，不能代表孩子的注意力水平。
+          <span class="pn-ref">参考依据：WHO 5–17 岁身体活动建议、AASM 儿童睡眠建议、AAP 屏幕使用建议、DSM-5 注意缺陷多动障碍诊断要点。</span>
+        </div>
+      `;
     }
 
     function render(r) {
@@ -77,7 +634,7 @@
           <div class="stat"><div class="icon">⏱️</div><div class="label">高于基线时间占比</div><div class="value">${above ?? "—"}%</div></div>
           <div class="stat"><div class="icon">📈</div><div class="label">脑波分数均值（教学映射）</div><div class="value">${r.focus_mean != null ? Math.round(r.focus_mean * 100) + "%" : "—"}</div></div>
           <div class="stat"><div class="icon">🎯</div><div class="label">本局基线</div><div class="value">${r.baseline != null ? Math.round(r.baseline * 100) + "%" : "—"}</div></div>
-          <div class="stat"><div class="icon">⌛</div><div class="label">用时</div><div class="value">${r.played_sec != null ? Math.round(r.played_sec) + "s" : "—"}</div></div>
+          <div class="stat"><div class="icon">⌛</div><div class="label">用时</div><div class="value">${fmtPlayed(r.played_sec)}</div></div>
           <div class="stat"><div class="icon">✅</div><div class="label">有效数据占比</div><div class="value">${(r.n_valid_frames != null && r.n_frames) ? Math.round(r.n_valid_frames / r.n_frames * 100) + "%" : "—"}</div></div>
         </div>
         <p class="hint" style="margin-top:12px;font-size:13.5px">
@@ -85,16 +642,53 @@
         </p>
       `;
       drawCurve(r.curve || [], r.baseline);
-      const pct = above != null ? above : 0;
-      $("parent-note").innerHTML = pct >= 60
-        ? `<span class="em">🎉</span> 这局脑波分数多数时间高于基线（<strong>${pct}%</strong>），青蛙跳了 ${r.score ?? 0} 片荷叶。分数只描述这一局游戏，不衡量注意力水平。`
-        : pct >= 30
-          ? `<span class="em">💪</span> 这局脑波分数有 <strong>${pct}%</strong> 时间高于基线。这是教学演示游戏，分数高低不影响什么，休息一下想玩再来一局。`
-          : `<span class="em">🌱</span> 这局脑波分数大部分时间低于基线（${pct}%）。没关系，放松玩就好，这只是演示。`;
+      const tip = $("curve-tip");
+      if (tip) {
+        if (r.baseline == null) {
+          tip.textContent = "本局没有记录校准基线，所以图上没有橙色虚线，也无法计算「高于基线占比」。重新校准后再开一局即可显示。";
+          tip.style.display = "block";
+        } else {
+          tip.style.display = "none";
+        }
+      }
+      $("parent-note").innerHTML = buildParentNote(r);
       $("sub").textContent = `会话 ${sid} · ${r.created_at || ""}`;
+      celebrate();
     }
 
+    // 图表配色随天空模式切换：暗色下用浅色网格与更亮的曲线
+    function chartTheme() {
+      const sky = document.documentElement.getAttribute("data-sky");
+      const dark = sky === "night" || sky === "dusk";
+      return dark ? {
+        grid: "rgba(255,255,255,.10)",
+        label: "rgba(214,232,242,.92)",
+        curve: "#6fd3c8",
+        areaTop: "rgba(111,211,200,.28)",
+        areaBot: "rgba(111,211,200,.02)",
+        zone: "rgba(159,227,163,.16)",
+        baseline: "#ffb257",
+        halo: "rgba(9,26,36,.85)",
+        tagText: "#ffb257",
+      } : {
+        grid: "rgba(58,108,122,.10)",
+        label: "rgba(92,123,131,.9)",
+        curve: "#2f9c93",
+        areaTop: "rgba(58,167,160,.30)",
+        areaBot: "rgba(58,167,160,.02)",
+        zone: "rgba(159,227,163,.28)",
+        baseline: "#ef8c1f",
+        halo: "rgba(255,255,255,.92)",
+        tagText: "#d9761a",
+      };
+    }
+
+    let lastCurve = [], lastBaseline = null;
+
     function drawCurve(curve, baseline) {
+      lastCurve = curve || [];
+      lastBaseline = baseline;
+      const theme = chartTheme();
       const c = $("curve");
       const ctx = c.getContext("2d");
       const W = c.width, H = c.height, padL = 58, padR = 20, padT = 26, padB = 34;
@@ -109,42 +703,39 @@
       ctx.font = "12px 'PingFang SC', sans-serif";
       for (let gy = 0; gy <= 4; gy++) {
         const y = Y(gy / 4);
-        ctx.strokeStyle = "rgba(58, 108, 122, .10)";
+        ctx.strokeStyle = theme.grid;
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-        ctx.fillStyle = "rgba(92,123,131,.9)";
+        ctx.fillStyle = theme.label;
         ctx.textAlign = "right";
         ctx.fillText(Math.round(gy / 4 * 100) + "%", padL - 10, y + 4);
       }
 
-      // 基线虚线 + 专注区间淡色
+      // 专注状态（focus >= 基线）的浅绿区间：先把连续段合并，再一次性填充。
+      // 旧写法在每个采样点都从段首重绘一遍矩形，半透明色层层叠加会被叠成实色块，
+      // 也会把基线虚线压得看不见。
       if (baseline != null) {
         const by = Y(baseline);
-        ctx.fillStyle = "rgba(159,227,163,.28)";
-        let seg = [];
+        const runs = [];
+        let run = null;
         curve.forEach((p, i) => {
           if (p.focus >= baseline) {
-            if (!seg.length) seg = [i, i];
-            seg[1] = i;
-            const x0 = X(curve[seg[0]].t), x1 = X(curve[i].t);
-            ctx.fillRect(x0, by, x1 - x0, H - padB - by);
-          } else seg = [];
+            if (!run) { run = [i, i]; runs.push(run); }
+            run[1] = i;
+          } else run = null;
         });
-        ctx.setLineDash([7, 6]);
-        ctx.strokeStyle = "rgba(247,164,85,.85)";
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(padL, by); ctx.lineTo(W - padR, by); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = "#e8893a";
-        ctx.font = "700 13px 'PingFang SC', sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText("基线 " + Math.round(baseline * 100) + "%", W - padR - 132, by - 10);
+        ctx.fillStyle = theme.zone;
+        runs.forEach(([a, b]) => {
+          if (b <= a) return;
+          const x0 = X(curve[a].t), x1 = X(curve[b].t);
+          ctx.fillRect(x0, by, x1 - x0, H - padB - by);
+        });
       }
 
       // 面积渐变
       const g = ctx.createLinearGradient(0, padT, 0, H - padB);
-      g.addColorStop(0, "rgba(58,167,160,.30)");
-      g.addColorStop(1, "rgba(58,167,160,.02)");
+      g.addColorStop(0, theme.areaTop);
+      g.addColorStop(1, theme.areaBot);
       ctx.beginPath();
       curve.forEach((p, i) => {
         const x = X(p.t), y = Y(p.focus);
@@ -162,18 +753,47 @@
         const x = X(p.t), y = Y(p.focus);
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       });
-      ctx.strokeStyle = "#2f9c93";
+      ctx.strokeStyle = theme.curve;
       ctx.lineWidth = 3;
       ctx.lineJoin = "round";
       ctx.stroke();
       // 起点圆点
-      ctx.fillStyle = "#2f9c93";
+      ctx.fillStyle = theme.curve;
       ctx.beginPath();
       ctx.arc(X(curve[0].t), Y(curve[0].focus), 5, 0, Math.PI * 2);
       ctx.fill();
 
+      // 基线虚线：放到最后绘制，并用背景色描边打底，
+      // 否则会被面积渐变和曲线盖住，看起来像"没有橙色虚线"。
+      if (baseline != null) {
+        const by = Y(baseline);
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = theme.halo;
+        ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(padL, by); ctx.lineTo(W - padR, by); ctx.stroke();
+        ctx.setLineDash([8, 6]);
+        ctx.strokeStyle = theme.baseline;
+        ctx.lineWidth = 2.6;
+        ctx.beginPath(); ctx.moveTo(padL, by); ctx.lineTo(W - padR, by); ctx.stroke();
+        ctx.restore();
+
+        const label = "基线 " + Math.round(baseline * 100) + "%";
+        ctx.font = "700 13px 'PingFang SC', sans-serif";
+        const lx = W - padR - ctx.measureText(label).width - 10;
+        let ly = by - 10;
+        if (ly < padT + 14) ly = by + 18;
+        ctx.lineWidth = 4;
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = theme.halo;
+        ctx.textAlign = "left";
+        ctx.strokeText(label, lx, ly);
+        ctx.fillStyle = theme.tagText;
+        ctx.fillText(label, lx, ly);
+      }
+
       // 横轴
-      ctx.fillStyle = "rgba(92,123,131,.9)";
+      ctx.fillStyle = theme.label;
       ctx.textAlign = "center";
       ctx.font = "12px 'PingFang SC', sans-serif";
       ctx.fillText("0s", padL, H - 12);
@@ -181,9 +801,14 @@
       ctx.fillText(Math.round(xmax) + "s", W - padR, H - 12);
     }
 
-    $("btn-again").addEventListener("click", () => { location.href = "game.html"; });
+    document.addEventListener("skychange", () => {
+      if (lastCurve.length) drawCurve(lastCurve, lastBaseline);
+    });
+
+    $("btn-again").addEventListener("click", () => { location.href = "index.html?pick=1"; });
     $("btn-home").addEventListener("click", () => { location.href = "index.html"; });
     load();
   </script>
+  <script src="assets/music.js" defer></script>
 </body>
 </html>
