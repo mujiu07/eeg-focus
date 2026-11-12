@@ -11,6 +11,14 @@
 
 ---
 
+## v1.2.1 — 端口决策说明补充（mujiu07）
+
+- 在 `docs/xmuse-hardware-integration.md` 增加“端口选择决策记录（默认 7000/8000）”与“变更守则”，固化 AI-Xmuse ToolBox（7000 / 8001）、Xmuse-Coding（8000 / 8001 / 8002）与本机 Xmuse Direct 1.5.11（7000）的证据链。
+- `README.md` 的 Xmuse 段落增加指向该节的提醒：修改默认端口必须附真机探针日志，不能只凭单个官方示例。
+- 本次为文档补丁，不改运行时代码；默认端口仍为 `7000,8000`。
+
+---
+
 ## v1.2 — Xmuse 脑电波仪 OSC/UDP 接入（mujiu07）
 
 - 新增 `app/xmuse_osc.py`：多端口 OSC/UDP 接收（默认 `7000`、`8000`），2 s 窗 / 0.5 s 步长，自动识别 4/6 通道与 `/eeg` 地址后缀，解析 `/elements/is_good` 与 `/batt`。
