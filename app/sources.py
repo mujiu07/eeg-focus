@@ -134,6 +134,28 @@ class EDFReplaySource(EEGSource):
         return d
 
 
+class HeartSource(EEGSource):
+    """仅心率: 不接脑电，专注度完全由心率推导（放松/冥想类玩法）。
+
+    本身不产出脑电窗口；server 的会话循环识别到该源时跳过特征提取，
+    直接用心率分量作为本帧专注度。
+    """
+
+    name = "heart"
+    label = "仅心率（无需脑电设备）"
+
+    def __init__(self):
+        super().__init__()
+        self._n = 0
+
+    def next_window(self):
+        self._n += 1
+        return None, {"source": self.name, "window": self._n, "progress": 0.0}
+
+    def describe(self):
+        return {"name": self.name, "label": self.label, "heart_only": True}
+
+
 class ManualSource(EEGSource):
     """手动模拟: 用户/前端滑块直接控制专注度 (0..1)，不经过模型。"""
 
@@ -258,6 +280,8 @@ def create_source(config):
         return EDFReplaySource(fp)
     if mode == "manual":
         return ManualSource()
+    if mode == "heart":
+        return HeartSource()
     if mode == "hardware":
         return HardwareSource(config)
     raise ValueError(f"未知信号源模式: {mode}")

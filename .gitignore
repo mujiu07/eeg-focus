@@ -7,6 +7,7 @@ __pycache__/
 # 本地脑电数据与会话记录（隐私/许可：不公开）
 data/
 outputs/sessions/
+outputs/heart/
 
 # 网易云登录凭据（严禁提交/公开）
 data/music_cookie.txt

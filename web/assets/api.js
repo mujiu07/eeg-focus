@@ -122,8 +122,8 @@ const Store = {
     return { calib: raw, expired: false, remainMs };
   },
 
-  saveCalib(baseline, quantiles) {
-    const payload = { baseline, quantiles, at: Date.now() };
+  saveCalib(baseline, quantiles, range) {
+    const payload = { baseline, quantiles, range: range || null, at: Date.now() };
     localStorage.setItem(this.CALIB_KEY, JSON.stringify(payload));
     try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }
     return payload;

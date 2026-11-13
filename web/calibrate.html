@@ -10,6 +10,33 @@
     .calib-hero { text-align: center; padding: 22px 30px 10px; }
     .stage { min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
     .stage.hidden { display: none; }
+    .calib-hero { position: relative; padding: 22px 26px 20px; }
+
+    /* 放松视频：只在“开始校准”后出现，独占画面，不被任何浮层覆盖 */
+    .video-frame {
+      width: 100%; max-width: 780px; margin: 4px auto 0;
+      aspect-ratio: 16 / 9; border-radius: 20px; overflow: hidden;
+      background: #0c2830; box-shadow: 0 12px 30px rgba(15, 60, 72, .18);
+    }
+    .video-frame.gone { display: none; }
+    #relax-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #relax-video.gone { display: none; }
+
+    /* 视频下方的信息区：文字、倒计时、状态条都在画面之外 */
+    .calib-info {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px; width: 100%; margin-top: 16px;
+    }
+    .calib-info .countdown { font-size: 21px; }
+    .cd-row { display: flex; align-items: baseline; gap: 6px; }
+    .cd-label { font-size: 13.5px; color: var(--muted, #6b8a94); font-weight: 700; }
+    .calib-hero .guide-pill {
+      background: rgba(58, 167, 160, .1); color: var(--ink, #2f6e80); box-shadow: none;
+    }
+
+    /* 视频缺失时退回呼吸球，界面仍是原来的浅色观感 */
+    .calib-hero.no-video .breath-ball { display: block; }
+    .calib-hero .breath-ball { display: none; }
     .idle-icon { font-size: 64px; filter: drop-shadow(0 10px 18px rgba(58,167,160,.35)); animation: frogBreathe 3.4s ease-in-out infinite; }
     .guide-pill {
       background: rgba(255,255,255,.8); border-radius: 999px;
@@ -65,23 +92,21 @@
         <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
       </div>
     </div>
-    <div class="card">
+    <div class="card calib-hero" id="calib-hero">
       <div class="brand">
         <div class="logo-badge">🧠</div>
         <div>
           <h1>脑电校准</h1>
-          <div class="slogan">先建立你的专注基线，大概 20 秒就好</div>
+          <div class="slogan" id="calib-slogan">先跟着视频放松一会儿</div>
         </div>
       </div>
-    </div>
 
-    <div class="card calib-hero">
       <!-- 待校准 -->
       <div class="stage" id="idle">
         <div class="idle-icon">🌙</div>
         <div class="guide-text" style="margin:6px 0 2px">准备好了吗？</div>
-        <p class="hint" style="font-size:15.5px;max-width:520px">
-          校准会让游戏判断"专注"时更懂你。点击开始，跟着呼吸球放松就好。
+        <p class="hint" id="idle-hint" style="font-size:15.5px;max-width:520px">
+          先跟着视频放松 60 秒，只做一件事：让自己静下来。系统会记下你今天的状态，把 50 分定成你的专注线。
         </p>
         <div class="btn-row" style="margin-top:14px">
           <button id="btn-start" class="btn btn-primary">开始校准</button>
@@ -90,16 +115,25 @@
 
       <!-- 校准中 -->
       <div class="stage hidden" id="running">
+        <div class="video-frame" id="video-frame">
+          <video id="relax-video" src="assets/relax.mp4" loop playsinline preload="auto"></video>
+        </div>
         <div class="breath-ball"></div>
-        <div class="guide-pill" id="guide">闭上眼睛，深呼吸……</div>
-        <div class="countdown" id="countdown">20</div>
-        <div class="focus-bar-wrap" style="max-width:520px;margin:4px auto 0">
-          <div class="focus-bar-label">
-            <span>你的专注度</span>
-            <span class="pct" id="focus-pct">50%</span>
+        <div class="calib-info">
+          <div class="guide-pill" id="guide">看着画面，慢慢呼吸……</div>
+          <div class="cd-row">
+            <span class="cd-label">还剩</span>
+            <span class="countdown" id="countdown">40</span>
+            <span class="cd-label">秒</span>
           </div>
-          <div class="focus-bar-track">
-            <div class="focus-bar-fill" id="focus-fill"></div>
+          <div class="focus-bar-wrap" style="width:100%;max-width:520px">
+            <div class="focus-bar-label">
+              <span>现在的状态</span>
+              <span class="pct" id="focus-pct">50%</span>
+            </div>
+            <div class="focus-bar-track">
+              <div class="focus-bar-fill" id="focus-fill"></div>
+            </div>
           </div>
         </div>
         <div id="manual-ctl" class="hidden" style="width:100%;max-width:520px">
@@ -119,16 +153,17 @@
         <div class="idle-icon" style="font-size:52px">🔮</div>
         <div class="guide-text" style="margin:8px 0 2px">校准结果生成中，请稍候。</div>
         <div class="loading-bar"><div class="loading-fill"></div></div>
-        <p class="hint" style="font-size:14px">正在计算你的专属基线……</p>
+        <p class="hint" style="font-size:14px">正在按你今天的状态定分数……</p>
       </div>
 
       <!-- 校准完成 -->
       <div class="stage hidden" id="done">
         <div class="ripple-wrap"><div class="ripple">✅</div></div>
-        <div class="guide-text" style="margin-top:8px">基线建立成功！</div>
+        <div class="guide-text" style="margin-top:8px">校准完成！</div>
         <div class="big-num" id="baseline-show">—</div>
+        <div class="hint" id="heart-rest-show" style="font-size:13.5px;margin-top:2px">—</div>
         <p class="hint" style="max-width:520px">
-          低于这个专注值，青蛙就"跳不动"；达到它，就能蓄力跳出！
+          你的分数已按个人状态定标：50 分是今天的「专注线」，达到它青蛙就能蓄力起跳。
         </p>
         <p class="hint" id="valid-tip" style="max-width:520px;font-size:13.5px">
           校准后 1 小时内有效：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。
@@ -149,7 +184,16 @@
             <select id="source-select">
               <option value="replay">🎧 真实脑电数据回放（放松段）</option>
               <option value="manual">🎮 手动模拟</option>
+              <option value="heart">❤️ 仅心率（不接脑电）</option>
               <option value="hardware">📟 Xmuse 脑电波仪（OSC/UDP）</option>
+            </select>
+          </label>
+          <label class="field" id="heart-field">
+            <span>心率辅助</span>
+            <select id="heart-select">
+              <option value="hrd">❤️ AirPods 自动读取</option>
+              <option value="mock">🎲 模拟心率（演示用）</option>
+              <option value="off">关闭（纯脑电）</option>
             </select>
           </label>
           <label class="field hidden" id="osc-field">
@@ -172,21 +216,26 @@
     const $ = id => document.getElementById(id);
     const state = { session: null, es: null, focus: 0.5, running: false, done: false };
 
+    // 心率辅助源：URL 参数优先，其次沿用上次选择；游戏页读同一份 localStorage。
+    const HEART_MODES = ["hrd", "mock", "csv", "off"];
+    const heartInit = (new URLSearchParams(location.search).get("heart")
+      || localStorage.getItem("bf-heart") || "hrd").toLowerCase();
+    if (HEART_MODES.includes(heartInit)) $("heart-select").value = heartInit;
+
     // 因"校准超过 1 小时"从首页/游戏页跳过来时，给出明确原因
     if (new URLSearchParams(location.search).get("reason") === "expired") {
       const slogan = document.querySelector(".slogan");
       if (slogan) slogan.textContent = "上次校准已超过 1 小时，需要重新校准一次";
-      const idleHint = document.querySelector("#idle .hint");
-      if (idleHint) {
-        idleHint.textContent = "校准有效期 1 小时，新的基线会重新计时。点击开始，跟着呼吸球放松就好。";
-      }
     }
 
+    // 两段式校准：0–20 秒放松（定 20 分），20–40 秒心算（定 80 分）
     const GUIDES = [
-      ["闭上眼睛，深呼吸……", 0],
-      ["想象一片宁静的湖面……", 6],
-      ["慢慢放松，让大脑安静下来", 11],
-      ["坚持一下，快好啦 ~", 15],
+      ["看着画面，慢慢呼吸，让身体静下来", 0],
+      ["想象一片安静的湖面……", 6],
+      ["肩膀松下来，别用力", 14],
+      ["从 300 开始，每次减 7，默念答案（300、293、286…）", 20],
+      ["继续心算，别停，保持这个节奏", 28],
+      ["再坚持几秒……", 35],
     ];
 
     $("source-select").addEventListener("change", e => {
@@ -208,6 +257,15 @@
         const body = mode === "replay"
           ? { mode, file: relaxFile ? relaxFile.path : null }
           : { mode, osc_ports: mode === "hardware" ? $("osc-ports").value : null };
+        // 心率辅助：页面下拉框选择，并持久化给游戏页沿用
+        let heartMode = $("heart-select").value || "off";
+        if (mode === "heart" && heartMode === "off") {
+          // 仅心率模式没有脑电可依，心率必须开启
+          heartMode = "hrd";
+          $("heart-select").value = "hrd";
+        }
+        localStorage.setItem("bf-heart", heartMode);
+        if (heartMode !== "off") body.heart_mode = heartMode;
         const res = await API.post("/api/session", body);
         state.session = {
           id: res.session_id,
@@ -221,14 +279,28 @@
       }
     });
 
+    let planSec = 40;       // 校准总时长：有视频时跟随视频全长
+    let videoMode = false;  // true = 整段视频当引导，后端走 video_full 定标
+
     function startCalibration() {
       state.running = true;
       $("idle").classList.add("hidden");
       $("done").classList.add("hidden");
       $("running").classList.remove("hidden");
       $("source-select").disabled = true;
+      $("heart-select").disabled = true;
       $("manual-ctl").classList.toggle("hidden", state.session.mode !== "manual");
-      $("countdown").textContent = "20";
+      // 整段视频当校准：时长取视频全长（上限 10 分钟）
+      planSec = 40;
+      videoMode = false;
+      if (relaxVideo && !relaxVideo.classList.contains("gone")
+          && isFinite(relaxVideo.duration) && relaxVideo.duration > 5) {
+        planSec = Math.min(600, Math.round(relaxVideo.duration));
+        videoMode = true;
+      }
+      syncIdleCopy();
+      $("countdown").textContent = String(planSec);
+      playRelaxVideo(true);
 
       state.es = API.stream(state.session.id, {
         onFrame(f) {
@@ -236,14 +308,81 @@
           const pct = Math.round(f.focus * 100);
           $("focus-pct").textContent = pct + "%";
           $("focus-fill").style.width = pct + "%";
-          $("countdown").textContent = Math.max(0, Math.ceil(20 - f.t));
+          $("countdown").textContent = Math.max(0, Math.ceil(planSec - f.t));
           updateGuide(f.t);
-          if (f.t >= 20) finishCalibration();
+          if (f.t >= planSec) finishCalibration();
         },
       });
     }
 
+    // 视频整段播放：它本身就是校准引导，中途不暂停
+    const relaxVideo = document.getElementById("relax-video");
+
+    // 说明文案必须和真实流程一致：有视频就是整段放松，没有才是两段式
+    function videoReady() {
+      return !!relaxVideo && !relaxVideo.classList.contains("gone")
+        && isFinite(relaxVideo.duration) && relaxVideo.duration > 5;
+    }
+    function syncIdleCopy() {
+      const el = document.getElementById("idle-hint");
+      const slogan = document.getElementById("calib-slogan");
+      if (slogan) {
+        slogan.textContent = videoReady()
+          ? "先跟着视频放松一会儿，再开始玩"
+          : "先放松 20 秒，再做 20 秒心算";
+      }
+      if (!el) return;
+      if (videoReady()) {
+        const sec = Math.min(600, Math.round(relaxVideo.duration));
+        el.textContent =
+          `先跟着视频放松 ${sec} 秒，只做一件事：让自己静下来。系统会记下你今天的状态，把 50 分定成你的专注线。`;
+      } else {
+        el.textContent =
+          "先放松 20 秒，再做 20 秒心算。系统会取两段中间的位置作为今天的专注线（50 分）——分数跟着你当天走，不套固定数值。";
+      }
+    }
+    if (relaxVideo) {
+      // 待机不播，点“开始校准”进入放松环节时才出现
+      relaxVideo.addEventListener("error", () => {
+        relaxVideo.classList.add("gone");
+        const frame = document.getElementById("video-frame");
+        if (frame) frame.classList.add("gone");
+        const hero = document.getElementById("calib-hero");
+        if (hero) hero.classList.add("no-video");
+        syncIdleCopy();
+      });
+      relaxVideo.addEventListener("loadeddata", () => {
+        relaxVideo.classList.remove("gone");
+        const frame = document.getElementById("video-frame");
+        if (frame) frame.classList.remove("gone");
+        const hero = document.getElementById("calib-hero");
+        if (hero) hero.classList.remove("no-video");
+        syncIdleCopy();
+      });
+    }
+    syncIdleCopy();
+    function playRelaxVideo(on) {
+      if (!relaxVideo || relaxVideo.classList.contains("gone")) return;
+      if (on) {
+        try {
+          relaxVideo.muted = false;
+          relaxVideo.loop = false;
+          relaxVideo.currentTime = 0;
+          const pr = relaxVideo.play();
+          // 浏览器拒绝带声音自动播放时，退回静音继续播，不要因此隐藏视频
+          if (pr && pr.catch) pr.catch(() => { relaxVideo.muted = true; relaxVideo.play().catch(() => {}); });
+        } catch (_) {}
+      } else {
+        try { relaxVideo.pause(); } catch (_) {}
+      }
+    }
+
     function updateGuide(t) {
+      if (videoMode) {
+        // 视频模式：整段都是引导，不再切换“放松/心算”文案
+        $("guide").textContent = "跟着画面慢慢呼吸，不用刻意用力……";
+        return;
+      }
       const stage = GUIDES.filter(g => t >= g[1]).pop();
       if (stage) $("guide").textContent = stage[0];
     }
@@ -257,12 +396,18 @@
       $("loading").classList.remove("hidden");
       try {
         const t0 = performance.now();
-        const res = await API.post(`/api/session/${state.session.id}/calibrate`, { duration: 20 });
+        const res = await API.post(`/api/session/${state.session.id}/calibrate`, { duration: planSec, video_full: videoMode });
         // 服务端只补足尚未采满的剩余时间（通常立即返回），保证加载条至少显示 0.9s，避免一闪而过
         const wait = 900 - (performance.now() - t0);
         if (wait > 0) await new Promise(r => setTimeout(r, wait));
         const baseline = res.baseline;
-        const saved = Store.saveCalib(baseline, res.calibration.quantiles);
+        const saved = Store.saveCalib(baseline, res.calibration.quantiles,
+          res.score_range || res.calibration.range);
+        // 静息心率基线：校准期间心率样本足够时由服务端写入 rest_bpm，
+        // 游戏页据此把心率映射成“平静/专注”分量。
+        if (res.heart && res.heart.used_as_rest && res.heart.mean != null) {
+          localStorage.setItem("bf-heart-rest", String(Math.round(res.heart.mean)));
+        }
         const until = new Date(saved.at + Store.CALIB_TTL_MS);
         const untilText = until.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
         $("valid-tip").textContent =
@@ -280,8 +425,22 @@
         } catch (_) { /* 释放失败不阻塞进入游戏，后端仍会兜底 */ }
         $("loading").classList.add("hidden");
         $("done").classList.remove("hidden");
-        $("baseline-show").textContent = Math.round(baseline * 100) + "%";
+        const rng = res.score_range || res.calibration.range || {};
+        $("baseline-show").textContent =
+          (rng.low != null ? Math.round(rng.low * 100) : "—") + " – " +
+          (rng.high != null ? Math.round(rng.high * 100) : "—");
         $("source-select").disabled = false;
+        $("heart-select").disabled = false;
+        // 校准期间采到的心率样本：显示静息心率，并作为游戏页的融合参照
+        if (res.heart && res.heart.used_as_rest && res.heart.mean != null) {
+          $("heart-rest-show").textContent =
+            "静息心率 " + Math.round(res.heart.mean) + " BPM（已作为融合参照）";
+        } else if (localStorage.getItem("bf-heart") === "off") {
+          $("heart-rest-show").textContent = "心率辅助已关闭，本局使用纯脑电判定";
+        } else {
+          $("heart-rest-show").textContent =
+            "本次心率样本不足，沿用上次静息心率或默认值";
+        }
       } catch (err) {
         toast("校准失败：" + err.message);
         location.reload();
@@ -290,6 +449,22 @@
 
     $("btn-play").addEventListener("click", () => { location.href = "game.html"; });
     $("btn-again").addEventListener("click", () => { Store.clear(); location.reload(); });
+
+    // 心率只在 macOS 可用（依赖 AirPods 心率进程），其他系统直接隐藏入口
+    fetch("/api/env").then(r => r.json()).then(env => {
+      if (env.heart_supported) return;
+      const field = document.getElementById("heart-field");
+      if (field) field.classList.add("hidden");
+      const restShow = document.getElementById("heart-rest-show");
+      if (restShow) restShow.classList.add("hidden");
+      const opt = document.querySelector('#source-select option[value="heart"]');
+      if (opt) opt.remove();
+      const hs = document.getElementById("heart-select");
+      if (hs) hs.value = "off";
+      const ss = document.getElementById("source-select");
+      if (ss && ss.value === "heart") ss.value = "replay";
+      try { localStorage.setItem("bf-heart", "off"); } catch (_) {}
+    }).catch(() => {});
   </script>
   <script src="assets/music.js" defer></script>
 </body>

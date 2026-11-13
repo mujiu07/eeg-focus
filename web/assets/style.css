@@ -438,7 +438,7 @@ label.field {
 .slider-row { display: flex; gap: 14px; align-items: center; margin-top: 12px; }
 .slider-row input { flex: 1; }
 
-canvas { border-radius: 20px; width: 100%; box-shadow: var(--shadow-soft); }
+canvas { border-radius: 20px; width: 100%; height: auto; box-shadow: var(--shadow-soft); }
 
 /* 曲线图（报告页） */
 .curve-card { background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.75)); }
@@ -448,4 +448,11 @@ canvas { border-radius: 20px; width: 100%; box-shadow: var(--shadow-soft); }
   .card { padding: 20px 18px; }
   .brand h1 { font-size: 28px; }
   .btn { padding: 15px 32px; font-size: 20px; }
+}
+
+/* 右上角唱片机是 fixed 定位：视口不够宽时会把页面首行压在它下面。
+   统一给内容加顶部安全区，而不是在各页零散打补丁。 */
+@media (max-width: 1400px) {
+  /* 只有顶部那一行是 skybar / HUD 的页面才会和唱片机同高，首页不受影响 */
+  .wrap:has(> .page-skybar) { padding-top: 132px; }
 }
