@@ -561,46 +561,170 @@
 
     /* ---------------- 给家长的话：分析 + 建议 + 免责声明 ---------------- */
     function buildParentNote(r) {
-      const mean = r.focus_mean != null ? Math.round(r.focus_mean * 100) : null;
-      const max = r.focus_max != null ? Math.round(r.focus_max * 100) : null;
-      const above = r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null;
+      const pct = v => (v == null ? null : Math.round(v * 100));
+      // 统一用后端 20–80 动态分（0–100）；旧报告没有 score 字段时退回原始 focus 百分比
+      const mean = r.score_mean != null ? Math.round(r.score_mean) : pct(r.focus_mean);
+      const max = r.score_max != null ? Math.round(r.score_max) : pct(r.focus_max);
+      const min = r.score_min != null ? Math.round(r.score_min) : pct(r.focus_min);
+      const above = r.above_mid_ratio != null ? pct(r.above_mid_ratio) : pct(r.above_baseline_ratio);
       const valid = r.n_frames ? Math.round(((r.n_valid_frames || 0) / r.n_frames) * 100) : null;
       const mins = Math.max(1, Math.round((r.played_sec || r.duration_sec || 0) / 60));
+      const heartOnly = !!(r.source && r.source.name === "heart");
+      const hr = r.heart || {};
+      const hrMean = hr.mean != null ? Math.round(hr.mean) : null;
+      const hrRest = hr.rest_bpm != null ? Math.round(hr.rest_bpm) : null;
+      const hrDelta = (hrMean != null && hrRest != null) ? hrMean - hrRest : null;
 
+      // ---- 从曲线里算本局“过程指标”，这些才是让建议有针对性依据 ----
+      const curve = (r.curve || [])
+        .map(p => {
+          if (p.score != null) return p.score;
+          const f = (p.focus_fused != null) ? p.focus_fused : p.focus;
+          return f != null ? f * 100 : null;
+        })
+        .filter(v => v != null);
+      const ts = (r.curve || []).filter(p => p.t != null).map(p => p.t);
+      const dt = ts.length > 1 ? Math.abs(ts[ts.length - 1] - ts[0]) / (ts.length - 1) : 1.5;
+      const avg = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+      const std = a => {
+        if (a.length < 3) return null;
+        const m = avg(a);
+        return Math.sqrt(a.reduce((s, v) => s + (v - m) * (v - m), 0) / a.length);
+      };
+      const sd = std(curve);
+      const half = Math.floor(curve.length / 2);
+      const trend = curve.length >= 6 ? avg(curve.slice(half)) - avg(curve.slice(0, half)) : null;
+      const base = 50;   // 动态定标下，50 分就是专注线；不再依赖原始 baseline 数值
+
+      // 掉线最长时长 + 自己拉回基线的次数（恢复力比均值更能说明问题）
+      let recoveries = 0, streak = 0, worst = 0;
+      if (base != null) {
+        for (const v of curve) {
+          if (v < base) { streak += 1; if (streak > worst) worst = streak; }
+          else { if (streak > 0) recoveries += 1; streak = 0; }
+        }
+      }
+      const worstSec = Math.round(worst * dt);
+
+      const hrVals = (r.hr_curve || []).map(p => p.bpm).filter(v => v != null);
+      const hrSd = std(hrVals);
+
+      // ---- 概览 chips：只放本局确实有数据的项 ----
       const chips = [];
-      if (mean != null) chips.push(`<span class="pn-chip">专注分数均值 <b>${mean}%</b></span>`);
-      if (max != null) chips.push(`<span class="pn-chip">本局最高 <b>${max}%</b></span>`);
-      if (above != null) chips.push(`<span class="pn-chip">高于基线 <b>${above}%</b> 时间</span>`);
+      if (mean != null) chips.push(`<span class="pn-chip">专注均值 <b>${mean}%</b></span>`);
+      if (max != null) chips.push(`<span class="pn-chip">最高 <b>${max}%</b></span>`);
+      if (sd != null) chips.push(`<span class="pn-chip">波动 <b>±${Math.round(sd)}</b> 分</span>`);
+      if (above != null) chips.push(`<span class="pn-chip">高于基线 <b>${above}%</b></span>`);
+      if (base != null && curve.length >= 6) chips.push(`<span class="pn-chip">自己拉回 <b>${recoveries}</b> 次</span>`);
+      if (hrMean != null) {
+        const hrTag = (hrDelta != null && hrDelta !== 0) ? `（较静息${hrDelta > 0 ? "+" : ""}${hrDelta}）` : "";
+        chips.push(`<span class="pn-chip">平均心率 <b>${hrMean}</b> BPM${hrTag}</span>`);
+      }
       if (valid != null) chips.push(`<span class="pn-chip">有效数据 <b>${valid}%</b></span>`);
-      chips.push(`<span class="pn-chip">本局约 <b>${mins} 分钟</b></span>`);
+      chips.push(`<span class="pn-chip">本局 <b>${mins}</b> 分钟</span>`);
 
-      let summary = "";
+      // ---- 本局表现：按“水平 + 过程”两段说，而不是只报均值 ----
+      let summary;
       if (mean == null) {
-        summary = "本局没有采集到足够的有效数据，暂时无法解读表现，建议先检查设备佩戴与信号。";
-      } else if (mean >= 75) {
-        summary = `本局专注分数均值 <b>${mean}%</b>，整体比较稳定，说明孩子在游戏节奏里能较好地跟上任务。`;
-      } else if (mean >= 60) {
-        summary = `本局专注分数均值 <b>${mean}%</b>，中间有起有落，属于常见的波动范围，不需要因为一两次下滑担心。`;
+        summary = "本局没有采集到足够的有效数据，暂时无法解读表现，先检查设备佩戴与信号再开始下一局。";
       } else {
-        summary = `本局专注分数均值 <b>${mean}%</b>，波动比较明显，可能和疲劳、环境干扰或刚接触任务有关。`;
+        if (mean >= 75) summary = `本局专注均值 <b>${mean}%</b>，整体处在较好的水平。`;
+        else if (mean >= 60) summary = `本局专注均值 <b>${mean}%</b>，中等偏稳，属于常见的波动范围。`;
+        else summary = `本局专注均值 <b>${mean}%</b>，低于平时水平，先别急着归因于“不专心”。`;
+
+        if (above != null) {
+          if (above >= 60) summary += ` 有 <b>${above}%</b> 的时间高于自己的基线。`;
+          else if (above >= 30) summary += ` 高于基线的时间占 <b>${above}%</b>，状态时好时稳。`;
+          else summary += ` 只有 <b>${above}%</b> 的时间高于基线。`;
+        }
+        if (trend != null && Math.abs(trend) >= 8) {
+          summary += trend > 0
+            ? ` 后半段比前半段高 <b>${Math.round(trend)}</b> 分，是越玩越进入状态。`
+            : ` 后半段比前半段低 <b>${Math.round(-trend)}</b> 分，更像是中途累了。`;
+        }
+        if (base != null && curve.length >= 6) {
+          if (recoveries >= 3) summary += ` 中途 <b>${recoveries}</b> 次掉下去又自己拉回来，这个过程值得肯定。`;
+          else if (recoveries === 0 && worstSec >= 15) summary += ` 有一段连续 <b>${worstSec}</b> 秒没回到基线。`;
+        }
+        if (hrDelta != null && Math.abs(hrDelta) >= 8) {
+          summary += ` 平均心率比静息${hrDelta > 0 ? "高" : "低"} <b>${Math.abs(hrDelta)}</b> BPM，身体状态也影响了这局。`;
+        }
+        if (valid != null && valid < 70) summary += ` 注意本局有效数据只有 <b>${valid}%</b>，结论要保守看。`;
       }
 
-      if (above != null) {
-        if (above >= 60) summary += ` 有 <b>${above}%</b> 的时间高于自己的基线，多数时候能跟上节奏。`;
-        else if (above >= 30) summary += ` 有 <b>${above}%</b> 的时间高于基线，状态时好时稳。`;
-        else summary += ` 高于基线的时间占 <b>${above}%</b>，这次更像一次熟悉任务的热身。`;
-      } else {
-        summary += " 本局没有做基线校准，以上只描述本局分数，不适合和其他场次直接比较。";
-      }
+      // ---- 训练建议：按优先级取最能解释本局的那几条 ----
+      const tips = [];
+      const add = t => { if (tips.length < 4) tips.push(t); };
+
+      // 数据质量不合格时，其他建议都不可靠，先修数据
       if (valid != null && valid < 70) {
-        summary += ` 另外，本局有效数据只占 <b>${valid}%</b>，解读时请保守一些。`;
+        add(`<b>先把数据质量补上</b>：本局有效帧只有 ${valid}%，先确认头环贴合、电极湿润、周围没有大功率电器，再练一次对比。`);
       }
 
-      let firstTip;
-      if (mean == null) firstTip = "<b>先检查设备</b>：确认头环贴合、电量充足、信号稳定，再开始下一局。";
-      else if (mean >= 75) firstTip = "<b>保持手感</b>：每次 5–10 分钟、每周 3–5 次即可，玩完让眼睛和身体休息一下，不用追求一次练很久。";
-      else if (mean >= 60) firstTip = "<b>把训练拆短</b>：每次 5–10 分钟，中间起身活动 1–2 分钟，比一次练很久更容易坚持。";
-      else firstTip = "<b>先照顾状态</b>：疲劳、饥饿或情绪不好时先不练，可以从 3–5 分钟开始，完成就及时表扬。";
+      // 纯心率玩法：核心是呼吸节奏，不是“用力专注”
+      if (heartOnly) {
+        if (hrDelta != null && hrDelta >= 5) {
+          add(`<b>开局先落地</b>：本局平均心率比静息高 ${hrDelta} BPM，说明前段还在“启动”状态。下次坐下先做 6 轮慢呼吸（吸气 4 秒、呼气 6 秒）再点开始。`);
+        } else {
+          add(`<b>练呼气</b>：纯心率模式靠的是副交感神经。把呼气拉长到吸气的 1.5 倍（吸 4 秒、呼 6 秒），做 6 轮再看分数，比“努力集中”有效。`);
+        }
+      }
+
+      // 稳定性
+      if (sd != null) {
+        if (sd >= 18) {
+          add(`<b>先求稳再求高</b>：本局波动 ±${Math.round(sd)} 分，偏大。把单局缩到 ${Math.max(3, mins - 2)} 分钟，中间安排 1 次 30 秒深呼吸复位。`);
+        } else if (sd <= 12 && mean != null && mean >= 60) {
+          add(`<b>可以加难度</b>：本局波动只有 ±${Math.round(sd)} 分，很稳。下次把单局延长 1–2 分钟，或把目标基线提高 5 分。`);
+        }
+      }
+
+      // 趋势：下滑是疲劳信号，上升是热身不足
+      if (trend != null && trend <= -8) {
+        add(`<b>缩短单局</b>：后半段掉了 ${Math.round(-trend)} 分，更像疲劳而不是不会做。下次把时长控制在 ${Math.max(3, mins - 2)} 分钟，练完先休息再写作业。`);
+      } else if (trend != null && trend >= 8) {
+        add(`<b>固定热身</b>：后半段比前半段高 ${Math.round(trend)} 分，说明需要时间进入状态。开局前做 30 秒慢呼吸，能少浪费前几分钟。`);
+      }
+
+      // 掉线时长：指出具体的高发时段
+      if (base != null && worstSec >= 20 && recoveries <= 2) {
+        add(`<b>盯住那次掉线</b>：本局最长连续 ${worstSec} 秒低于基线。和孩子一起回想那段时间在做什么（说话、看旁边、揉眼睛），下次提前避免。`);
+      }
+
+      // 恢复力
+      if (base != null && curve.length >= 6) {
+        if (recoveries >= 4) {
+          add(`<b>表扬恢复过程</b>：本局 ${recoveries} 次从基线以下拉回来。夸具体行为——“你刚才自己调整回来了”，比夸“真聪明”更能强化这种能力。`);
+        } else if (recoveries === 0 && above != null && above < 50) {
+          add(`<b>把目标降到能做到</b>：整局没能回到基线以上。下一局只要求“连续 30 秒高于基线”，先建立成功体验，再逐步加码。`);
+        }
+      }
+
+      // 心率反映的身体状态
+      if (hrDelta != null && hrDelta >= 8 && !heartOnly) {
+        add(`<b>先静一静再开始</b>：平均心率比静息高 ${hrDelta} BPM，可能是刚跑跳完或有点紧张。下次开局前静坐 1 分钟、做 4 次慢呼吸。`);
+      } else if (hrDelta != null && hrDelta <= 0 && above != null && above < 50) {
+        add(`<b>换个时段练</b>：心率几乎没高于静息，可能偏困倦。把训练放到精神较好的时段，或开局前走动 1 分钟再坐下。`);
+      } else if (hrSd != null && hrSd >= 6) {
+        add(`<b>固定训练时段</b>：本局心率波动 ${Math.round(hrSd)} BPM，身体状态不太稳定。固定在同一时段练，数据才有可比性。`);
+      }
+
+      // 时长
+      if (mins <= 2) {
+        add(`<b>样本太短</b>：本局只有 ${mins} 分钟，数据不足以看出趋势。建议 5 分钟起步，前 1 分钟当作热身不计入评价。`);
+      } else if (mins >= 10) {
+        add(`<b>中途起身</b>：本局 ${mins} 分钟偏长。每 5 分钟起身活动 30 秒，避免后段靠硬撑，也能保护视力。`);
+      }
+
+      // 兜底：数据正常但没有触发任何规则时，给一条与数据绑定的通用建议
+      if (tips.length < 3 && above != null) {
+        add(above >= 60
+          ? `<b>保持节奏</b>：本局有 ${above}% 的时间高于基线，每次 5–10 分钟、每周 3–5 次即可，不需要一次练很久。`
+          : `<b>从短局开始</b>：本局高于基线 ${above}% 的时间。把目标定为“单局 3 分钟、高于基线一半时间”，做到再延长。`);
+      }
+
+      // 合规项固定保留，不占上面 4 条的名额
+      const helpline = "<b>需要时求助</b>：如果注意力困难持续 6 个月以上，并在家庭、学校等多个场景影响学习或社交，建议到儿保科或儿童心理科做专业评估。";
 
       return `
         <div class="pn-block">
@@ -609,13 +733,10 @@
           <p class="pn-text">${summary}</p>
         </div>
         <div class="pn-block">
-          <div class="pn-title"><span class="emo">🌱</span>训练建议</div>
+          <div class="pn-title"><span class="emo">🌱</span>针对性建议</div>
           <ul class="pn-list">
-            <li>${firstTip}</li>
-            <li><b>打好生活底子</b>：小学生每天约 9–12 小时睡眠（初中生 8–10 小时），累计至少 60 分钟中高强度活动；和孩子约定好娱乐屏幕时间，优先保证睡眠和运动。</li>
-            <li><b>把专注迁移到生活</b>：一次只给一个指令，把任务拆成小步骤，完成后给具体表扬（例如“你刚才连续拼了 5 分钟”），比笼统说“真棒”更有效。</li>
-            <li><b>保护眼睛</b>：屏幕保持 30–40 厘米距离，每玩 20 分钟看 6 米外至少 20 秒；训练结束做几次深呼吸再离开座位。</li>
-            <li><b>需要时求助</b>：如果注意力困难持续 6 个月以上，并在家庭、学校等多个场景影响学习或社交，建议到儿保科或儿童心理科做专业评估。</li>
+            ${tips.map(t => `<li>${t}</li>`).join("")}
+            <li>${helpline}</li>
           </ul>
         </div>
         <div class="pn-note">
@@ -626,26 +747,38 @@
     }
 
     function render(r) {
-      const above = r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null;
+      const above = r.above_mid_ratio != null ? Math.round(r.above_mid_ratio * 100)
+        : (r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null);
+      const hr = r.heart || {};
+      const hrCard = (hr.n > 0)
+        ? `<div class="stat"><div class="icon">❤️</div><div class="label">平均心率（AirPods 辅助）</div><div class="value">${Math.round(hr.mean)}<span style="font-size:13px;font-weight:700"> BPM</span></div></div>`
+        : "";
       const srcName = r.source && r.source.file ? r.source.file.replace(/^Subject(\d+)_(\d)\.edf$/, "被试$1 · $2段") : "手动模拟";
       $("report").innerHTML = `
         <div class="stat-grid" style="justify-content:center">
           <div class="stat"><div class="icon">🐸</div><div class="label">游戏成绩（跳荷叶）</div><div class="value">${r.score ?? "—"}</div></div>
-          <div class="stat"><div class="icon">⏱️</div><div class="label">高于基线时间占比</div><div class="value">${above ?? "—"}%</div></div>
-          <div class="stat"><div class="icon">📈</div><div class="label">脑波分数均值（教学映射）</div><div class="value">${r.focus_mean != null ? Math.round(r.focus_mean * 100) + "%" : "—"}</div></div>
-          <div class="stat"><div class="icon">🎯</div><div class="label">本局基线</div><div class="value">${r.baseline != null ? Math.round(r.baseline * 100) + "%" : "—"}</div></div>
+          <div class="stat"><div class="icon">⏱️</div><div class="label">高于专注线时间占比</div><div class="value">${above ?? "—"}%</div></div>
+          <div class="stat"><div class="icon">📈</div><div class="label">专注分均值（个人定标）</div><div class="value">${r.score_mean != null ? Math.round(r.score_mean) : (r.focus_mean != null ? Math.round(r.focus_mean * 100) : "—")}</div></div>
+          <div class="stat"><div class="icon">🎯</div><div class="label">定标方式</div><div class="value">20 – 80</div></div>
           <div class="stat"><div class="icon">⌛</div><div class="label">用时</div><div class="value">${fmtPlayed(r.played_sec)}</div></div>
           <div class="stat"><div class="icon">✅</div><div class="label">有效数据占比</div><div class="value">${(r.n_valid_frames != null && r.n_frames) ? Math.round(r.n_valid_frames / r.n_frames * 100) + "%" : "—"}</div></div>
+          ${hrCard}
         </div>
         <p class="hint" style="margin-top:12px;font-size:13.5px">
           信号源：${srcName} · 会话 ${sid}
         </p>
       `;
-      drawCurve(r.curve || [], r.baseline);
+      const scoreCurve = (r.curve || []).map(p => {
+        const v = (p.score != null) ? p.score
+          : ((p.focus_fused != null ? p.focus_fused : p.focus) != null
+            ? (p.focus_fused != null ? p.focus_fused : p.focus) * 100 : null);
+        return { t: p.t, focus: v == null ? null : v / 100 };
+      }).filter(p => p.focus != null);
+      drawCurve(scoreCurve, 0.5, r.hr_curve || []);
       const tip = $("curve-tip");
       if (tip) {
-        if (r.baseline == null) {
-          tip.textContent = "本局没有记录校准基线，所以图上没有橙色虚线，也无法计算「高于基线占比」。重新校准后再开一局即可显示。";
+        if (!scoreCurve.length) {
+          tip.textContent = "本局没有有效数据点，画不出曲线。先检查设备佩戴与信号，再开一局。";
           tip.style.display = "block";
         } else {
           tip.style.display = "none";
@@ -683,18 +816,20 @@
       };
     }
 
-    let lastCurve = [], lastBaseline = null;
+    let lastCurve = [], lastBaseline = null, lastHr = [];
 
-    function drawCurve(curve, baseline) {
+    function drawCurve(curve, baseline, hrCurve) {
       lastCurve = curve || [];
       lastBaseline = baseline;
+      lastHr = hrCurve || [];
+      const hr = lastHr;
       const theme = chartTheme();
       const c = $("curve");
       const ctx = c.getContext("2d");
       const W = c.width, H = c.height, padL = 58, padR = 20, padT = 26, padB = 34;
       ctx.clearRect(0, 0, W, H);
       if (!curve.length) return;
-      const xs = curve.map(p => p.t);
+      const xs = curve.map(p => p.t).concat(hr.map(p => p.t));
       const xmax = Math.max(Math.max(...xs), 10);
       const X = t => padL + (W - padL - padR) * (t / xmax);
       const Y = v => padT + (H - padT - padB) * (1 - Math.min(Math.max(v, 0), 1));
@@ -763,6 +898,31 @@
       ctx.arc(X(curve[0].t), Y(curve[0].focus), 5, 0, Math.PI * 2);
       ctx.fill();
 
+      // 心率辅助曲线：独立量纲（40–140 BPM），用红色虚线叠加，只表达趋势。
+      // 心率 3–5 秒才一个点，点数太少（<2）时不画，避免一条孤立线段造成误读。
+      if (hr.length >= 2) {
+        const Yhr = bpm => padT + (H - padT - padB) * (1 - Math.min(Math.max((bpm - 40) / 100, 0), 1));
+        ctx.save();
+        ctx.beginPath();
+        hr.forEach((p, i) => {
+          const x = X(p.t), y = Yhr(p.bpm);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = "rgba(226,85,78,.88)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.restore();
+
+        // 顶部图例：显示本局心率区间，替代拥挤的右轴
+        const lo = Math.round(Math.min(...hr.map(p => p.bpm)));
+        const hi = Math.round(Math.max(...hr.map(p => p.bpm)));
+        ctx.font = "700 12px 'PingFang SC', sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillStyle = "rgba(226,85,78,.95)";
+        ctx.fillText(`❤ 心率 ${lo}–${hi} BPM（右图红线，仅趋势）`, padL + 6, padT - 8);
+      }
+
       // 基线虚线：放到最后绘制，并用背景色描边打底，
       // 否则会被面积渐变和曲线盖住，看起来像"没有橙色虚线"。
       if (baseline != null) {
@@ -802,7 +962,7 @@
     }
 
     document.addEventListener("skychange", () => {
-      if (lastCurve.length) drawCurve(lastCurve, lastBaseline);
+      if (lastCurve.length) drawCurve(lastCurve, lastBaseline, lastHr);
     });
 
     $("btn-again").addEventListener("click", () => { location.href = "index.html?pick=1"; });

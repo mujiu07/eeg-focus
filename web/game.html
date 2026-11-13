@@ -7,8 +7,9 @@
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <style>
+    .canvas-wrap { position: relative; width: 100%; max-width: 900px; }
     #game-canvas {
-      display: block;
+      display: block; width: 100%; height: auto;
       /* 首帧绘制前先铺一层与当前天空模式一致的底色，避免白天/黑夜闪一下 */
       background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 34%, var(--sky-low) 62%, var(--water-top) 100%);
       box-shadow: var(--shadow-soft);
@@ -24,28 +25,48 @@
       font-weight: 800; font-size: 19px; color: var(--ink);
     }
     .hud-item .icon { font-size: 22px; }
+    /* 心率：图标按实际 BPM 节律跳动，低采样率数据过期时自动停下 */
+    #hr-hud .icon { display: inline-block; transform-origin: 50% 60%; }
+    #hr-hud.beat .icon { animation: hrBeat 1s ease-in-out infinite; }
+    #hr-hud.stale { opacity: .55; }
+    @keyframes hrBeat {
+      0%, 100% { transform: scale(1); }
+      16% { transform: scale(1.22); }
+      34% { transform: scale(1); }
+    }
+    /* 提示条贴在画布内部，不再 fixed 到视口中央挡住别的内容 */
     .warn-banner {
-      position: fixed; left: 50%; top: 44%;
-      transform: translate(-50%, -50%);
-      font-size: 24px; font-weight: 800; color: var(--ink-soft);
-      background: rgba(255,255,255,.88);
-      padding: 12px 30px; border-radius: 999px;
+      position: absolute; left: 50%; top: 38%;
+      transform: translateX(-50%);
+      max-width: calc(100% - 28px); text-align: center;
+      font-size: 21px; font-weight: 800; color: var(--ink-soft);
+      background: rgba(255,255,255,.9);
+      padding: 11px 24px; border-radius: 999px;
       box-shadow: 0 10px 30px rgba(47,110,128,.18);
       opacity: 0; pointer-events: none;
       transition: opacity .35s ease, transform .35s ease;
       z-index: 20;
     }
-    .warn-banner.show { opacity: 1; transform: translate(-50%, -50%) translateY(4px); }
+    .warn-banner.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
 
-    /* 画面较窄时唱片机会压到顶部 HUD，给 HUD 让位 */
-    @media (max-width: 1320px) { .hud { padding-right: 210px; } }
-    @media (max-width: 860px) {
-      .wrap { padding-top: 136px; }
-      .hud { padding-right: 0; }
-    }
+    /* 非 macOS 不显示心率 HUD（心率采集依赖 macOS 的 hrd 进程） */
+    html[data-heart="off"] #hr-hud { display: none !important; }
   </style>
   <link rel="stylesheet" href="assets/sky.css">
   <script src="assets/sky.js"></script>
+  <script>
+    // 顺带缓存到 localStorage，下一次进入游戏页就能同步判断，不会闪出心率 HUD
+    try {
+      if (localStorage.getItem("bf-heart-ok") === "0") document.documentElement.dataset.heart = "off";
+    } catch (_) {}
+    fetch("/api/env").then(r => r.json()).then(env => {
+      try { localStorage.setItem("bf-heart-ok", env.heart_supported ? "1" : "0"); } catch (_) {}
+      if (!env.heart_supported) {
+        document.documentElement.dataset.heart = "off";
+        try { localStorage.setItem("bf-heart", "off"); } catch (_) {}
+      }
+    }).catch(() => {});
+  </script>
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -68,12 +89,17 @@
       <div class="hud">
         <span class="hud-item" id="lamp"><span class="icon">🧘</span><span class="lamp-dot"></span><span id="lamp-text">专注中</span></span>
         <span class="hud-item"><span class="icon">⏱️</span><span id="timer" style="min-width:5.5ch;text-align:center">01:00</span></span>
+        <span class="hud-item" id="hr-hud" title="心率（辅助信号，低采样率）">
+          <span class="icon" id="hr-icon">❤️</span><span id="hr-bpm" style="min-width:2.5ch;text-align:center">--</span><span style="font-size:13px;opacity:.6;font-weight:700">BPM</span>
+        </span>
         <span class="hud-item"><span class="icon">🐸</span><span>得分</span><span id="score" style="color:var(--accent-dark);min-width:2ch;text-align:center">0</span></span>
       </div>
     </div>
 
-    <canvas id="game-canvas" width="900" height="460"></canvas>
-    <div class="warn-banner" id="warn">🧘 放松一下，保持专注再跳！</div>
+    <div class="canvas-wrap">
+      <canvas id="game-canvas" width="900" height="460"></canvas>
+      <div class="warn-banner" id="warn">把注意力放回青蛙身上，慢慢来</div>
+    </div>
 
     <div class="card hidden" id="manual-card">
       <div class="section-title" style="margin-bottom:6px"><span class="dot"></span>手动模拟模式</div>
@@ -83,7 +109,7 @@
         <span style="font-weight:700">🧠 专注</span>
       </div>
       <p class="hint" style="font-size:13.5px;margin-top:10px">
-        拖动滑块模拟专注状态：<strong>拉到右侧</strong>（专注）青蛙就会一直蓄力前进；<strong>滑到左侧</strong>青蛙就跳不动了。
+        演示用滑块：<strong>拉到右边</strong>青蛙会一直前进，<strong>拉到左边</strong>就停下来。正式游戏不需要它。
       </p>
     </div>
 
@@ -149,7 +175,7 @@
     const calibExpired = calibInfo.expired;
     if (!calib) {
       Store.clearCalib();
-      toast(calibExpired ? "校准已超过 1 小时，需要重新校准" : "先建立专注基线吧！");
+      toast(calibExpired ? "校准已超过 1 小时，需要再校准一次" : "先做一次校准，让青蛙认识你的状态");
       setTimeout(() => {
         location.replace(calibExpired ? "calibrate.html?reason=expired" : "calibrate.html");
       }, 1200);
@@ -178,6 +204,12 @@
     const state = {
       session: null, es: null,
       focus: baseline, raw: baseline,
+      fused: baseline,     // 融合分：心率新鲜时按权重修正，否则等于 focus
+      norm: null,          // 后端 20–80 动态分（0–100），游戏判定与显示都用它
+      jumpWindow: null,    // 金色起跳区间 {lo,hi}（能量百分比）：在区间内点击可提前起跳
+      targets: [],         // 变化监测目标：飘过 2.2 秒，点中 +1
+      nextTargetIn: 6,     // 距离下一个目标的秒数
+      bpm: null, hrValid: false, hrMode: "off",
       energy: 0,
       score: 0,
       totalSec,
@@ -228,15 +260,36 @@
       });
     }
     resetLilies();
+    // 第一次跳给一个更早的窗口，别让孩子干等到满格
+    state.jumpWindow = { lo: 22, hi: 36 };
     const FROG_SIZE = 56;
 
     // ---- 创建会话 ----
     async function init() {
       if (!calib) return;   // 无有效校准：已在上面安排跳转回校准页，不创建会话
       const prevMode = prev && prev.source ? prev.source.mode : null;
-      const mode = prevMode === "manual" ? "manual" : (prevMode === "hardware" ? "hardware" : "replay");
+      // heart：仅心率玩法，没有脑电信号，判定完全来自心率分量
+      const mode = ["manual", "hardware", "heart"].includes(prevMode) ? prevMode : "replay";
+      // 心率辅助源：?heart=hrd|mock 或 localStorage 的 bf-heart 决定是否接入；
+      // 未开启时整个链路保持纯 EEG，HUD 显示 "--"。
+      let heartMode = (new URLSearchParams(location.search).get("heart")
+        || localStorage.getItem("bf-heart") || "off").toLowerCase();
+      // 仅心率模式不能关心率，否则整局没有可用信号
+      if (mode === "heart" && !["hrd", "mock", "csv"].includes(heartMode)) heartMode = "hrd";
+      const heartRest = Number(localStorage.getItem("bf-heart-rest")) || null;
+      const heartWeight = Number(localStorage.getItem("bf-heart-weight")) || 0.15;
       // baseline 必须随会话一起上报：报告页的橙色虚线与"高于基线占比"都依赖它
       let body = { mode, baseline: calib.baseline };
+      // 动态定标区间随会话带上：校准页把「最放松/最专注」映射成 20/80
+      if (calib.range && calib.range.low != null && calib.range.high != null) {
+        body.score_low = calib.range.low;
+        body.score_high = calib.range.high;
+      }
+      if (["hrd", "mock", "csv"].includes(heartMode)) {
+        body.heart_mode = heartMode;
+        if (heartRest) body.heart_rest_bpm = heartRest;
+        body.heart_weight = heartWeight;
+      }
       if (mode === "replay") {
         const info = await API.get("/api/dev/info");
         const calibFile = prev && prev.source ? prev.source.file : null;
@@ -260,6 +313,14 @@
           if (f.meta && f.meta.error) { state.stale = true; return; }  // 异常帧：显式无效
           state.stale = false;
           state.focus = f.focus; state.raw = f.raw;
+          // 融合分：心率新鲜时后端已按权重修正；缺失/过期时与 focus 完全一致
+          state.fused = (f.focus_fused != null) ? f.focus_fused : f.focus;
+          state.norm = (f.score != null) ? f.score : null;
+          if (f.hr) {
+            state.bpm = f.hr.bpm;
+            state.hrValid = !!f.hr.valid;
+            state.hrMode = f.hr.mode || "off";
+          }
         },
         onEnd() { finishGame(); },
         onError() { state.stale = true; },
@@ -274,6 +335,19 @@
       const v = e.target.value / 100;
       state.focus = v; state.raw = v;
       if (state.session) await API.post(`/api/session/${state.session.id}/manual`, { focus: v });
+    });
+
+    // 点击/空格：先判目标，再判起跳窗口
+    canvas.addEventListener("pointerdown", e => {
+      const r = canvas.getBoundingClientRect();
+      handleTap((e.clientX - r.left) * canvas.width / r.width,
+                (e.clientY - r.top) * canvas.height / r.height);
+    });
+    window.addEventListener("keydown", e => {
+      if (e.code === "Space" || e.code === "Enter") {
+        e.preventDefault();
+        tryJumpTap();
+      }
     });
 
     // ---- 游戏主循环 ----
@@ -308,18 +382,47 @@
       // 荷叶下沉/上浮（弹簧阻尼）：dip > 0 沉入水面，dip < 0 回弹上浮
       updateLilyDips(dt);
 
+      // 主动任务 1：错过窗口就顺延到能量前方，孩子始终有下一个可追的目标
+      if (state.jumpWindow && !state.jumping.active && !state.settling && !state.pendingSettle
+          && state.energy > state.jumpWindow.hi + 1.5) {
+        const lo = Math.min(94, state.energy + 2);
+        state.jumpWindow = { lo, hi: Math.min(99, lo + 8) };
+      }
+
+      // 主动任务 2：变化监测——每隔 7–12 秒飘来一个目标，2.2 秒内点掉得分
+      state.nextTargetIn -= dt;
+      if (state.nextTargetIn <= 0 && state.targets.length < 2) {
+        state.targets.push({
+          x: 90 + Math.random() * (canvas.width - 180),
+          y: 150 + Math.random() * 90,
+          t: 0, life: 2.2,
+          kind: Math.random() < 0.5 ? "🍂" : "🦋",
+          vx: (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 10),
+        });
+        state.nextTargetIn = 7 + Math.random() * 5;
+      }
+      state.targets = state.targets.filter(o => {
+        o.t += dt;
+        o.x += o.vx * dt;
+        return o.t < o.life;
+      });
+
       // 数据新鲜度：超过 3 秒无有效帧 → 视为断流，暂停蓄力（旧分数不得继续驱动游戏）
       if (performance.now() - state.lastFrameTs > 3000) state.stale = true;
 
-      const focused = !state.stale && state.focus >= baseline;
+      // 动态分：后端把校准得到的 20/80 两端换算好，50 分就是专注线
+      const scoreNow = (state.norm != null)
+        ? state.norm
+        : ((state.fused != null ? state.fused : state.focus) * 100);
+      const focused = !state.stale && scoreNow >= 50;
       // 蓄力：跳跃中与平移中不蓄力；落地后等待水花/上浮的这段时间仍可蓄力
       if (!state.jumping.active && !state.settling && !state.stale) {
         if (focused) {
-          const gain = (state.focus - baseline + 0.03) * dt * 8.5;
+          const gain = (scoreNow - 50 + 3) * dt * 0.075;
           state.energy = Math.min(100, state.energy + gain);
-        } else {
-          state.energy = Math.max(0, state.energy - dt * 4.2);
         }
+        // 分心时不回退蓄力，只停止增长。时间仍在走，少跳几次本身就是代价，
+        // 不需要再让进度条往下掉——那只会让孩子觉得“白练了”。
       }
 
       if (state.pendingSettle) {
@@ -338,6 +441,7 @@
           state.cur += 1;                          // 青蛙落到下一片，旧荷叶保留在左侧
           if (!lilies[state.cur + 1]) addLily();   // 前方始终留一片下一跳的荷叶
           state.energy = 15;
+          rollJumpWindow();                        // 新一跳重新给一个金色窗口
           // 落地：新荷叶被压得下沉一截，四周溅起水花，随后回弹上浮
           dipLily(landing, 250);
           spawnLandingSplash(landing.x, landing.y + 6);
@@ -362,21 +466,69 @@
 
       const lamp = $("lamp");
       lamp.classList.toggle("lamp-on", focused);
-      $("lamp-text").textContent = state.stale ? "信号中断" : (focused ? "专注中" : "分心了");
-      $("warn").classList.toggle("show", state.stale || (!focused && state.energy < 25));
-      $("warn").textContent = state.stale ? "数据中断，蓄力已暂停" : "专注度较低，蓄力正在减少";
+
+      // 心率 HUD：只在读数新鲜时跳动；过期/未接入显示 "--" 并降低存在感
+      const hrHud = $("hr-hud");
+      if (state.hrValid && state.bpm) {
+        $("hr-bpm").textContent = Math.round(state.bpm);
+        hrHud.classList.add("beat");
+        hrHud.classList.remove("stale");
+        $("hr-icon").style.animationDuration =
+          Math.min(1.5, Math.max(0.4, 60 / state.bpm)) + "s";
+      } else {
+        $("hr-bpm").textContent = "--";
+        hrHud.classList.remove("beat");
+        hrHud.classList.add("stale");
+      }
+      $("lamp-text").textContent = state.stale ? "信号中断" : (focused ? "跟上了" : "飘走了");
+      // 提示条：断流、或“正在蓄力但分心”。跳跃/平移期间本来就不蓄力，不算分心。
+      const charging = !state.jumping.active && !state.settling && !state.stale;
+      $("warn").classList.toggle("show", state.stale || (charging && !focused));
+      $("warn").textContent = state.stale ? "数据中断，先停一下" : "注意力飘走了，青蛙在等你（不会退回去）";
 
       state.timeLeft -= dt;
       $("timer").textContent = formatClock(state.timeLeft);
       if (state.timeLeft <= 0) finishGame();
     }
 
-    function startJump() {
+    // ---- 主动任务：金色起跳窗口 + 变化监测 ----
+    // 原先是全自动跳，孩子只要“看着”，十几秒后注意就飘了，测到的其实是“无事可做”。
+    // 这两件事给了必须持续盯住的落点：等窗口、抓飞过的目标。
+    function rollJumpWindow() {
+      const lo = 38 + Math.random() * 30;              // 38–68%
+      state.jumpWindow = { lo, hi: Math.min(92, lo + 14) };
+    }
+
+    function tryJumpTap() {
+      if (state.over || state.stale) return;
+      if (state.jumping.active || state.settling || state.pendingSettle) return;
+      const w = state.jumpWindow;
+      if (!w) return;
+      if (state.energy >= w.lo && state.energy <= w.hi) startJump(true);
+    }
+
+    function handleTap(px, py) {
+      for (let i = state.targets.length - 1; i >= 0; i--) {
+        const o = state.targets[i];
+        if (Math.hypot(o.x - px, o.y - py) <= 48) {
+          state.targets.splice(i, 1);
+          state.score += 1;
+          $("score").textContent = state.score;
+          state.popups.push({ x: o.x, y: o.y, text: "+1", t: 0 });
+          state.splashes.push({ x: o.x, y: o.y, r0: 4, r1: 44, t: 0, life: 0.5 });
+          return;
+        }
+      }
+      tryJumpTap();
+    }
+
+    function startJump(perfect) {
       const from = lilies[state.cur], to = lilies[state.cur + 1];
       state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x };
-      state.score += 1;
+      state.score += perfect ? 2 : 1;
       $("score").textContent = state.score;
-      state.popups.push({ x: from.x, y: from.y - 150, text: "+1", t: 0 });
+      state.popups.push({ x: from.x, y: from.y - 150, text: perfect ? "完美 +2" : "+1", t: 0 });
+      state.jumpWindow = null;
       // 蹬水起跳：脚下荷叶被踩得小幅度下沉，随后自动回弹上浮
       dipLily(from, 170);
     }
@@ -443,6 +595,7 @@
       drawSplashes();   // 涟漪在水面上、荷叶之下：被荷叶遮住内圈，叶缘外才露出
       drawLilies(p, t);
       drawFrog(p, t);
+      drawTargets(t);
       drawDroplets();
       drawPopups();
       drawEnergy(p);
@@ -693,7 +846,10 @@
       const frogBaseRaw = i => lilies[i].y - 28;
       const k = state.jumping.active ? Math.min(state.jumping.t / 0.55, 1) : 0;
       let fx, fy;
-      const focused = state.focus >= baseline;
+      const frogScore = (state.norm != null)
+        ? state.norm
+        : ((state.fused != null ? state.fused : state.focus) * 100);
+      const focused = frogScore >= 50;
       if (state.jumping.active) {
         fx = interpolateJump(state.jumping.t);
         fy = frogBaseRaw(i0) + (frogBaseRaw(i1) - frogBaseRaw(i0)) * k - jumpArc(state.jumping.t);
@@ -784,6 +940,26 @@
       });
     }
 
+    function drawTargets(t) {
+      state.targets.forEach(o => {
+        const k = o.t / o.life;
+        const fade = k < 0.12 ? k / 0.12 : (k > 0.82 ? Math.max(0, (1 - k) / 0.18) : 1);
+        ctx.save();
+        ctx.globalAlpha = fade;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "34px 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
+        ctx.fillText(o.kind, o.x, o.y + Math.sin(o.t * 6) * 6);
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, 27, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,.8)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
+
     function drawEnergy(p) {
       const w = canvas.width - 32 - 96, h = 22, x = 16, y = 62;
       // 轨道
@@ -810,6 +986,22 @@
         ctx.fill();
         ctx.restore();
       }
+      // 金色起跳窗口：画在填充之上，半透明，不遮挡蓄力进度
+      if (state.jumpWindow) {
+        const bx = x + 2 + (w - 4) * state.jumpWindow.lo / 100;
+        const bw = Math.max(5, (w - 4) * (state.jumpWindow.hi - state.jumpWindow.lo) / 100);
+        ctx.save();
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = "#ffd45e";
+        roundRect(ctx, bx, y + 2, bw, h - 4, 6);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#fff8d6";
+        ctx.lineWidth = 2;
+        roundRect(ctx, bx, y + 2, bw, h - 4, 6);
+        ctx.stroke();
+        ctx.restore();
+      }
       // 标签
       ctx.textAlign = "right";
       ctx.font = "800 17px 'PingFang SC', sans-serif";
@@ -827,7 +1019,15 @@
       ctx.fillStyle = p.hud.ink;
       ctx.font = "700 16px 'PingFang SC', sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("🧠 脑波分数 " + Math.round(state.focus * 100) + "%", 30, 41);
+      const shown = (state.norm != null)
+        ? state.norm
+        : ((state.fused != null ? state.fused : state.focus) * 100);
+      ctx.fillText("🧠 专注指数 " + Math.round(shown) + "%", 30, 41);
+      // 常驻提示：把“要做什么”放在画面上，不靠孩子记
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(255,255,255,.72)";
+      ctx.font = "700 15px 'PingFang SC', sans-serif";
+      ctx.fillText("金色区间内点击起跳  ·  点掉飘过的落叶和蝴蝶", canvas.width / 2, 446);
     }
 
     function interpolateJump(tt) {
