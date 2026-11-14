@@ -2,6 +2,7 @@
  * 专注小蛙 · 全站天空模式
  * 黎明 / 白天 / 傍晚 / 黑夜 / 跟随系统时间（按日出日落自动切换）
  * 所有页面共用同一份模式设置与配色变量；首页额外驱动池塘场景
+ * 切换（手动点击 / 跟随时间跨档）时按 --sky-fade 的时长做颜色渐变
  * ============================================================ */
 (function () {
   "use strict";
@@ -92,6 +93,276 @@
     },
   };
 
+  /* ------------------------------------------------------------
+   * 颜色渐变引擎
+   * 切换天空时不直接跳色，而是在 --sky-fade 的时长里把旧配色逐帧插值成新配色：
+   *   1) CSS 变量逐帧写回 html 内联样式 → 背景渐变 / 卡片 / 文字同步变化；
+   *   2) PALETTES 同步混合 → 首页 SVG 与游戏 canvas 一起跟着渐变；
+   *   3) 渐变开始与结束各派发一次 skychange（带 progress），
+   *      需要随主题重绘的图表据此刷新，其余页面靠 CSS 变量自行渐变。
+   * ------------------------------------------------------------ */
+  var root = document.documentElement;
+  var MIXED = null;               // 渐变中的混合色板（canvas 每帧读取）
+  var fadeToken = 0;              // 递增令牌，用于打断上一轮未完成的渐变
+  var FADE_FALLBACK_MS = 1200;    // 读不到 --sky-fade 时的兜底时长
+
+  // 跟随天空平滑变化的 CSS 变量（与 sky.css 中各档定义保持一致）
+  var FADE_VARS = [
+    "--ink", "--ink-soft", "--sky-top", "--sky-mid", "--sky-low",
+    "--water-top", "--accent", "--accent-dark", "--card", "--card-border"
+  ];
+
+  var reduceMotion = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  // 支持 #rgb / #rrggbb / #rrggbbaa / rgb() / rgba()
+  function parseColor(value) {
+    if (!value) return null;
+    var s = String(value).trim();
+    if (s.charAt(0) === "#") {
+      var hex = s.slice(1);
+      if (hex.length === 3 || hex.length === 4) hex = hex.replace(/[0-9a-f]/gi, "$&$&");
+      if (hex.length !== 6 && hex.length !== 8) return null;
+      return {
+        r: parseInt(hex.slice(0, 2), 16),
+        g: parseInt(hex.slice(2, 4), 16),
+        b: parseInt(hex.slice(4, 6), 16),
+        a: hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1
+      };
+    }
+    var m = s.match(/^rgba?\(([^)]+)\)$/i);
+    if (!m) return null;
+    var parts = m[1].split(/[\s,/]+/);
+    if (parts.length < 3) return null;
+    var a = parts[3] === undefined || parts[3] === ""
+      ? 1
+      : (parts[3].indexOf("%") > -1 ? parseFloat(parts[3]) / 100 : parseFloat(parts[3]));
+    var c = { r: parseFloat(parts[0]), g: parseFloat(parts[1]), b: parseFloat(parts[2]), a: isNaN(a) ? 1 : a };
+    if (isNaN(c.r) || isNaN(c.g) || isNaN(c.b)) return null;
+    return c;
+  }
+
+  function mixParsed(A, B, t) {
+    var r = Math.round(A.r + (B.r - A.r) * t);
+    var g = Math.round(A.g + (B.g - A.g) * t);
+    var b = Math.round(A.b + (B.b - A.b) * t);
+    var a = Math.round(clamp01(A.a + (B.a - A.a) * t) * 1000) / 1000;
+    return "rgba(" + r + ", " + g + ", " + b + ", " + a + ")";
+  }
+
+  function mixColor(a, b, t) {
+    if (t <= 0) return a;
+    if (t >= 1) return b;
+    var A = parseColor(a), B = parseColor(b);
+    if (!A || !B) return t < 0.5 ? a : b;
+    return mixParsed(A, B, t);
+  }
+
+  // "255, 233, 216" 这种三通道字符串（mist.color / glow.color 用）
+  function mixTriplet(a, b, t) {
+    var A = String(a || "").split(",");
+    var B = String(b || "").split(",");
+    if (A.length !== 3 || B.length !== 3) return t < 0.5 ? a : b;
+    var out = [];
+    for (var i = 0; i < 3; i++) {
+      out.push(Math.round(lerp(parseFloat(A[i]) || 0, parseFloat(B[i]) || 0, t)));
+    }
+    return out.join(", ");
+  }
+
+  function mixList(a, b, t) {
+    if (!a || !b) return t < 0.5 ? a : b;
+    var out = [];
+    var n = Math.max(a.length, b.length);
+    for (var i = 0; i < n; i++) out.push(mixColor(a[i], b[i], t));
+    return out;
+  }
+
+  // 太阳 / 月亮 / 地平线光晕这类小对象：数值插值、颜色插值，缺失的一侧取中点切换
+  function mixObject(a, b, t) {
+    if (!a && !b) return null;
+    if (!a || !b) return t < 0.5 ? a : b;
+    var out = {};
+    var k, va, vb;
+    for (k in a) {
+      if (!Object.prototype.hasOwnProperty.call(a, k)) continue;
+      va = a[k];
+      vb = b[k];
+      if (typeof va === "number" && typeof vb === "number") {
+        out[k] = lerp(va, vb, t);
+      } else if (typeof va === "string" && typeof vb === "string") {
+        out[k] = /^[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+$/.test(va) ? mixTriplet(va, vb, t) : mixColor(va, vb, t);
+      } else {
+        out[k] = t < 0.5 ? va : vb;
+      }
+    }
+    for (k in b) {
+      if (!Object.prototype.hasOwnProperty.call(b, k)) continue;
+      if (!Object.prototype.hasOwnProperty.call(out, k)) out[k] = b[k];
+    }
+    return out;
+  }
+
+  // 云只在夜晚缺席，按 alpha 淡出，避免切换瞬间整片云消失
+  function mixCloud(a, b, t) {
+    if (!a && !b) return null;
+    var A = a || { fill: b.fill, alpha: 0 };
+    var B = b || { fill: a.fill, alpha: 0 };
+    var alpha = lerp(A.alpha, B.alpha, t);
+    if (alpha < 0.02) return null;
+    return { fill: mixColor(A.fill, B.fill, t), alpha: alpha };
+  }
+
+  function mixPalette(a, b, t) {
+    if (t <= 0) return a;
+    if (t >= 1) return b;
+    return {
+      sky: mixList(a.sky, b.sky, t),
+      water: mixList(a.water, b.water, t),
+      hills: mixList(a.hills, b.hills, t),
+      trees: mixColor(a.trees, b.trees, t),
+      waves: lerp(a.waves, b.waves, t),
+      cloud: mixCloud(a.cloud, b.cloud, t),
+      mist: {
+        color: mixTriplet(a.mist.color, b.mist.color, t),
+        alpha: lerp(a.mist.alpha, b.mist.alpha, t)
+      },
+      glow: mixObject(a.glow, b.glow, t),
+      sun: mixObject(a.sun, b.sun, t),
+      moon: mixObject(a.moon, b.moon, t),
+      stars: t < 0.5 ? a.stars : b.stars,
+      flora: t < 0.5 ? a.flora : b.flora,
+      frog: t < 0.5 ? a.frog : b.frog,
+      energy: mixList(a.energy, b.energy, t),
+      hud: {
+        pill: mixColor(a.hud.pill, b.hud.pill, t),
+        ink: mixColor(a.hud.ink, b.hud.ink, t),
+        inkSoft: mixColor(a.hud.inkSoft, b.hud.inkSoft, t)
+      }
+    };
+  }
+
+  // 读取当前实际生效的配色变量（渐变中读到的是中间色，可无缝接力）
+  function snapshotVars() {
+    var cs = window.getComputedStyle(root);
+    var out = {};
+    for (var i = 0; i < FADE_VARS.length; i++) {
+      out[FADE_VARS[i]] = cs.getPropertyValue(FADE_VARS[i]).trim();
+    }
+    return out;
+  }
+
+  function clearInlineVars() {
+    for (var i = 0; i < FADE_VARS.length; i++) root.style.removeProperty(FADE_VARS[i]);
+  }
+
+  function prepVars(from, to) {
+    var list = [];
+    for (var i = 0; i < FADE_VARS.length; i++) {
+      var name = FADE_VARS[i];
+      var A = parseColor(from[name]);
+      var B = parseColor(to[name]);
+      if (A && B) list.push({ name: name, a: A, b: B });
+    }
+    return list;
+  }
+
+  function writeVars(list, t) {
+    for (var i = 0; i < list.length; i++) {
+      root.style.setProperty(list[i].name, mixParsed(list[i].a, list[i].b, t));
+    }
+  }
+
+  function readFadeMs() {
+    try {
+      var v = window.getComputedStyle(root).getPropertyValue("--sky-fade").trim();
+      var m = v.match(/^([\d.]+)(ms|s)$/);
+      if (m && parseFloat(m[1]) > 0) {
+        return m[2] === "s" ? Math.round(parseFloat(m[1]) * 1000) : Math.round(parseFloat(m[1]));
+      }
+    } catch (e) { /* 忽略读取失败，用兜底时长 */ }
+    return FADE_FALLBACK_MS;
+  }
+
+  function emitSkyChange(mode, sky, progress) {
+    try {
+      document.dispatchEvent(new CustomEvent("skychange", {
+        detail: { mode: mode, sky: sky, progress: progress, fading: progress < 1 }
+      }));
+    } catch (e) { /* 极旧浏览器忽略 */ }
+  }
+
+  // 把 html 从当前档渐变到 nextSky
+  function fadeTo(nextSky, mode) {
+    var prevSky = root.getAttribute("data-sky") || "day";
+    var dur = reduceMotion ? 0 : readFadeMs();
+    var token = ++fadeToken;
+
+    if (dur <= 0 || prevSky === nextSky || !PALETTES[prevSky] || !PALETTES[nextSky]) {
+      MIXED = null;
+      clearInlineVars();
+      root.setAttribute("data-sky", nextSky);
+      return;
+    }
+
+    var fromPal = PALETTES[prevSky];
+    var toPal = PALETTES[nextSky];
+
+    // 先记住当前视觉配色
+    var fromVars = snapshotVars();
+
+    // 同步切到新档并读出目标配色，再立刻把旧配色钉回内联样式：
+    // 三段都在同一帧内完成，浏览器不会绘制中间态，所以不会闪色。
+    clearInlineVars();
+    root.setAttribute("data-sky", nextSky);
+    var toVars = snapshotVars();
+
+    var varList = prepVars(fromVars, toVars);
+    writeVars(varList, 0);
+    MIXED = mixPalette(fromPal, toPal, 0);
+
+    var start = -1;
+
+    function frame(ts) {
+      if (token !== fadeToken) return;
+      if (start < 0) start = ts;
+      var k = clamp01((ts - start) / dur);
+      var e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;   // easeInOutQuad
+
+      writeVars(varList, e);
+      MIXED = mixPalette(fromPal, toPal, e);
+
+      if (k < 1) {
+        requestAnimationFrame(frame);
+        return;
+      }
+
+      // 收尾：清掉内联值，交还给新档的 CSS 定义（终值一致，不会跳变）
+      MIXED = null;
+      clearInlineVars();
+      emitSkyChange(mode, nextSky, 1);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function setSky(nextSky, mode, animate) {
+    var prevSky = root.getAttribute("data-sky");
+    if (animate && prevSky && prevSky !== nextSky) {
+      fadeTo(nextSky, mode);
+      return;
+    }
+    if (prevSky !== nextSky) {
+      fadeToken++;
+      MIXED = null;
+      clearInlineVars();
+    }
+    root.setAttribute("data-sky", nextSky);
+  }
+
   // 供 canvas 页面读取（game.html）：与 CSS 的 data-sky 保持同一份状态
   window.SkyTheme = {
     sky: function () {
@@ -99,10 +370,13 @@
       return PALETTES[sky] ? sky : "day";
     },
     palette: function (name) {
+      // 渐变期间返回混合色板，canvas 每帧重绘即得到平滑过渡
+      if (MIXED) return MIXED;
       return PALETTES[name] || PALETTES.day;
     },
     palettes: PALETTES,
-    names: SKY_NAMES
+    names: SKY_NAMES,
+    mixing: function () { return !!MIXED; }
   };
 
   // 黎明 / 傍晚的过渡窗口（以日出、日落为基准，单位：分钟）
@@ -113,8 +387,6 @@
 
   // 日出日落估算用纬度（北半球中纬度）；经度按系统时区自动估算
   var EST_LAT = 32;
-
-  var root = document.documentElement;
 
   function readMode() {
     try {
@@ -220,22 +492,22 @@
     if (icon) icon.textContent = SKY_ICONS[sky] || SKY_ICONS.day;
   }
 
-  function apply() {
+  // options.animate：天空档位发生变化时是否走颜色渐变（首屏不渐变，避免开屏闪色）
+  function apply(options) {
+    var animate = !!(options && options.animate);
     var mode = readMode();
     var now = new Date();
     var sky = resolveSky(mode, now);
     var times = sunTimes(now);
+    var prevSky = root.getAttribute("data-sky");
 
-    root.setAttribute("data-sky", sky);
+    setSky(sky, mode, animate);
     root.setAttribute("data-sky-mode", mode);
     syncUI(mode, sky, times);
 
-    // 通知各页面重绘随主题变化的 canvas 图表等
-    try {
-      document.dispatchEvent(new CustomEvent("skychange", {
-        detail: { mode: mode, sky: sky }
-      }));
-    } catch (e) { /* 极旧浏览器忽略 */ }
+    // 天空档位真的变了才通知：渐变中还会按约 60ms 的间隔持续通知，
+    // 让报告页、开发者页自绘的 canvas 图表跟着逐帧重绘。
+    if (prevSky !== sky) emitSkyChange(mode, sky, animate ? 0 : 1);
 
     return sky;
   }
@@ -275,7 +547,7 @@
   function startTimer() {
     if (timer) return;
     // 每分钟刷新一次：跨过日出 / 日落时自动切换，并更新今日时间提示
-    timer = setInterval(apply, 60000);
+    timer = setInterval(function () { apply({ animate: true }); }, 60000);
   }
 
   function boot() {
@@ -289,7 +561,7 @@
         if (!btn || MODES.indexOf(btn.dataset.mode) === -1) return;
 
         saveMode(btn.dataset.mode);
-        var sky = apply();
+        var sky = apply({ animate: true });
         if (typeof toast === "function") {
           var extra = btn.dataset.mode === "auto"
             ? "，当前是" + (SKY_NAMES[sky] || "白天")
