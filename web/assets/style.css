@@ -450,9 +450,7 @@ canvas { border-radius: 20px; width: 100%; height: auto; box-shadow: var(--shado
   .btn { padding: 15px 32px; font-size: 20px; }
 }
 
-/* 右上角唱片机是 fixed 定位：视口不够宽时会把页面首行压在它下面。
-   统一给内容加顶部安全区，而不是在各页零散打补丁。 */
-@media (max-width: 1400px) {
-  /* 只有顶部那一行是 skybar / HUD 的页面才会和唱片机同高，首页不受影响 */
+/* 唱片机固定在右上角时，为同一高度的页面控件留出空间。 */
+@media (1100px < width <= 1400px) {
   .wrap:has(> .page-skybar) { padding-top: 132px; }
 }
