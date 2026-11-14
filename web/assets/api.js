@@ -24,52 +24,65 @@ const API = {
   get(url) { return this.json(url); },
 
   // SSE 会话流：onFrame(entry), onHello(meta), onEnd(), onError(err), onStatus("live"|"reconnecting")
-  // 自愈机制：6 秒内收不到任何数据（连接挂起/keep-alive 复用竞态）→ 自动重建，最多重试 4 次
+  // 连接和数据流分别计时，连续失败最多重试 4 次。
   stream(sessionId, { onFrame, onHello, onEnd, onError, onStatus }) {
     let es = null;
-    let alive = false;
     let attempts = 0;
-    let firstTimer = null;
+    let timer = null;
+
+    function disconnect() {
+      clearTimeout(timer);
+      if (es) es.close();
+      es = null;
+    }
+
+    function reconnect(connection) {
+      if (es !== connection) return;
+      disconnect();
+      if (attempts >= 4) {
+        onError?.(new Error("实时连接不稳定，已停止自动重试"));
+        return;
+      }
+      attempts += 1;
+      timer = setTimeout(connect, 500 * attempts);
+      onStatus?.("reconnecting");
+    }
 
     function connect() {
-      es = new EventSource(`/api/session/${sessionId}/stream`);
-      firstTimer = setTimeout(() => {
-        if (alive) return;
-        onStatus && onStatus("reconnecting");
-        try { es.close(); } catch (_) { /* ignore */ }
-        if (attempts < 4) { attempts += 1; connect(); }
-        else onError && onError(new Error("实时连接不稳定，已停止自动重试"));
-      }, 6000);
+      const connection = new EventSource(`/api/session/${sessionId}/stream`);
+      es = connection;
 
-      es.addEventListener("hello", (e) => {
-        alive = true;
+      function watchForData(timeout) {
+        clearTimeout(timer);
+        timer = setTimeout(() => reconnect(connection), timeout);
+      }
+
+      watchForData(6000);
+      connection.addEventListener("hello", (e) => {
+        if (es !== connection) return;
+        // OSC 等待窗口超时需要 8 秒，留出余量接收后端的异常帧。
+        watchForData(10000);
+        onStatus?.("live");
+        onHello?.(JSON.parse(e.data));
+      });
+      connection.addEventListener("frame", (e) => {
+        if (es !== connection) return;
         attempts = 0;
-        onStatus && onStatus("live");
-        onHello && onHello(JSON.parse(e.data));
+        watchForData(10000);
+        onFrame?.(JSON.parse(e.data));
       });
-      es.addEventListener("frame", (e) => {
-        alive = true;
-        onFrame && onFrame(JSON.parse(e.data));
+      connection.addEventListener("end", (e) => {
+        if (es !== connection) return;
+        disconnect();
+        onEnd?.(JSON.parse(e.data));
       });
-      es.addEventListener("end", (e) => {
-        clearTimeout(firstTimer);
-        es.close();
-        onEnd && onEnd(JSON.parse(e.data));
-      });
-      es.onerror = () => {
-        // 收到过数据后断线：立即重连；首次连接失败交给 firstTimer 统一处理
-        if (!alive) return;
-        onStatus && onStatus("reconnecting");
-        try { es.close(); } catch (_) { /* ignore */ }
-        if (attempts < 4) { attempts += 1; connect(); }
-        else onError && onError(new Error("实时连接已断开"));
-      };
+      connection.onerror = () => reconnect(connection);
     }
     connect();
 
     return {
-      close() { clearTimeout(firstTimer); if (es) es.close(); },
-      get state() { return es ? es.readyState : -1; },
+      close: disconnect,
+      get state() { return es ? es.readyState : EventSource.CLOSED; },
     };
   },
 };
