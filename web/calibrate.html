@@ -163,7 +163,7 @@
         <div class="big-num" id="baseline-show">—</div>
         <div class="hint" id="heart-rest-show" style="font-size:13.5px;margin-top:2px">—</div>
         <p class="hint" style="max-width:520px">
-          你的分数已按个人状态定标：50 分是今天的「专注线」，达到它青蛙就能蓄力起跳。
+          当前信号已完成定标：50 分是今天的「专注线」，达到它青蛙就能蓄力起跳。
         </p>
         <p class="hint" id="valid-tip" style="max-width:520px;font-size:13.5px">
           校准后 1 小时内有效：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。
@@ -203,6 +203,7 @@
           </label>
           <span class="badge">Xmuse Direct 默认推流到 127.0.0.1:7000（可同时监听 8000）</span>
         </div>
+        <p id="replay-status" class="hint" role="status"></p>
         <div style="margin-top:8px;font-size:13.5px">
           回放模式：使用公开 EEG 数据集中"心算专注"与"放松"的真实脑电信号驱动游戏。
           Xmuse 模式：先在 Xmuse Direct 连接设备并添加 OSC 输出（目标 127.0.0.1:7000 或 8000），再回到这里开始校准。
@@ -249,13 +250,31 @@
       }
     });
 
-    $("btn-start").addEventListener("click", async () => {
-      const mode = $("source-select").value;
+    const sourceSelect = $("source-select");
+    const startButton = $("btn-start");
+    startButton.disabled = true;
+    const replayPairs = API.replayPairs().catch(() => null).then(pairs => {
+      if (!pairs?.length) {
+        sourceSelect.querySelector('[value="replay"]').disabled = true;
+        if (sourceSelect.value === "replay") sourceSelect.value = "manual";
+        $("replay-status").textContent = pairs
+          ? "回放需要一组放松和心算 EDF。当前可用手动模拟。"
+          : "暂时无法读取回放列表。可刷新重试，或选择手动模拟。";
+      } else {
+        $("replay-status").textContent = "已找到 " + pairs.length + " 组回放。校准和游戏使用同一位被试的记录。";
+      }
+      startButton.disabled = false;
+      return pairs || [];
+    });
+
+    startButton.addEventListener("click", async () => {
+      startButton.disabled = true;
+      sourceSelect.disabled = true;
+      const mode = sourceSelect.value;
       try {
-        const info = await API.get("/api/dev/info");
-        const relaxFile = (info.edf_files || []).find(f => f.segment === 1);
+        const pair = mode === "replay" ? (await replayPairs)[0] : null;
         const body = mode === "replay"
-          ? { mode, file: relaxFile ? relaxFile.path : null }
+          ? { mode, file: pair.rest.path }
           : { mode, osc_ports: mode === "hardware" ? $("osc-ports").value : null };
         // 心率辅助：页面下拉框选择，并持久化给游戏页沿用
         let heartMode = $("heart-select").value || "off";
@@ -275,6 +294,8 @@
         };
         startCalibration();
       } catch (err) {
+        startButton.disabled = false;
+        sourceSelect.disabled = false;
         toast("启动失败：" + err.message);
       }
     });
@@ -432,7 +453,10 @@
         $("source-select").disabled = false;
         $("heart-select").disabled = false;
         // 校准期间采到的心率样本：显示静息心率，并作为游戏页的融合参照
-        if (res.heart && res.heart.used_as_rest && res.heart.mean != null) {
+        if (state.session.mode === "replay" || state.session.mode === "manual") {
+          $("heart-rest-show").textContent = state.session.mode === "replay"
+            ? "已按回放记录定标" : "已按滑块模拟信号定标";
+        } else if (res.heart && res.heart.used_as_rest && res.heart.mean != null) {
           $("heart-rest-show").textContent =
             "静息心率 " + Math.round(res.heart.mean) + " BPM（已作为融合参照）";
         } else if (localStorage.getItem("bf-heart") === "off") {

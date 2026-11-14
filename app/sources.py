@@ -14,6 +14,7 @@ MVP 阶段的三种信号源:
 """
 
 import glob
+import re
 import os
 
 import numpy as np
@@ -99,11 +100,12 @@ class EDFReplaySource(EEGSource):
         self.fs = fs
         self.ch_names = ch_names
         self._raw = signals
-        self._filtered = features.prepare_signal(signals, fs)
         n_samples = signals.shape[1]
         win = int(features.WINDOW_SEC * fs)
         step = int(STEP_SEC * fs)
         self._n_windows = (n_samples - win) // step + 1
+        if self._n_windows < 1:
+            raise ValueError("EDF 录制长度不足一个回放窗口")
         self._win = win
         self._step = step
         self._idx = 0
@@ -113,7 +115,7 @@ class EDFReplaySource(EEGSource):
         return self
 
     def next_window(self):
-        if self._filtered is None:
+        if self._raw is None:
             self.start()
         idx = self._idx % self._n_windows
         self._idx += 1
@@ -243,12 +245,15 @@ class HardwareSource(EEGSource):
 
 def list_edf_files():
     """列出可回放的 EDF 文件（按 Subject/段 组织）。"""
-    files = sorted(glob.glob(os.path.join(EDF_DIR, "Subject*_?.edf")))
+    directory = os.environ.get("EEG_FOCUS_EDF_DIR") or EDF_DIR
+    files = sorted(glob.glob(os.path.join(directory, "Subject*_?.edf")))
     out = []
     for fp in files:
         base = os.path.basename(fp)
-        subj = base.split("_")[0]  # Subject00
-        seg = base.split("_")[1][0]  # 1=放松 或 2=专注
+        match = re.fullmatch(r"(Subject[0-9]+)_([12])\.edf", base)
+        if not match or not os.path.isfile(fp):
+            continue
+        subj, seg = match.groups()
         seg_name = "放松(背景)" if seg == "1" else "心算专注"
         out.append({
             "path": fp,
@@ -267,7 +272,9 @@ def create_source(config):
     mode = config.get("mode", "replay")
     if mode == "replay":
         fp = config.get("file")
-        if not fp or not os.path.exists(fp):
+        if fp and not os.path.isfile(fp):
+            raise ValueError("选定的 EDF 文件已不可用，请重新选择信号源")
+        if not fp:
             # 默认: 选取放松段 (Subject05_1 等), 保证演示平稳
             files = list_edf_files()
             rel = [f for f in files if f["segment"] == 1]
