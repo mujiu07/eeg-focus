@@ -191,9 +191,9 @@
           <label class="field" id="heart-field">
             <span>心率辅助</span>
             <select id="heart-select">
+              <option value="off">不启用（纯脑电）</option>
               <option value="hrd">❤️ AirPods 自动读取</option>
               <option value="mock">🎲 模拟心率（演示用）</option>
-              <option value="off">关闭（纯脑电）</option>
             </select>
           </label>
           <label class="field hidden" id="osc-field">
@@ -216,10 +216,10 @@
     const $ = id => document.getElementById(id);
     const state = { session: null, es: null, focus: 0.5, running: false, done: false };
 
-    // 心率辅助源：URL 参数优先，其次沿用上次选择；游戏页读同一份 localStorage。
+    // 心率辅助源默认关闭：只有这次显式选了（或 URL 指定）才启用。
+    // 不读上次的选择，避免旧配置在用户不知情的情况下自动打开心率。
     const HEART_MODES = ["hrd", "mock", "csv", "off"];
-    const heartInit = (new URLSearchParams(location.search).get("heart")
-      || localStorage.getItem("bf-heart") || "hrd").toLowerCase();
+    const heartInit = (new URLSearchParams(location.search).get("heart") || "off").toLowerCase();
     if (HEART_MODES.includes(heartInit)) $("heart-select").value = heartInit;
 
     // 因"校准超过 1 小时"从首页/游戏页跳过来时，给出明确原因
