@@ -5,6 +5,10 @@
    ============================================================ */
 
 /* ---------- 顶部模式切换器 ---------- */
+/* 天空切换的渐变时长：sky.js 读取同一个变量驱动逐帧插值，
+   保证 CSS 过渡与 canvas 重绘的节奏完全一致。 */
+:root { --sky-fade: 1.2s; }
+
 .hero-top { flex-wrap: wrap; row-gap: 10px; }
 .hero-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .hero-sky-icon { transition: transform .6s ease; }
@@ -298,7 +302,7 @@ html[data-sky="night"] .vinyl-label {
   z-index: 0;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 1.1s ease;
+  transition: opacity var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955);
 }
 .sky-veil--dawn {
   background:
@@ -321,13 +325,13 @@ html[data-sky="dusk"] .sky-veil--dusk,
 html[data-sky="night"] .sky-veil--night { opacity: 1; }
 
 /* 环境越暗，漂浮泡泡越淡 */
-.bubbles { transition: opacity 1.1s ease; }
+.bubbles { transition: opacity var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] .bubbles { opacity: .72; }
 html[data-sky="dusk"] .bubbles { opacity: .5; }
 html[data-sky="night"] .bubbles { opacity: .22; }
 
 /* ---------- 天空与水面渐变 ---------- */
-#hSky stop, #hWater stop { transition: stop-color 1s ease; }
+#hSky stop, #hWater stop { transition: stop-color var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 
 /* 黎明：薰衣草蓝 → 粉 → 蜜桃金 */
 html[data-sky="dawn"] #hSky stop:nth-child(1) { stop-color: #9fb0e6; }
@@ -353,8 +357,8 @@ html[data-sky="night"] #hWater stop:last-child  { stop-color: #0d2a3e; }
 /* ---------- 日 / 月 / 云 / 雾 / 飞鸟 的显隐 ---------- */
 #heroSun, #heroMoon, #heroStars, #heroClouds, #heroBirds,
 #heroDawnSun, #heroDuskSun, #heroMist,
-#heroDawnGlow, #heroDuskGlow { transition: opacity 1s ease; }
-#heroClouds { transition: opacity 1s ease, fill 1s ease; }
+#heroDawnGlow, #heroDuskGlow { transition: opacity var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
+#heroClouds { transition: opacity var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955), fill var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 
 /* 黎明与傍晚的低日、地平线薄雾、水面反光默认隐藏 */
 #heroDawnSun, #heroDuskSun, #heroMist,
@@ -392,12 +396,12 @@ html[data-sky="dusk"] #heroBirds { opacity: .68; }
 /* 晨昏时云朵与飞鸟染色 */
 html[data-sky="dawn"] #heroClouds { fill: #ffdfd5; }
 html[data-sky="dusk"] #heroClouds { fill: #ffc9ba; }
-#heroBirds path { transition: stroke 1s ease; }
+#heroBirds path { transition: stroke var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] #heroBirds path { stroke: #7a5c58; }
 html[data-sky="dusk"] #heroBirds path { stroke: #6d4a56; }
 
 /* 水花与水珠在晨昏、夜里稍微压暗 */
-#heroSplashes, #heroDroplets { transition: opacity .8s ease; }
+#heroSplashes, #heroDroplets { transition: opacity var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] #heroSplashes,
 html[data-sky="dawn"] #heroDroplets { opacity: .92; }
 html[data-sky="dusk"] #heroSplashes,
@@ -406,7 +410,7 @@ html[data-sky="night"] #heroSplashes,
 html[data-sky="night"] #heroDroplets { opacity: .68; }
 
 /* ---------- 远山 / 水面 / 荷叶的晨昏明度 ---------- */
-#heroHills path { transition: fill 1s ease; }
+#heroHills path { transition: fill var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] #heroHills path:first-child { fill: #a9b2c9; }
 html[data-sky="dawn"] #heroHills path:last-child  { fill: #8f9ab4; }
 html[data-sky="dusk"] #heroHills path:first-child { fill: #86779a; }
@@ -414,12 +418,12 @@ html[data-sky="dusk"] #heroHills path:last-child  { fill: #6c5f80; }
 html[data-sky="night"] #heroHills path:first-child { fill: #1a3854; }
 html[data-sky="night"] #heroHills path:last-child  { fill: #132d46; }
 
-#heroGlints { transition: opacity 1s ease; }
+#heroGlints { transition: opacity var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] #heroGlints { opacity: .55; }
 html[data-sky="dusk"] #heroGlints { opacity: .45; }
 html[data-sky="night"] #heroGlints { opacity: .32; }
 
-#heroLilies, #heroSmallLilies { transition: filter 1s ease; }
+#heroLilies, #heroSmallLilies { transition: filter var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] #heroLilies,
 html[data-sky="dawn"] #heroSmallLilies { filter: brightness(.9) saturate(.95) sepia(.08); }
 html[data-sky="dusk"] #heroLilies,
@@ -437,12 +441,12 @@ html[data-sky="night"] #heroSmallLilies { filter: brightness(.62) saturate(.85);
   50%      { transform: translateY(-1.8px); }
 }
 
-#heroFish { color: #2a6b78; transition: color 1s ease, opacity 1s ease; }
+#heroFish { color: #2a6b78; transition: color var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955), opacity var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] #heroFish { color: #6d6a72; opacity: .92; }
 html[data-sky="dusk"] #heroFish { color: #5b5568; opacity: .9; }
 html[data-sky="night"] #heroFish { color: #93bdd6; opacity: .74; }
 
-.hero-frog { transition: filter 1s ease; }
+.hero-frog { transition: filter var(--sky-fade, 1.2s) cubic-bezier(.455, .03, .515, .955); }
 html[data-sky="dawn"] .hero-frog {
   filter: drop-shadow(0 8px 10px rgba(58, 48, 52, .22)) brightness(.92) sepia(.06);
 }
