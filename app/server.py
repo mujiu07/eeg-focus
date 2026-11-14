@@ -42,7 +42,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="0.1.0")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.5")
 
 # ---------------------------------------------------------------------------
 # 全局状态
