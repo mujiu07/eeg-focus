@@ -24,7 +24,7 @@ const API = {
   get(url) { return this.json(url); },
 
   async replayPairs() {
-    const { edf_files: files = [] } = await this.get("/api/dev/info");
+    const { edf_files: files = [] } = await this.get("/api/player/replay");
     const tasks = new Map(files.filter(file => file.segment === 2)
       .map(file => [file.subject, file]));
     return files.filter(file => file.segment === 1 && tasks.has(file.subject))
@@ -94,6 +94,14 @@ const API = {
     };
   },
 };
+
+function describeSignal(source = {}) {
+  const file = source.file?.split(/[/\\]/).pop();
+  const match = file?.match(/^Subject(\d+)_([12])\.edf$/i);
+  if (match) return "脑电回放 · 被试 " + match[1] + " · " + (match[2] === "1" ? "放松段" : "心算段");
+  if (file || source.name === "replay") return file ? "脑电回放 · " + file : "脑电回放";
+  return ({ manual: "手动模拟", hardware: "Xmuse 脑电", heart: "心率" })[source.name] || "未知信号";
+}
 
 // 跨页共享：会话参数与校准基线都存 localStorage。
 // 校准基线有效期 1 小时：期间刷新、关闭页面/标签页甚至浏览器都无需重新校准；

@@ -342,6 +342,11 @@
       </div>
     </div>
 
+    <div class="card hidden" id="actions-card">
+      <div class="section-title">本局操作</div>
+      <p id="actions-summary"></p>
+    </div>
+
     <div class="card curve-card">
       <div class="section-title"><span class="dot"></span><span id="curve-title">专注曲线</span></div>
       <canvas id="curve" width="880" height="230"></canvas>
@@ -352,8 +357,9 @@
       <p class="hint" id="curve-tip" style="display:none;margin-top:6px;font-size:13px;color:#c26a1b"></p>
     </div>
 
-    <div class="card hidden" id="parent-card">
+    <div class="card">
       <div class="section-title"><span class="dot"></span>💬 给家长的话<span class="pn-badge">仅供参考</span></div>
+      <p class="hint hidden" id="parent-source"></p>
       <div class="parent-note" id="parent-note">正在根据本局数据生成分析与建议……</div>
     </div>
 
@@ -746,7 +752,9 @@
       `;
     }
 
+    let currentReport;
     function render(r) {
+      currentReport = r;
       const above = r.above_mid_ratio != null ? Math.round(r.above_mid_ratio * 100)
         : (r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null);
       const hr = r.heart || {};
@@ -757,9 +765,15 @@
       const isReplay = source.name === "replay" || !!source.file;
       const isManual = source.name === "manual";
       const recorded = source.name === "hardware" || source.name === "heart";
-      const srcName = isReplay ? "脑电数据回放" : ({
-        manual: "手动模拟", hardware: "Xmuse 脑电", heart: "心率",
-      })[source.name] || "未知";
+      const srcName = r.demo ? "无设备试玩 · 手动模拟" : describeSignal(source);
+      $("actions-card").classList.toggle("hidden", !r.actions);
+      if (r.actions) {
+        const { timed_jumps, automatic_jumps, targets_shown, targets_hit } = r.actions;
+        $("actions-summary").textContent = `抓住起跳时机 ${timed_jumps} 次 · 蓄满自动跳 ${automatic_jumps} 次`;
+        if (targets_shown != null && targets_hit != null) {
+          $("actions-summary").textContent += ` · 点中目标 ${targets_hit}/${targets_shown}`;
+        }
+      }
       $("curve-title").textContent = isReplay ? "脑电回放曲线"
         : isManual ? "滑块模拟曲线" : "专注曲线";
       $("report").innerHTML = `
@@ -773,9 +787,10 @@
           ${hrCard}
         </div>
         <p class="hint" style="margin-top:12px;font-size:13.5px">
-          信号源：${srcName} · 会话 ${sid}
+          <span id="report-source"></span>
         </p>
       `;
+      $("report-source").textContent = "信号来源 · " + srcName;
       const scoreCurve = (r.curve || []).map(p => {
         const v = (p.score != null) ? p.score
           : ((p.focus_fused != null ? p.focus_fused : p.focus) != null
@@ -792,9 +807,11 @@
           tip.style.display = "none";
         }
       }
-      $("parent-card").classList.toggle("hidden", !recorded);
-      if (recorded) $("parent-note").innerHTML = buildParentNote(r);
-      $("sub").textContent = `会话 ${sid} · ${r.created_at || ""}`;
+      const parentSource = $("parent-source");
+      parentSource.classList.toggle("hidden", recorded);
+      parentSource.textContent = recorded ? "" : "以下分析基于本局" + srcName + "数据。";
+      $("parent-note").innerHTML = buildParentNote(r);
+      $("sub").textContent = r.created_at ? r.created_at.replace("T", " ") : "";
       celebrate();
     }
 
@@ -974,7 +991,7 @@
       if (lastCurve.length) drawCurve(lastCurve, lastBaseline, lastHr);
     });
 
-    $("btn-again").addEventListener("click", () => { location.href = "index.html?pick=1"; });
+    $("btn-again").addEventListener("click", () => { location.href = currentReport?.demo ? "game.html?demo=1&sec=60" : "index.html?pick=1"; });
     $("btn-home").addEventListener("click", () => { location.href = "index.html"; });
     load();
   </script>

@@ -19,11 +19,12 @@ import time
 import uuid
 from copy import copy
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, NonNegativeInt
 from typing import Optional
 from sse_starlette.sse import EventSourceResponse
 
@@ -182,7 +183,7 @@ class Session:
         self._frame_ready = asyncio.Event()
         ready.set()
 
-    async def finish(self, score=None, played_sec=None, notes=None):
+    async def finish(self, score=None, played_sec=None, notes=None, actions=None, demo=False):
         if self.finished:
             return self
         self.finished = True
@@ -217,6 +218,8 @@ class Session:
             "played_sec": played_sec,
             "score": score,
             "notes": notes,
+            "actions": actions,
+            "demo": demo,
             "source": self.source.describe(),
             "baseline": self.baseline,
             "calibration": self.calibration,
@@ -298,7 +301,16 @@ class ManualSet(BaseModel):
     focus: float = 0.5
 
 
+class GameActions(BaseModel):
+    timed_jumps: NonNegativeInt
+    automatic_jumps: NonNegativeInt
+    targets_shown: Optional[NonNegativeInt] = None
+    targets_hit: Optional[NonNegativeInt] = None
+
+
 class SessionFinish(BaseModel):
+    actions: Optional[GameActions] = None
+    demo: bool = False
     score: Optional[int] = None
     played_sec: Optional[float] = None
     notes: Optional[str] = None
@@ -363,6 +375,30 @@ def heart_start(body: HeartStart):
 def heart_stop():
     heart.stop()
     return {"ok": True, "heart": heart.snapshot()}
+
+
+@app.get("/api/player/replay")
+def player_replay():
+    return {"edf_files": sources.list_edf_files()}
+
+
+@app.get("/api/player/recent")
+def player_recent():
+    reports = []
+    files = sorted(Path(SESSIONS_DIR).glob("*.json"), key=os.path.getmtime, reverse=True)
+    for path in files:
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not report.get("played_sec"):
+            continue
+        reports.append({
+            key: report.get(key) for key in ("session_id", "source", "score", "played_sec")
+        })
+        if len(reports) == 3:
+            break
+    return {"reports": reports}
 
 
 @app.get("/api/dev/info")
@@ -658,7 +694,10 @@ async def finish_session(sid: str, body: SessionFinish):
     s = _sessions.get(sid)
     if not s:
         raise HTTPException(404, "会话不存在")
-    await s.finish(score=body.score, played_sec=body.played_sec, notes=body.notes)
+    await s.finish(
+        score=body.score, played_sec=body.played_sec, notes=body.notes,
+        actions=body.actions.model_dump(exclude_none=True) if body.actions else None, demo=body.demo,
+    )
     os.makedirs(SESSIONS_DIR, exist_ok=True)
     with open(os.path.join(SESSIONS_DIR, f"{s.id}.json"), "w", encoding="utf-8") as f:
         json.dump(s.stats, f, ensure_ascii=False, indent=2)

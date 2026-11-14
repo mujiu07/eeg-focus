@@ -19,21 +19,55 @@
     .hud-item {
       display: inline-flex; align-items: center; gap: 10px;
       padding: 11px 22px; border-radius: 999px;
-      background: rgba(255,255,255,.82);
-      box-shadow: 0 6px 16px rgba(47,110,128,.12);
-      border: 1.5px solid rgba(255,255,255,.9);
-      font-weight: 800; font-size: 19px; color: var(--ink);
+      font-weight: 800; font-size: 19px;
+    }
+    html[data-sky] .hud-item {
+      color: #f7f6ed;
+      background: #23373a;
+      border: 1px solid #54716b;
+      box-shadow: none;
     }
     .hud-item .icon { font-size: 22px; }
     /* 心率：图标按实际 BPM 节律跳动，低采样率数据过期时自动停下 */
     #hr-hud .icon { display: inline-block; transform-origin: 50% 60%; }
     #hr-hud.beat .icon { animation: hrBeat 1s ease-in-out infinite; }
-    #hr-hud.stale { opacity: .55; }
+    #hr-hud.stale { color: #bdcfcb; }
     @keyframes hrBeat {
       0%, 100% { transform: scale(1); }
       16% { transform: scale(1.22); }
       34% { transform: scale(1); }
     }
+    .game-meters {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px 20px;
+      width: min(100%, 900px);
+      padding: 12px 16px;
+      border-radius: 14px;
+      color: #f7f6ed;
+      background: #23373a;
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+    .energy-track {
+      position: relative;
+      grid-column: 1 / -1;
+      height: 10px;
+      border-radius: 8px;
+      background: #4e6666;
+    }
+    #energy-fill, #energy-zone {
+      position: absolute;
+      height: 100%;
+      border-radius: inherit;
+    }
+    #energy-fill {
+      width: 100%;
+      background: #83c5aa;
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    #energy-zone { border: 2px solid #ffda86; background: rgba(255, 218, 134, .18); }
     .game-guidance {
       width: 100%;
       max-width: 900px;
@@ -41,6 +75,9 @@
       color: var(--ink);
       font-size: 14px;
       line-height: 1.5;
+      padding: 10px 14px;
+      border-radius: 14px;
+      background: var(--card);
     }
     .game-guidance p { margin: 0; }
     .warn-banner {
@@ -60,17 +97,17 @@
     }
     .tutorial.hidden { display: none; }
     .tutorial-card {
-      background: #fff; border-radius: 20px; padding: 20px 24px;
+      background: #fff9ee; color: #263b33; border-radius: 20px; padding: 20px 24px;
       width: calc(100% - 40px); max-width: 400px;
       box-shadow: 0 20px 50px rgba(20, 60, 70, .26);
       text-align: left;
     }
-    .tutorial-card h3 { margin: 0 0 10px; font-size: 17px; color: var(--ink, #2f6e80); }
+    .tutorial-card h3 { margin: 0 0 10px; font-size: 17px; color: #263b33; }
     .tutorial-card ol { margin: 0 0 16px; padding-left: 20px; }
     .tutorial-card li {
-      margin: 7px 0; font-size: 14.5px; line-height: 1.55; color: var(--ink-soft, #4a6b74);
+      margin: 7px 0; font-size: 14.5px; line-height: 1.55; color: #38524a;
     }
-    .tut-gold { color: #b8860b; }
+    .tut-gold { color: #795219; }
 
     @media (max-width: 560px) {
       .canvas-wrap { display: flex; flex-direction: column; }
@@ -125,24 +162,30 @@
     </div>
     <div class="card" style="padding:16px 22px">
       <div class="hud">
-        <span class="hud-item" id="lamp"><span class="icon">🧘</span><span class="lamp-dot"></span><span id="lamp-text">专注中</span></span>
-        <span class="hud-item"><span class="icon">⏱️</span><span id="timer" style="min-width:5.5ch;text-align:center">01:00</span></span>
+        <span class="hud-item" id="lamp"><span class="lamp-dot"></span><span id="lamp-text">专注中</span></span>
+        <span class="hud-item"><span>剩余</span><span id="timer" style="min-width:5.5ch;text-align:center">01:00</span></span>
         <span class="hud-item" id="hr-hud" title="心率（辅助信号，低采样率）">
-          <span class="icon" id="hr-icon">❤️</span><span id="hr-bpm" style="min-width:2.5ch;text-align:center">--</span><span style="font-size:13px;opacity:.6;font-weight:700">BPM</span>
+          <span class="icon" id="hr-icon">♥</span><span id="hr-bpm" style="min-width:2.5ch;text-align:center">--</span><span style="font-size:13px;opacity:.6;font-weight:700">BPM</span>
         </span>
-        <span class="hud-item"><span class="icon">🐸</span><span>得分</span><span id="score" style="color:var(--accent-dark);min-width:2ch;text-align:center">0</span></span>
+        <span class="hud-item"><span>得分</span><span id="score" style="color:#ffda86;min-width:2ch;text-align:center">0</span></span>
       </div>
     </div>
 
+    <div class="game-meters">
+      <div>信号分数 <strong id="focus-readout">—</strong></div>
+      <div>蓄力 <strong id="energy-readout">0%</strong></div>
+      <div class="energy-track" aria-hidden="true">
+        <div id="energy-fill"></div><div id="energy-zone"></div>
+      </div>
+    </div>
     <div class="canvas-wrap">
       <canvas id="game-canvas" width="900" height="460"></canvas>
 
       <div class="tutorial hidden" id="tutorial">
         <div class="tutorial-card">
-          <h3>先花 20 秒认识一下玩法</h3>
+          <h3>玩法</h3>
           <ol>
             <li>下方能量条涨到 <b class="tut-gold">金色区间</b> 时，点击池塘或按空格，青蛙就会起跳。</li>
-            <li><b>🍂 落叶</b>和<b>🦋 蝴蝶</b>会飘过，点中它们能加分。</li>
             <li>走神的时候进度会停住，<b>不会往回退</b>，慢慢来就好。</li>
           </ol>
           <button class="btn btn-primary" id="tutorial-ok" type="button">开始玩</button>
@@ -152,16 +195,16 @@
 
     <div class="game-guidance">
       <p id="replay-label" class="hidden">脑电数据回放 · 使用已录制的心算信号</p>
-      <p>蓄力进入金色区间后，点击池塘或按空格起跳。点中落叶和蝴蝶可以加分。</p>
+      <p>蓄力进入金色区间后，点击池塘或按空格起跳。</p>
       <p class="warn-banner" id="warn">注意力飘走了，慢慢来</p>
     </div>
 
     <div class="card hidden" id="manual-card">
       <div class="section-title" style="margin-bottom:6px"><span class="dot"></span>手动模拟模式</div>
       <div class="slider-row" style="display:flex;gap:16px;align-items:center">
-        <span style="font-weight:700">😌 放松</span>
+        <span style="font-weight:700">放松</span>
         <input type="range" id="manual-slider" min="0" max="100" value="30" style="flex:1">
-        <span style="font-weight:700">🧠 专注</span>
+        <span style="font-weight:700">专注</span>
       </div>
       <p class="hint" style="font-size:13.5px;margin-top:10px">
         演示用滑块：<strong>拉到右边</strong>青蛙会一直前进，<strong>拉到左边</strong>就停下来。正式游戏不需要它。
@@ -169,7 +212,7 @@
     </div>
 
     <div class="btn-row">
-      <button id="btn-quit" class="btn btn-ghost">🏠 退出游戏</button>
+      <button id="btn-quit" class="btn btn-ghost">退出游戏</button>
     </div>
   </div>
 
@@ -223,8 +266,9 @@
     // ---- 会话与基线 ----
     // 校准基线有效期 1 小时：有效期内刷新/关闭页面都无需重新校准；
     // 过期（或从未校准）时不允许用旧基线开局，先回校准页。
+    const demo = new URLSearchParams(location.search).get("demo") === "1";
     const calibInfo = Store.calibInfo();
-    const calib = calibInfo.calib;
+    const calib = demo ? { baseline: 0.55 } : calibInfo.calib;
     const prev = Store.load();
     const baseline = calib ? calib.baseline : 0.4;
     const calibExpired = calibInfo.expired;
@@ -265,8 +309,7 @@
       focusOn: false,      // 滞回后的“在状态”开关
       tutorialOpen: false, // 首次上手的教学层是否打开
       jumpWindow: null,    // 金色起跳区间 {lo,hi}（能量百分比）：在区间内点击可提前起跳
-      targets: [],         // 变化监测目标：飘过 2.2 秒，点中 +1
-      nextTargetIn: 2.5,   // 距离下一个目标的秒数
+      actions: { timed_jumps: 0, automatic_jumps: 0 },
       bpm: null, hrValid: false, hrMode: "off",
       energy: 0,
       score: 0,
@@ -278,12 +321,11 @@
       over: false,
       manualMode: false,
       jumping: { active: false, t: 0, fromX: 0, toX: 0 },
-      cur: 0,           // 青蛙当前所在荷叶在 lilies 中的下标；左侧旧荷叶保留不清除
+      cur: 0,           // 青蛙当前所在荷叶在 lilies 中的下标
       pendingSettle: false,  // 落地后等待水花散尽、荷叶上浮稳定，再开始平移
       settling: false,  // 跳完后青蛙与荷叶一起平滑移回屏幕中间
       popups: [],     // 浮动文字 {x,y,text,t}
       splashes: [],   // 水花涟漪 {x,y,r0,r1,t,life}
-      droplets: [],   // 溅起的水珠 {x,y,vx,vy,r,t,life}
       clouds: [
         { x: 120, y: 52, s: 1.0, v: 8, phase: 0.6 },
         { x: 520, y: 38, s: 0.8, v: 12, phase: 2.4 },
@@ -296,7 +338,6 @@
     // 荷叶布局（青蛙等待位固定在屏幕中间 cx=450：当前荷叶中心 = cx）
     let lilies = [];
     const CX = canvas.width / 2;
-    const LEFT_BOUND = 50;   // 荷叶左移的下限：整片叶子留在游戏框内，不越过左边框
     function resetLilies() {
       const n = 6;
       lilies = [];
@@ -312,7 +353,7 @@
       const last = lilies[lilies.length - 1];
       lilies.push({
         x: last.x + 170 + Math.random() * 60,
-        y: 340 - (lilies.length % 2) * 26,
+        y: last.y === 340 ? 314 : 340,
         bob: Math.random() * Math.PI * 2,
         dip: 0, dipVel: 0,
       });
@@ -320,14 +361,14 @@
     resetLilies();
     // 第一次跳给一个更早的窗口，别让孩子干等到满格
     state.jumpWindow = { lo: 22, hi: 36 };
-    const FROG_SIZE = 56;
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
     // ---- 创建会话 ----
     async function init() {
       if (!calib) return;   // 无有效校准：已在上面安排跳转回校准页，不创建会话
       const prevMode = prev && prev.source ? prev.source.mode : null;
       // heart：仅心率玩法，没有脑电信号，判定完全来自心率分量
-      const mode = ["manual", "hardware", "heart"].includes(prevMode) ? prevMode : "replay";
+      const mode = demo ? "manual" : ["manual", "hardware", "heart"].includes(prevMode) ? prevMode : "replay";
       // 心率辅助源：?heart=hrd|mock 或 localStorage 的 bf-heart 决定是否接入；
       // 未开启时整个链路保持纯 EEG，HUD 显示 "--"。
       let heartMode = (new URLSearchParams(location.search).get("heart")
@@ -343,7 +384,7 @@
         body.score_low = calib.range.low;
         body.score_high = calib.range.high;
       }
-      if (["hrd", "mock", "csv"].includes(heartMode)) {
+      if (!demo && ["hrd", "mock", "csv"].includes(heartMode)) {
         body.heart_mode = heartMode;
         if (heartRest) body.heart_rest_bpm = heartRest;
         body.heart_weight = heartWeight;
@@ -359,8 +400,13 @@
       }
       const res = await API.post("/api/session", body);
       state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null };
-      $("replay-label").classList.toggle("hidden", mode !== "replay");
+      $("replay-label").textContent = demo ? "无设备试玩 · 滑块控制信号" : describeSignal(res.source);
+      $("replay-label").classList.toggle("hidden", !demo && mode !== "replay");
       state.manualMode = mode === "manual";
+      if (demo) {
+        await API.post(`/api/session/${res.session_id}/manual`, { focus: 0.8 });
+        $("manual-slider").value = "80";
+      }
       $("manual-card").classList.toggle("hidden", !state.manualMode);
 
       state.es = API.stream(res.session_id, {
@@ -395,11 +441,7 @@
     });
 
     // 点击/空格：先判目标，再判起跳窗口
-    canvas.addEventListener("pointerdown", e => {
-      const r = canvas.getBoundingClientRect();
-      handleTap((e.clientX - r.left) * canvas.width / r.width,
-                (e.clientY - r.top) * canvas.height / r.height);
-    });
+    canvas.addEventListener("pointerdown", tryJumpTap);
     window.addEventListener("keydown", e => {
       if (e.target.closest?.("button, input, select, textarea, a[href]")) return;
       if (e.code === "Space" || e.code === "Enter") {
@@ -429,15 +471,6 @@
       // 水花/浮字更新
       state.splashes = state.splashes.filter(p => (p.t += dt) < p.life);
       state.popups = state.popups.filter(p => (p.t += dt) < 1.2);
-      state.droplets = state.droplets.filter(d => {
-        d.t += dt;
-        if (d.t >= d.life) return false;
-        d.vy += 700 * dt;   // 水滴受重力回落
-        d.x += d.vx * dt;
-        d.y += d.vy * dt;
-        return true;
-      });
-
       // 荷叶下沉/上浮（弹簧阻尼）：dip > 0 沉入水面，dip < 0 回弹上浮
       updateLilyDips(dt);
 
@@ -447,24 +480,6 @@
         const lo = Math.min(94, state.energy + 2);
         state.jumpWindow = { lo, hi: Math.min(99, lo + 11) };
       }
-
-      // 主动任务 2：变化监测——每隔 3.5–6.5 秒飘来一个目标，2.8 秒内点掉得分
-      state.nextTargetIn -= dt;
-      if (state.nextTargetIn <= 0 && state.targets.length < 3) {
-        state.targets.push({
-          x: 90 + Math.random() * (canvas.width - 180),
-          y: 150 + Math.random() * 90,
-          t: 0, life: 2.8,
-          kind: Math.random() < 0.5 ? "🍂" : "🦋",
-          vx: (Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 16),
-        });
-        state.nextTargetIn = 3.5 + Math.random() * 3;
-      }
-      state.targets = state.targets.filter(o => {
-        o.t += dt;
-        o.x += o.vx * dt;
-        return o.t < o.life;
-      });
 
       // 数据新鲜度：超过 3 秒无有效帧 → 视为断流，暂停蓄力（旧分数不得继续驱动游戏）
       if (performance.now() - state.lastFrameTs > 3000) state.stale = true;
@@ -484,7 +499,7 @@
       }
       const focused = !state.stale && state.focusOn;
       // 蓄力：跳跃中与平移中不蓄力；落地后等待水花/上浮的这段时间仍可蓄力
-      if (!state.jumping.active && !state.settling && !state.stale) {
+      if (!state.jumping.active && !state.settling && !state.pendingSettle && !state.stale) {
         if (focused) {
           const gain = (state.scoreSmooth - 42) * dt * 0.16;
           state.energy = Math.min(100, state.energy + gain);
@@ -497,7 +512,7 @@
         // 等水花和涟漪全部散尽、新荷叶回弹上浮停稳，再开始平移
         const l = lilies[state.cur];
         const calm = Math.abs(l.dip || 0) < 0.4 && Math.abs(l.dipVel || 0) < 2;
-        if (!state.splashes.length && !state.droplets.length && calm) {
+        if (!state.splashes.length && calm) {
           state.pendingSettle = false;
           state.settling = true;
         }
@@ -511,14 +526,14 @@
           state.energy = 15;
           rollJumpWindow();                        // 新一跳重新给一个金色窗口
           // 落地：新荷叶被压得下沉一截，四周溅起水花，随后回弹上浮
-          dipLily(landing, 250);
+          dipLily(landing, 95);
           spawnLandingSplash(landing.x, landing.y + 6);
           // 先等特效结束、上浮稳定，再平移（见 pendingSettle 分支）
           state.pendingSettle = true;
         }
       } else if (state.settling) {
         // 平移：所有荷叶同步左移，直到当前荷叶中心回到 CX（青蛙回中间）
-        // 旧荷叶最多停到左边界，不会越过游戏框左边；ease-out 平滑减速，距离很小时转线性收尾
+        // 旧荷叶随场景移出，完全离开画面后回收。
         const cur = lilies[state.cur];
         const dist = cur.x - CX;
         if (dist <= 0.5) {
@@ -526,7 +541,11 @@
           state.settling = false;
         } else {
           const step = Math.min(dist, Math.max(24 * dt, dist * dt * 4));
-          lilies.forEach(l => { l.x = Math.max(LEFT_BOUND, l.x - step); });
+          lilies.forEach(l => { l.x -= step; });
+          while (state.cur > 0 && lilies[0].x < -60) {
+            lilies.shift();
+            state.cur -= 1;
+          }
         }
       } else if (!state.stale && state.energy >= 100) {
         startJump();
@@ -550,7 +569,7 @@
       }
       $("lamp-text").textContent = state.stale ? "信号中断" : (focused ? "跟上了" : "飘走了");
       // 提示条：断流、或“正在蓄力但分心”。跳跃/平移期间本来就不蓄力，不算分心。
-      const charging = !state.jumping.active && !state.settling && !state.stale;
+      const charging = !state.jumping.active && !state.settling && !state.pendingSettle && !state.stale;
       $("warn").classList.toggle("show", state.stale || (charging && !focused));
       $("warn").textContent = state.stale ? "数据中断，先停一下" : "注意力飘走了，慢慢来";
 
@@ -568,42 +587,28 @@
     }
 
     function tryJumpTap() {
-      if (state.over || state.stale) return;
+      if (state.over || state.stale || state.tutorialOpen) return;
       if (state.jumping.active || state.settling || state.pendingSettle) return;
       const w = state.jumpWindow;
       if (!w) return;
       if (state.energy >= w.lo && state.energy <= w.hi) startJump(true);
     }
 
-    function handleTap(px, py) {
-      for (let i = state.targets.length - 1; i >= 0; i--) {
-        const o = state.targets[i];
-        if (Math.hypot(o.x - px, o.y - py) <= 48) {
-          state.targets.splice(i, 1);
-          state.score += 1;
-          $("score").textContent = state.score;
-          state.popups.push({ x: o.x, y: o.y, text: "+1", t: 0 });
-          state.splashes.push({ x: o.x, y: o.y, r0: 4, r1: 44, t: 0, life: 0.5 });
-          return;
-        }
-      }
-      tryJumpTap();
-    }
-
     function startJump(perfect) {
       const from = lilies[state.cur], to = lilies[state.cur + 1];
       state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x };
+      state.actions[perfect ? "timed_jumps" : "automatic_jumps"] += 1;
       state.score += perfect ? 2 : 1;
       $("score").textContent = state.score;
       state.popups.push({ x: from.x, y: from.y - 150, text: perfect ? "完美 +2" : "+1", t: 0 });
       state.jumpWindow = null;
       // 蹬水起跳：脚下荷叶被踩得小幅度下沉，随后自动回弹上浮
-      dipLily(from, 170);
+      dipLily(from, 60);
     }
 
     // 荷叶弹簧阻尼：给一次向下的冲量 → 下沉 → 回弹（略微上浮）→ 稳定
     const LILY_SPRING_K = 150;
-    const LILY_SPRING_C = 9;
+    const LILY_SPRING_C = 19;
     function updateLilyDips(dt) {
       lilies.forEach(l => {
         if (l.dip === undefined) { l.dip = 0; l.dipVel = 0; }
@@ -621,28 +626,8 @@
 
     // 落水水花：涟漪圈 + 一圈向外上方飞溅的水珠
     function spawnLandingSplash(x, y) {
-      for (let i = 0; i < 3; i++) {
-        state.splashes.push({
-          x, y: y + 2,
-          r0: 44 + i * 7,
-          r1: 82 + i * 18,
-          t: -i * 0.07,
-          life: 0.75 + i * 0.14,
-        });
-      }
-      const n = 14;
-      for (let i = 0; i < n; i++) {
-        const a = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.45;
-        state.droplets.push({
-          x: x + Math.cos(a) * 34,
-          y: y + Math.sin(a) * 12 - 2,
-          vx: Math.cos(a) * (50 + Math.random() * 75),
-          vy: -(185 + Math.random() * 135) + Math.sin(a) * 35,
-          r: 2 + Math.random() * 2.3,
-          t: 0,
-          life: 0.5 + Math.random() * 0.42,
-        });
-      }
+      if (reducedMotion.matches) return;
+      state.splashes.push({ x, y, r0: 42, r1: 72, t: 0, life: 0.55 });
     }
 
     // ---- 绘制 ----
@@ -663,11 +648,8 @@
       drawSplashes();   // 涟漪在水面上、荷叶之下：被荷叶遮住内圈，叶缘外才露出
       drawLilies(p, t);
       drawFrog(p, t);
-      drawTargets(t);
-      drawDroplets();
       drawPopups();
-      drawEnergy(p);
-      drawHudText(p);
+      updateMeters();
     }
 
     function drawSky(p) {
@@ -914,27 +896,12 @@
       const frogBaseRaw = i => lilies[i].y - 28;
       const k = state.jumping.active ? Math.min(state.jumping.t / 0.55, 1) : 0;
       let fx, fy;
-      const frogScore = (state.norm != null)
-        ? state.norm
-        : ((state.fused != null ? state.fused : state.focus) * 100);
-      const focused = state.focusOn && !state.stale;
       if (state.jumping.active) {
         fx = interpolateJump(state.jumping.t);
         fy = frogBaseRaw(i0) + (frogBaseRaw(i1) - frogBaseRaw(i0)) * k - jumpArc(state.jumping.t);
       } else {
         fx = lilies[i0].x;   // 荷叶正中心（叶脉交点）
         fy = frogBase(i0) + Math.sin(t * 2.2) * 2;
-      }
-      // 专注光环
-      if (focused && !state.jumping.active) {
-        const glow = 0.16 + Math.sin(t * 2.4) * 0.05;
-        ctx.save();
-        ctx.globalAlpha = glow;
-        ctx.fillStyle = "#8fe3a0";
-        ctx.beginPath();
-        ctx.ellipse(fx, fy + 12, 52, 20, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
       }
       // 阴影：贴荷叶/水面，随跳跃高度缩小
       ctx.save();
@@ -948,18 +915,31 @@
                  24 * (1 - 0.4 * Math.sin(k * Math.PI)), 9 * (1 - 0.4 * Math.sin(k * Math.PI)), 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      // 青蛙本体
-      // 注意：ctx.fillStyle / globalAlpha 是全局状态，若不显式重置会继承上一步画叶脉的
-      // rgba(30, 96, 56, .4)，导致青蛙看起来是半透明的。
       ctx.save();
-      ctx.globalAlpha = 1;
+      ctx.translate(fx, fy);
       ctx.filter = p.frog;
-      ctx.fillStyle = "#1d3f2f";
-      ctx.font = `${FROG_SIZE}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("🐸", fx, fy);
+      paintEllipse(0, 17, 29, 9, "#346951");
+      paintEllipse(0, 7, 24, 22, "#609b68");
+      paintEllipse(0, 13, 16, 13, "#b9cf94");
+      for (const x of [-14, 14]) {
+        paintEllipse(x, -12, 10, 11, "#609b68");
+        paintEllipse(x, -12, 6, 7, "#fbf3d9");
+        paintEllipse(x + 1, -12, 3, 4, "#263b33");
+      }
+      ctx.strokeStyle = "#346951";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-8, 5);
+      ctx.quadraticCurveTo(0, 10, 8, 5);
+      ctx.stroke();
       ctx.restore();
+    }
+
+    function paintEllipse(x, y, rx, ry, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     function drawSplashes() {
@@ -968,27 +948,13 @@
         const k = p.t / p.life;
         const r = p.r0 + (p.r1 - p.r0) * k;
         ctx.save();
-        ctx.globalAlpha = 0.78 * (1 - k);
+        ctx.globalAlpha = 0.42 * (1 - k);
         ctx.strokeStyle = "rgba(255,255,255,.98)";
         ctx.lineWidth = 3 * (1 - k) + 0.8;
         ctx.beginPath();
         // 贴水面的椭圆涟漪（透视压扁）
         ctx.ellipse(p.x, p.y, r, r * 0.42, 0, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.restore();
-      });
-    }
-
-    function drawDroplets() {
-      state.droplets.forEach(d => {
-        const k = d.t / d.life;
-        const stretch = 1 + Math.min(1.1, Math.abs(d.vy) / 520);
-        ctx.save();
-        ctx.globalAlpha = 0.92 * (1 - k * k);
-        ctx.fillStyle = "rgba(255,255,255,.96)";
-        ctx.beginPath();
-        ctx.ellipse(d.x, d.y, d.r, d.r * stretch, 0, 0, Math.PI * 2);
-        ctx.fill();
         ctx.restore();
       });
     }
@@ -1000,97 +966,31 @@
         ctx.globalAlpha = 1 - k;
         ctx.font = "900 30px 'PingFang SC', sans-serif";
         ctx.textAlign = "center";
-        ctx.fillStyle = "#e8893a";
-        ctx.shadowColor = "rgba(255,255,255,.9)";
-        ctx.shadowBlur = 8;
+        ctx.fillStyle = "#fff4d8";
+        ctx.strokeStyle = "#23373a";
+        ctx.lineWidth = 4;
+        ctx.strokeText(p.text, p.x, p.y - k * 26);
         ctx.fillText(p.text, p.x, p.y - k * 26);
         ctx.restore();
       });
     }
 
-    function drawTargets(t) {
-      state.targets.forEach(o => {
-        const k = o.t / o.life;
-        const fade = k < 0.12 ? k / 0.12 : (k > 0.82 ? Math.max(0, (1 - k) / 0.18) : 1);
-        ctx.save();
-        ctx.globalAlpha = fade;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.font = "34px 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
-        ctx.fillText(o.kind, o.x, o.y + Math.sin(o.t * 6) * 6);
-        ctx.beginPath();
-        ctx.arc(o.x, o.y, 27, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(255,255,255,.8)";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
-        ctx.stroke();
-        ctx.restore();
-      });
-    }
-
-    function drawEnergy(p) {
-      const w = canvas.width - 32 - 96, h = 22, x = 16, y = 62;
-      // 轨道
-      ctx.fillStyle = "rgba(255,255,255,.5)";
-      roundRect(ctx, x, y, w, h, 11);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,.9)";
-      ctx.lineWidth = 1.5;
-      roundRect(ctx, x, y, w, h, 11);
-      ctx.stroke();
-      // 填充
-      if (state.energy > 0) {
-        const g = ctx.createLinearGradient(x, 0, x + w, 0);
-        g.addColorStop(0, p.energy[0]);
-        g.addColorStop(1, p.energy[1]);
-        ctx.fillStyle = g;
-        roundRect(ctx, x + 2, y + 2, Math.max(6, (w - 4) * state.energy / 100), h - 4, 9);
-        ctx.fill();
-        // 顶部光泽
-        ctx.save();
-        ctx.globalAlpha = 0.45;
-        ctx.fillStyle = "#fff";
-        roundRect(ctx, x + 5, y + 4, Math.max(2, (w - 10) * state.energy / 100), 5, 3);
-        ctx.fill();
-        ctx.restore();
+    function updateMeters() {
+      const energy = Math.round(state.energy);
+      const shown = Math.round(state.norm ?? (state.fused ?? state.focus) * 100);
+      const focus = $("focus-readout");
+      const label = state.stale ? "—" : String(shown);
+      if (focus.textContent !== label) focus.textContent = label;
+      const readout = $("energy-readout");
+      if (readout.textContent !== energy + "%") readout.textContent = energy + "%";
+      $("energy-fill").style.transform = "scaleX(" + state.energy / 100 + ")";
+      const window = state.jumpWindow;
+      const zone = $("energy-zone");
+      zone.hidden = !window;
+      if (window) {
+        zone.style.left = window.lo + "%";
+        zone.style.width = (window.hi - window.lo) + "%";
       }
-      // 金色起跳窗口：画在填充之上，半透明，不遮挡蓄力进度
-      if (state.jumpWindow) {
-        const bx = x + 2 + (w - 4) * state.jumpWindow.lo / 100;
-        const bw = Math.max(5, (w - 4) * (state.jumpWindow.hi - state.jumpWindow.lo) / 100);
-        ctx.save();
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = "#ffd45e";
-        roundRect(ctx, bx, y + 2, bw, h - 4, 6);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = "#fff8d6";
-        ctx.lineWidth = 2;
-        roundRect(ctx, bx, y + 2, bw, h - 4, 6);
-        ctx.stroke();
-        ctx.restore();
-      }
-      // 标签
-      ctx.textAlign = "right";
-      ctx.font = "800 17px 'PingFang SC', sans-serif";
-      ctx.fillStyle = p.hud.ink;
-      ctx.fillText("蓄力", x + w + 12, y + h / 2 + 6);
-      ctx.fillStyle = p.hud.inkSoft;
-      ctx.font = "700 15px 'PingFang SC', sans-serif";
-      ctx.fillText(Math.round(state.energy) + "%", x + w + 58, y + h / 2 + 6);
-    }
-
-    function drawHudText(p) {
-      ctx.fillStyle = p.hud.pill;
-      roundRect(ctx, 16, 18, 150, 32, 16);
-      ctx.fill();
-      ctx.fillStyle = p.hud.ink;
-      ctx.font = "700 16px 'PingFang SC', sans-serif";
-      ctx.textAlign = "left";
-      const shown = (state.norm != null)
-        ? state.norm
-        : ((state.fused != null ? state.fused : state.focus) * 100);
-      ctx.fillText("🧠 专注指数 " + Math.round(shown) + "%", 30, 41);
     }
 
     function interpolateJump(tt) {
@@ -1122,6 +1022,8 @@
       try {
         const res = await API.post(`/api/session/${state.session.id}/finish`, {
           score: state.score,
+          actions: state.actions,
+          demo,
           played_sec: state.totalSec - Math.max(0, state.timeLeft),
           notes: "完整一局（" + formatClock(state.totalSec) + "）",
         });
@@ -1141,7 +1043,7 @@
       if (!box || !okBtn) return;
       let done = false;
       try { done = localStorage.getItem("bf-tutorial-done") === "1"; } catch (_) {}
-      if (!done && calib && !calibExpired) {
+      if (!done && calib && (demo || !calibExpired)) {
         box.classList.remove("hidden");
         state.tutorialOpen = true;
       }

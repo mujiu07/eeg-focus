@@ -360,6 +360,7 @@
       <div style="padding:14px 30px 26px;text-align:center">
         <div class="btn-row">
           <button id="btn-start" class="btn btn-primary">开始游戏</button>
+          <a class="btn btn-ghost" href="game.html?demo=1&amp;sec=60">无设备试玩 · 1 分钟</a>
           <button id="btn-calib" class="btn btn-warm">进入脑电校准</button>
         </div>
         <p class="hint" id="calib-status" style="margin-top:14px;font-size:14px">
@@ -385,7 +386,7 @@
         <div class="step">
           <div class="num">3</div>
           <div class="t">🐸 点一下起跳</div>
-          <div class="d">金色区间内点屏幕青蛙就跳<br>顺手点掉飘过的落叶和蝴蝶</div>
+          <div class="d">金色区间内点屏幕青蛙就跳</div>
         </div>
       </div>
     </div>
@@ -399,8 +400,8 @@
     </div>
 
     <div class="btn-row">
-      <button id="btn-dev" class="btn btn-sm btn-ghost">🛠️ 开发者</button>
-      <button id="btn-settings" class="btn btn-sm btn-ghost">⚙️ 设置</button>
+      <button id="btn-dev" class="btn btn-sm btn-ghost">开发者模式</button>
+      <button id="btn-settings" class="btn btn-sm btn-ghost">信号设置</button>
     </div>
   </div>
 
@@ -558,22 +559,29 @@
       location.href = "dev.html";
     });
     document.getElementById("btn-settings").addEventListener("click", () => {
-      toast("MVP 阶段：请在开发者页调整信号源。");
+      location.href = "calibrate.html#signal-settings";
     });
 
     async function loadRecent() {
       try {
-        const info = await API.get("/api/dev/info");
-        const sessions = Object.values(info.sessions || {}).filter(s => s.baseline != null).slice(-3).reverse();
-        const box = document.getElementById("recent");
-        if (!sessions.length) return;
-        box.innerHTML = `<div class="stat-grid">` + sessions.map(s => `
-          <div class="stat">
-            <div class="icon">🏆</div>
-            <div class="label">会话 ${s.id} · ${s.source.file ? s.source.file.replace(/^Subject(\d+)_(\d)\.edf$/, "被试$1·$2") : "手动"}</div>
-            <div class="value">${Math.round(s.baseline * 100)}%</div>
-            <div class="label">专注基线</div>
-          </div>`).join("") + `</div>`;
+        const { reports } = await API.get("/api/player/recent");
+        if (!reports.length) return;
+        const grid = document.createElement("div");
+        grid.className = "stat-grid";
+        for (const report of reports) {
+          const link = document.createElement("a");
+          link.className = "stat";
+          link.href = "report.html?id=" + encodeURIComponent(report.session_id);
+          const source = document.createElement("div");
+          source.className = "label";
+          source.textContent = describeSignal(report.source);
+          const score = document.createElement("div");
+          score.className = "value";
+          score.textContent = report.score == null ? "查看报告" : report.score + " 分";
+          link.append(source, score);
+          grid.append(link);
+        }
+        document.getElementById("recent").replaceChildren(grid);
       } catch (e) {
         console.warn("读取最近记录失败", e);
       }

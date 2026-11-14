@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>开发者调试页 - 专注小蛙</title>
+  <title>开发者模式 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <style>
@@ -50,8 +50,8 @@
       <div class="brand">
         <div class="logo-badge">🛠️</div>
         <div>
-          <h1>开发者调试页</h1>
-          <div class="slogan">MVP 阶段：开发与内测调试信息</div>
+          <h1>开发者模式</h1>
+          <div class="slogan">模型、信号源和实时数据</div>
         </div>
       </div>
     </div>
@@ -87,7 +87,7 @@
         </div>
       </div>
       <p class="hint" style="margin-top:10px;font-size:13.5px">
-        全局信号源配置将影响之后新建的校准/游戏会话。回放文件按"被试 · 段"列出（1=放松，2=心算专注）。
+        此处配置用于调试。玩家在校准页选择本局信号源。回放文件按"被试 · 段"列出（1=放松，2=心算专注）。
       </p>
     </div>
 
@@ -120,7 +120,7 @@
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-ghost" onclick="location.href='index.html'">🏠 回首页</button>
+      <button class="btn btn-ghost" onclick="location.href='index.html'">返回玩家模式</button>
     </div>
   </div>
 
@@ -206,7 +206,7 @@
       try {
         const res = await API.post("/api/session", {
           mode: $("mode-select").value,
-          file: $("file-select").value,
+          file: $("mode-select").value === "replay" ? $("file-select").value : null,
           osc_ports: $("mode-select").value === "hardware" ? $("osc-ports").value : null,
         });
         watchSession = res.session_id;
