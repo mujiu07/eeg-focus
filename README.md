@@ -21,40 +21,32 @@
 
 ## 快速启动
 
-### Windows（推荐）
+### macOS
 
-```powershell
-cd eeg-focus
-.\start.ps1
-```
+双击 **`start.command`** 即可。首次运行会自动创建 `.venv` 并安装依赖（需联网，1–3 分钟），之后每次双击直接启动并打开页面。
 
-脚本会自动创建 `.venv-win` 虚拟环境（若不存在）并安装依赖，然后启动服务。手动方式：
+### Windows
 
-```powershell
-python -m venv .venv-win
-.\.venv-win\Scripts\pip install -r requirements.txt
-.\.venv-win\Scripts\python -m uvicorn app.server:app --host 127.0.0.1 --port 8000
-```
+双击 **`start.bat`** 即可（内部调用 `start.ps1`，不需要改 PowerShell 执行策略）。
 
-### macOS / Linux
+### 启动脚本做了什么
+
+- 已在运行时不会重复启动，只打开页面
+- 服务就绪后自动打开 <http://127.0.0.1:8000>
+- 关闭终端窗口即停止服务
+- **心率默认不启用**：需要时在校准页「心率辅助」里手动选择；该功能仅 macOS 可用
+
+### 手动启动（排查用）
 
 ```bash
-# 1. 克隆并安装依赖（Python 3.10+）
-git clone https://github.com/mujiu07/eeg-focus.git
-cd eeg-focus
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-
-# 2. 获取 EEGMAT 数据集（一次性；含 EDF 脑电样本，约 183MB）
-.venv/bin/bash scripts/download_data.sh
-
-# 3. 启动服务
 .venv/bin/python -m uvicorn app.server:app --host 127.0.0.1 --port 8000
 ```
 
-浏览器打开 <http://127.0.0.1:8000>
-
-> **无需数据集也能体验**：不执行第 2 步时，游戏仍可运行（`manual` 手动源）；执行 `scripts/preprocess.py` + `scripts/train.py` 可重建模型。
+> **无需数据集也能体验**：不下载 EDF 样本时，游戏仍可运行（`manual` 手动源）；执行 `scripts/preprocess.py` + `scripts/train.py` 可重建模型。
+>
+> 需要真实脑电回放样本时：`.venv/bin/bash scripts/download_data.sh`（一次性，约 183MB）。
 
 ## 完整用户旅程（演示）
 

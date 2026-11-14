@@ -23,3 +23,6 @@ music_cookie.txt
 .DS_Store
 ._*
 Thumbs.db
+
+# 运行时产物（启动脚本的日志/状态）
+.run/

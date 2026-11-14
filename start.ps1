@@ -47,4 +47,11 @@ if (-not (Test-Path $Python)) {
 Write-Host "[2/3] Xmuse OSC 监听 UDP $($env:XMUSE_OSC_HOST):$($env:XMUSE_OSC_PORTS)（HTTP 为 TCP 8000，互不冲突）"
 Write-Host "      在 Xmuse Direct 中连接设备 -> 添加 OSC 输出 -> IP 127.0.0.1 / 端口 7000"
 Write-Host "[3/3] 启动服务: http://127.0.0.1:8000  (Ctrl+C 停止)"
+Write-Host "      心率默认不启用，需要时在校准页的“心率辅助”里手动选择。"
+
+# 服务起来后再打开浏览器，避免白屏
+if (-not $env:SKIP_OPEN) {
+    Start-Process -WindowStyle Hidden cmd -ArgumentList '/c','timeout /t 3 >nul & start http://127.0.0.1:8000'
+}
+
 & $Python -m uvicorn app.server:app --host 127.0.0.1 --port 8000
