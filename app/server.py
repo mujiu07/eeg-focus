@@ -17,6 +17,7 @@ import os
 import platform
 import time
 import uuid
+from copy import copy
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
@@ -66,7 +67,8 @@ class Session:
         self.id = uuid.uuid4().hex[:8]
         self.source = source
         self.config = config
-        self.engine = _engine
+        # 模型只加载一次，每个会话独立维护平滑和回退状态。
+        self.engine = copy(_engine)
         self.created_at = time.time()
         self._mono0 = time.monotonic()   # 心率曲线的时间原点（单调钟）
         self.finished_at = None
@@ -76,7 +78,8 @@ class Session:
         self.calibration = None      # {duration, n, mean, ...}
         self.finished = False
         self.stats = {}
-        self._queue = asyncio.Queue(maxsize=1)
+        self._frame_ready = asyncio.Event()
+        self._latest_frame = None
         self._task = None
         # 动态定标：校准得到"最放松 / 最专注"两端，映射到 20–80 分。
         # 未校准（或旧前端不带区间）时用 0.35/0.75 兜底，50 分线仍是 0.55，与旧基线一致。
@@ -136,17 +139,7 @@ class Session:
                                  "raw": comp, "focus": comp, "valid": True,
                                  "meta": meta, "hr": snap,
                                  "hr_focus": comp, "focus_fused": comp}
-                    self.history.append(entry)
-                    if len(self.history) > 30000:
-                        self.history = self.history[-10000:]
-                    try:
-                        self._queue.put_nowait(entry)
-                    except asyncio.QueueFull:
-                        try:
-                            self._queue.get_nowait()
-                        except asyncio.QueueEmpty:
-                            pass
-                        self._queue.put_nowait(entry)
+                    self._publish_frame(entry)
                     await asyncio.sleep(max(0.05, sources.STEP_SEC - (time.time() - t0)))
                     continue
                 if self.source.name == "manual":
@@ -170,34 +163,30 @@ class Session:
                     entry["focus_fused"] = round((1.0 - w) * float(focus) + w * comp, 3)
                 else:
                     entry["focus_fused"] = round(float(focus), 3)
-                self.history.append(entry)
-                if len(self.history) > 30000:
-                    self.history = self.history[-10000:]
-                try:
-                    self._queue.put_nowait(entry)
-                except asyncio.QueueFull:
-                    try:
-                        self._queue.get_nowait()
-                    except asyncio.QueueEmpty:
-                        pass
-                    self._queue.put_nowait(entry)
+                self._publish_frame(entry)
             except Exception as e:  # noqa: BLE001
                 if self.finished:
                     break
                 entry = {"t": round(time.time() - self.created_at, 2),
                          "raw": None, "focus": None, "valid": False,
                          "meta": {"source": self.source.name, "error": str(e)}}
-                self.history.append(entry)
-                try:
-                    self._queue.put_nowait(entry)
-                except asyncio.QueueFull:
-                    pass
+                self._publish_frame(entry)
             await asyncio.sleep(max(0.05, sources.STEP_SEC - (time.time() - t0)))
+
+    def _publish_frame(self, entry):
+        self.history.append(entry)
+        if len(self.history) > 30000:
+            self.history = self.history[-10000:]
+        self._latest_frame = entry
+        ready = self._frame_ready
+        self._frame_ready = asyncio.Event()
+        ready.set()
 
     async def finish(self, score=None, played_sec=None, notes=None):
         if self.finished:
             return self
         self.finished = True
+        self._frame_ready.set()
         self.finished_at = time.time()
         # 释放硬件源占用的 UDP 端口，避免下一局 hardware 会话绑定失败
         if self.source.name == "hardware":
@@ -327,9 +316,14 @@ class SourceSwitch(BaseModel):
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
+def _engine_info():
+    latest = next(reversed(_sessions.values()), None)
+    return (latest.engine if latest else _engine).describe()
+
+
 @app.get("/api/health")
 def health():
-    eng = _engine.describe()
+    eng = _engine_info()
     return {"status": "ok", "model": eng["model"], "engine_mode": eng["active_mode"],
             "heart": heart.snapshot()}
 
@@ -374,7 +368,7 @@ def heart_stop():
 @app.get("/api/dev/info")
 def dev_info():
     return {
-        "engine": _engine.describe(),
+        "engine": _engine_info(),
         "model_report": _read_train_report(),
         "source_config": _source_config,
         "edf_files": sources.list_edf_files(),
@@ -639,21 +633,21 @@ async def stream(sid: str):
         yield {"event": "hello", "data": json.dumps({"session_id": s.id,
                                                       "source": s.source.describe(),
                                                       "baseline": s.baseline})}
+        last_frame = None
         while not s.finished:
-            try:
-                entry = await asyncio.wait_for(s._queue.get(), timeout=2.0)
-                payload = dict(entry)
-                payload["baseline"] = s.baseline
-                payload["calibration"] = s.calibration
-                payload["score"] = s.score_of(
-                    payload.get("focus_fused") if payload.get("focus_fused") is not None else payload.get("focus"))
-                payload["score_low"] = s.score_low
-                payload["score_high"] = s.score_high
-                yield {"event": "frame", "data": json.dumps(payload)}
-            except asyncio.TimeoutError:
-                if s.finished:
-                    break
+            entry = s._latest_frame
+            if entry is last_frame:
+                await s._frame_ready.wait()
                 continue
+            last_frame = entry
+            payload = dict(entry)
+            payload["baseline"] = s.baseline
+            payload["calibration"] = s.calibration
+            payload["score"] = s.score_of(
+                payload.get("focus_fused") if payload.get("focus_fused") is not None else payload.get("focus"))
+            payload["score_low"] = s.score_low
+            payload["score_high"] = s.score_high
+            yield {"event": "frame", "data": json.dumps(payload)}
         yield {"event": "end", "data": json.dumps({"session_id": s.id})}
 
     return EventSourceResponse(gen())
