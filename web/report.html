@@ -343,7 +343,7 @@
     </div>
 
     <div class="card curve-card">
-      <div class="section-title"><span class="dot"></span>专注曲线（实时脑电驱动）</div>
+      <div class="section-title"><span class="dot"></span><span id="curve-title">专注曲线</span></div>
       <canvas id="curve" width="880" height="230"></canvas>
       <p class="hint" style="font-size:13.5px;margin-top:10px">
         <span class="badge">浅绿色区域</span> 专注状态（蓄力/跳出）&nbsp;·&nbsp;
@@ -352,7 +352,7 @@
       <p class="hint" id="curve-tip" style="display:none;margin-top:6px;font-size:13px;color:#c26a1b"></p>
     </div>
 
-    <div class="card">
+    <div class="card hidden" id="parent-card">
       <div class="section-title"><span class="dot"></span>💬 给家长的话<span class="pn-badge">仅供参考</span></div>
       <div class="parent-note" id="parent-note">正在根据本局数据生成分析与建议……</div>
     </div>
@@ -753,12 +753,20 @@
       const hrCard = (hr.n > 0)
         ? `<div class="stat"><div class="icon">❤️</div><div class="label">平均心率（AirPods 辅助）</div><div class="value">${Math.round(hr.mean)}<span style="font-size:13px;font-weight:700"> BPM</span></div></div>`
         : "";
-      const srcName = r.source && r.source.file ? r.source.file.replace(/^Subject(\d+)_(\d)\.edf$/, "被试$1 · $2段") : "手动模拟";
+      const source = r.source || {};
+      const isReplay = source.name === "replay" || !!source.file;
+      const isManual = source.name === "manual";
+      const recorded = source.name === "hardware" || source.name === "heart";
+      const srcName = isReplay ? "脑电数据回放" : ({
+        manual: "手动模拟", hardware: "Xmuse 脑电", heart: "心率",
+      })[source.name] || "未知";
+      $("curve-title").textContent = isReplay ? "脑电回放曲线"
+        : isManual ? "滑块模拟曲线" : "专注曲线";
       $("report").innerHTML = `
         <div class="stat-grid" style="justify-content:center">
           <div class="stat"><div class="icon">🐸</div><div class="label">游戏成绩（跳荷叶）</div><div class="value">${r.score ?? "—"}</div></div>
           <div class="stat"><div class="icon">⏱️</div><div class="label">高于专注线时间占比</div><div class="value">${above ?? "—"}%</div></div>
-          <div class="stat"><div class="icon">📈</div><div class="label">专注分均值（个人定标）</div><div class="value">${r.score_mean != null ? Math.round(r.score_mean) : (r.focus_mean != null ? Math.round(r.focus_mean * 100) : "—")}</div></div>
+          <div class="stat"><div class="icon">📈</div><div class="label">${recorded ? "专注分均值" : "演示信号分均值"}</div><div class="value">${r.score_mean != null ? Math.round(r.score_mean) : (r.focus_mean != null ? Math.round(r.focus_mean * 100) : "—")}</div></div>
           <div class="stat"><div class="icon">🎯</div><div class="label">定标方式</div><div class="value">20 – 80</div></div>
           <div class="stat"><div class="icon">⌛</div><div class="label">用时</div><div class="value">${fmtPlayed(r.played_sec)}</div></div>
           <div class="stat"><div class="icon">✅</div><div class="label">有效数据占比</div><div class="value">${(r.n_valid_frames != null && r.n_frames) ? Math.round(r.n_valid_frames / r.n_frames * 100) + "%" : "—"}</div></div>
@@ -784,7 +792,8 @@
           tip.style.display = "none";
         }
       }
-      $("parent-note").innerHTML = buildParentNote(r);
+      $("parent-card").classList.toggle("hidden", !recorded);
+      if (recorded) $("parent-note").innerHTML = buildParentNote(r);
       $("sub").textContent = `会话 ${sid} · ${r.created_at || ""}`;
       celebrate();
     }

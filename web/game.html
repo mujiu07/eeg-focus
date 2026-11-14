@@ -151,6 +151,7 @@
     </div>
 
     <div class="game-guidance">
+      <p id="replay-label" class="hidden">脑电数据回放 · 使用已录制的心算信号</p>
       <p>蓄力进入金色区间后，点击池塘或按空格起跳。点中落叶和蝴蝶可以加分。</p>
       <p class="warn-banner" id="warn">注意力飘走了，慢慢来</p>
     </div>
@@ -348,18 +349,17 @@
         body.heart_weight = heartWeight;
       }
       if (mode === "replay") {
-        const info = await API.get("/api/dev/info");
-        const calibFile = prev && prev.source ? prev.source.file : null;
-        let subj = null;
-        if (calibFile) subj = calibFile.match(/(Subject\d+)/);
-        const focusFiles = (info.edf_files || []).filter(f => f.segment === 2);
-        const match = focusFiles.find(f => subj && f.subject === subj[1]);
-        body.file = (match || focusFiles[0]).path;
+        const pairs = await API.replayPairs();
+        const calibFile = prev?.source?.file;
+        const pair = pairs.find(({ rest }) => rest.path.split(/[/\\]/).pop() === calibFile);
+        if (!pair) throw new Error("找不到本次校准对应的心算回放，请返回校准页重新选择信号源");
+        body.file = pair.task.path;
       } else if (mode === "hardware") {
         body.osc_ports = (prev && prev.source && prev.source.osc_ports) || null;
       }
       const res = await API.post("/api/session", body);
       state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null };
+      $("replay-label").classList.toggle("hidden", mode !== "replay");
       state.manualMode = mode === "manual";
       $("manual-card").classList.toggle("hidden", !state.manualMode);
 

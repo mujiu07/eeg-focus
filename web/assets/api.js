@@ -23,6 +23,14 @@ const API = {
 
   get(url) { return this.json(url); },
 
+  async replayPairs() {
+    const { edf_files: files = [] } = await this.get("/api/dev/info");
+    const tasks = new Map(files.filter(file => file.segment === 2)
+      .map(file => [file.subject, file]));
+    return files.filter(file => file.segment === 1 && tasks.has(file.subject))
+      .map(rest => ({ rest, task: tasks.get(rest.subject) }));
+  },
+
   // SSE 会话流：onFrame(entry), onHello(meta), onEnd(), onError(err), onStatus("live"|"reconnecting")
   // 连接和数据流分别计时，连续失败最多重试 4 次。
   stream(sessionId, { onFrame, onHello, onEnd, onError, onStatus }) {

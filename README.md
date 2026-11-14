@@ -46,7 +46,12 @@ python3 -m venv .venv
 
 > **无需数据集也能体验**：不下载 EDF 样本时，游戏仍可运行（`manual` 手动源）；执行 `scripts/preprocess.py` + `scripts/train.py` 可重建模型。
 >
-> 需要真实脑电回放样本时：`.venv/bin/bash scripts/download_data.sh`（一次性，约 183MB）。
+> 需要真实脑电回放样本时：`bash scripts/download_data.sh`（一次性，约 183MB）。
+
+已有 EEGMAT 样本时，将放松段 `SubjectNN_1.edf` 和同一被试的心算段
+`SubjectNN_2.edf` 放在 `data/eegmat/`，或在启动前设置
+`EEG_FOCUS_EDF_DIR` 指向样本目录。校准页会检查是否有完整的回放配对。
+
 
 ## 完整用户旅程（演示）
 
