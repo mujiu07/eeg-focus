@@ -34,20 +34,21 @@
       16% { transform: scale(1.22); }
       34% { transform: scale(1); }
     }
-    /* 提示条压在画布底边，不挡画面中央——走神提示越显眼，越容易让人分心 */
-    .warn-banner {
-      position: absolute; left: 50%; bottom: 14px;
-      transform: translateX(-50%);
-      max-width: calc(100% - 28px); text-align: center;
-      font-size: 15px; font-weight: 700; color: var(--ink-soft);
-      background: rgba(255,255,255,.82);
-      padding: 7px 18px; border-radius: 999px;
-      box-shadow: 0 6px 18px rgba(47,110,128,.14);
-      opacity: 0; pointer-events: none;
-      transition: opacity .35s ease, transform .35s ease;
-      z-index: 20;
+    .game-guidance {
+      width: 100%;
+      max-width: 900px;
+      text-align: center;
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.5;
     }
-    .warn-banner.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+    .game-guidance p { margin: 0; }
+    .warn-banner {
+      min-height: 1.5em;
+      font-weight: 700;
+      visibility: hidden;
+    }
+    .warn-banner.show { visibility: visible; }
 
     /* 首次上手教学 */
     .tutorial {
@@ -70,6 +71,21 @@
       margin: 7px 0; font-size: 14.5px; line-height: 1.55; color: var(--ink-soft, #4a6b74);
     }
     .tut-gold { color: #b8860b; }
+
+    @media (max-width: 560px) {
+      .canvas-wrap { display: flex; flex-direction: column; }
+      .tutorial {
+        position: static;
+        order: -1;
+        margin-bottom: 12px;
+        background: none;
+        backdrop-filter: none;
+      }
+      .tutorial-card { width: 100%; padding: 16px; }
+      .hud { justify-content: center; }
+      .hud-item { gap: 6px; padding: 7px 10px; font-size: 15px; }
+      .hud-item .icon { font-size: 17px; }
+    }
 
     /* 非 macOS 不显示心率 HUD（心率采集依赖 macOS 的 hrd 进程） */
     html[data-heart="off"] #hr-hud { display: none !important; }
@@ -120,19 +136,23 @@
 
     <div class="canvas-wrap">
       <canvas id="game-canvas" width="900" height="460"></canvas>
-      <div class="warn-banner" id="warn">注意力飘走了，慢慢来</div>
 
       <div class="tutorial hidden" id="tutorial">
         <div class="tutorial-card">
           <h3>先花 20 秒认识一下玩法</h3>
           <ol>
-            <li>下方能量条涨到 <b class="tut-gold">金色区间</b> 时，点一下屏幕，青蛙就跳出去。</li>
+            <li>下方能量条涨到 <b class="tut-gold">金色区间</b> 时，点击池塘或按空格，青蛙就会起跳。</li>
             <li><b>🍂 落叶</b>和<b>🦋 蝴蝶</b>会飘过，点中它们能加分。</li>
             <li>走神的时候进度会停住，<b>不会往回退</b>，慢慢来就好。</li>
           </ol>
           <button class="btn btn-primary" id="tutorial-ok" type="button">开始玩</button>
         </div>
       </div>
+    </div>
+
+    <div class="game-guidance">
+      <p>蓄力进入金色区间后，点击池塘或按空格起跳。点中落叶和蝴蝶可以加分。</p>
+      <p class="warn-banner" id="warn">注意力飘走了，慢慢来</p>
     </div>
 
     <div class="card hidden" id="manual-card">
@@ -381,6 +401,7 @@
                 (e.clientY - r.top) * canvas.height / r.height);
     });
     window.addEventListener("keydown", e => {
+      if (e.target.closest?.("button, input, select, textarea, a[href]")) return;
       if (e.code === "Space" || e.code === "Enter") {
         e.preventDefault();
         tryJumpTap();
@@ -1070,11 +1091,6 @@
         ? state.norm
         : ((state.fused != null ? state.fused : state.focus) * 100);
       ctx.fillText("🧠 专注指数 " + Math.round(shown) + "%", 30, 41);
-      // 常驻提示：把“要做什么”放在画面上，不靠孩子记
-      ctx.textAlign = "center";
-      ctx.fillStyle = "rgba(255,255,255,.72)";
-      ctx.font = "700 15px 'PingFang SC', sans-serif";
-      ctx.fillText("金色区间内点击起跳  ·  点掉飘过的落叶和蝴蝶", canvas.width / 2, 446);
     }
 
     function interpolateJump(tt) {

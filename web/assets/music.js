@@ -34,6 +34,10 @@
     box.id = "vinyl-player";
     box.setAttribute("aria-label", "背景音乐控制");
     box.innerHTML = [
+      '<button type="button" class="vinyl-expand" aria-label="背景音乐" aria-expanded="false" aria-controls="vinyl-controls">',
+      '  <span aria-hidden="true">♫</span>',
+      '</button>',
+      '<div class="vinyl-controls" id="vinyl-controls">',
       '<button type="button" class="vinyl-nav" id="music-prev" title="上一首" aria-label="上一首歌曲">',
       '  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7" /></svg>',
       "</button>",
@@ -58,8 +62,14 @@
       '  <div class="vinyl-title" id="music-title">专注歌单</div>',
       '  <div class="vinyl-sub" id="music-sub">放下唱臂播放</div>',
       "</div>",
+      "</div>",
     ].join("\n");
-    document.body.appendChild(box);
+    const expand = box.querySelector(".vinyl-expand");
+    expand.addEventListener("click", () => {
+      const open = expand.getAttribute("aria-expanded") === "true";
+      expand.setAttribute("aria-expanded", String(!open));
+    });
+    document.body.prepend(box);
     return box;
   }
 

@@ -1,15 +1,11 @@
 /* ================= 黑胶唱片机（全站共用背景音乐控件） =================
- * 位置：所有页面右上角同一坐标（fixed）
+ * 位置：宽屏固定在右上角，窄屏收起并放进页面顶部
  * 交互：唱臂落下 = 播放；唱臂抬起 = 暂停（保留进度，再落下继续）
  *       点击唱片 = 同样切换；左右箭头 = 上一首 / 下一首
  * ==================================================================== */
 
 .vinyl-player {
   position: fixed; top: 16px; right: 18px; z-index: 45;
-  display: grid;
-  grid-template-columns: auto auto auto;
-  align-items: center; justify-items: center;
-  gap: 6px 10px;
   padding: 12px 14px 10px;
   border-radius: 22px;
   background: rgba(255, 255, 255, .78);
@@ -206,9 +202,41 @@
   100% { opacity: 0; transform: translate(26px, -40px) scale(1.2) rotate(14deg); }
 }
 
-@media (max-width: 860px) {
-  .vinyl-player { transform: scale(.9); }
+.vinyl-controls {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  justify-items: center;
+  gap: 6px 10px;
 }
-@media (max-width: 420px) {
-  .vinyl-player { transform: scale(.82); }
+
+.vinyl-expand { display: none; }
+
+@media (max-width: 1100px) {
+  .vinyl-player {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    width: max-content;
+    flex-shrink: 0;
+    margin: 12px 18px 0 auto;
+    padding: 0;
+  }
+  .vinyl-expand {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 22px;
+    cursor: pointer;
+  }
+  .vinyl-expand:focus-visible { outline: 2px solid currentColor; }
+  .vinyl-expand[aria-expanded="false"] + .vinyl-controls { display: none; }
+  .vinyl-controls { padding: 4px 14px 10px; }
 }
