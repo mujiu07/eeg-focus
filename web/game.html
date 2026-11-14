@@ -245,7 +245,7 @@
       tutorialOpen: false, // 首次上手的教学层是否打开
       jumpWindow: null,    // 金色起跳区间 {lo,hi}（能量百分比）：在区间内点击可提前起跳
       targets: [],         // 变化监测目标：飘过 2.2 秒，点中 +1
-      nextTargetIn: 6,     // 距离下一个目标的秒数
+      nextTargetIn: 2.5,   // 距离下一个目标的秒数
       bpm: null, hrValid: false, hrMode: "off",
       energy: 0,
       score: 0,
@@ -424,20 +424,20 @@
       if (state.jumpWindow && !state.jumping.active && !state.settling && !state.pendingSettle
           && state.energy > state.jumpWindow.hi + 1.5) {
         const lo = Math.min(94, state.energy + 2);
-        state.jumpWindow = { lo, hi: Math.min(99, lo + 8) };
+        state.jumpWindow = { lo, hi: Math.min(99, lo + 11) };
       }
 
-      // 主动任务 2：变化监测——每隔 7–12 秒飘来一个目标，2.2 秒内点掉得分
+      // 主动任务 2：变化监测——每隔 3.5–6.5 秒飘来一个目标，2.8 秒内点掉得分
       state.nextTargetIn -= dt;
-      if (state.nextTargetIn <= 0 && state.targets.length < 2) {
+      if (state.nextTargetIn <= 0 && state.targets.length < 3) {
         state.targets.push({
           x: 90 + Math.random() * (canvas.width - 180),
           y: 150 + Math.random() * 90,
-          t: 0, life: 2.2,
+          t: 0, life: 2.8,
           kind: Math.random() < 0.5 ? "🍂" : "🦋",
-          vx: (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 10),
+          vx: (Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 16),
         });
-        state.nextTargetIn = 7 + Math.random() * 5;
+        state.nextTargetIn = 3.5 + Math.random() * 3;
       }
       state.targets = state.targets.filter(o => {
         o.t += dt;
@@ -465,7 +465,7 @@
       // 蓄力：跳跃中与平移中不蓄力；落地后等待水花/上浮的这段时间仍可蓄力
       if (!state.jumping.active && !state.settling && !state.stale) {
         if (focused) {
-          const gain = (state.scoreSmooth - 45 + 3) * dt * 0.075;
+          const gain = (state.scoreSmooth - 42) * dt * 0.16;
           state.energy = Math.min(100, state.energy + gain);
         }
         // 分心时不回退蓄力，只停止增长。时间仍在走，少跳几次本身就是代价，
@@ -542,7 +542,7 @@
     // 原先是全自动跳，孩子只要“看着”，十几秒后注意就飘了，测到的其实是“无事可做”。
     // 这两件事给了必须持续盯住的落点：等窗口、抓飞过的目标。
     function rollJumpWindow() {
-      const lo = 38 + Math.random() * 30;              // 38–68%
+      const lo = 28 + Math.random() * 24;              // 28–52%：更早出现，不用干等
       state.jumpWindow = { lo, hi: Math.min(92, lo + 14) };
     }
 
