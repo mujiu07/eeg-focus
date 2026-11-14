@@ -34,20 +34,42 @@
       16% { transform: scale(1.22); }
       34% { transform: scale(1); }
     }
-    /* 提示条贴在画布内部，不再 fixed 到视口中央挡住别的内容 */
+    /* 提示条压在画布底边，不挡画面中央——走神提示越显眼，越容易让人分心 */
     .warn-banner {
-      position: absolute; left: 50%; top: 38%;
+      position: absolute; left: 50%; bottom: 14px;
       transform: translateX(-50%);
       max-width: calc(100% - 28px); text-align: center;
-      font-size: 21px; font-weight: 800; color: var(--ink-soft);
-      background: rgba(255,255,255,.9);
-      padding: 11px 24px; border-radius: 999px;
-      box-shadow: 0 10px 30px rgba(47,110,128,.18);
+      font-size: 15px; font-weight: 700; color: var(--ink-soft);
+      background: rgba(255,255,255,.82);
+      padding: 7px 18px; border-radius: 999px;
+      box-shadow: 0 6px 18px rgba(47,110,128,.14);
       opacity: 0; pointer-events: none;
       transition: opacity .35s ease, transform .35s ease;
       z-index: 20;
     }
-    .warn-banner.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
+    .warn-banner.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+    /* 首次上手教学 */
+    .tutorial {
+      position: absolute; inset: 0; z-index: 30;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(10, 40, 48, .34);
+      -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+      border-radius: 20px;
+    }
+    .tutorial.hidden { display: none; }
+    .tutorial-card {
+      background: #fff; border-radius: 20px; padding: 20px 24px;
+      width: calc(100% - 40px); max-width: 400px;
+      box-shadow: 0 20px 50px rgba(20, 60, 70, .26);
+      text-align: left;
+    }
+    .tutorial-card h3 { margin: 0 0 10px; font-size: 17px; color: var(--ink, #2f6e80); }
+    .tutorial-card ol { margin: 0 0 16px; padding-left: 20px; }
+    .tutorial-card li {
+      margin: 7px 0; font-size: 14.5px; line-height: 1.55; color: var(--ink-soft, #4a6b74);
+    }
+    .tut-gold { color: #b8860b; }
 
     /* 非 macOS 不显示心率 HUD（心率采集依赖 macOS 的 hrd 进程） */
     html[data-heart="off"] #hr-hud { display: none !important; }
@@ -98,7 +120,19 @@
 
     <div class="canvas-wrap">
       <canvas id="game-canvas" width="900" height="460"></canvas>
-      <div class="warn-banner" id="warn">把注意力放回青蛙身上，慢慢来</div>
+      <div class="warn-banner" id="warn">注意力飘走了，慢慢来</div>
+
+      <div class="tutorial hidden" id="tutorial">
+        <div class="tutorial-card">
+          <h3>先花 20 秒认识一下玩法</h3>
+          <ol>
+            <li>下方能量条涨到 <b class="tut-gold">金色区间</b> 时，点一下屏幕，青蛙就跳出去。</li>
+            <li><b>🍂 落叶</b>和<b>🦋 蝴蝶</b>会飘过，点中它们能加分。</li>
+            <li>走神的时候进度会停住，<b>不会往回退</b>，慢慢来就好。</li>
+          </ol>
+          <button class="btn btn-primary" id="tutorial-ok" type="button">开始玩</button>
+        </div>
+      </div>
     </div>
 
     <div class="card hidden" id="manual-card">
@@ -206,6 +240,9 @@
       focus: baseline, raw: baseline,
       fused: baseline,     // 融合分：心率新鲜时按权重修正，否则等于 focus
       norm: null,          // 后端 20–80 动态分（0–100），游戏判定与显示都用它
+      scoreSmooth: null,   // 平滑后的分数：避免单帧抖动让判定反复横跳
+      focusOn: false,      // 滞回后的“在状态”开关
+      tutorialOpen: false, // 首次上手的教学层是否打开
       jumpWindow: null,    // 金色起跳区间 {lo,hi}（能量百分比）：在区间内点击可提前起跳
       targets: [],         // 变化监测目标：飘过 2.2 秒，点中 +1
       nextTargetIn: 6,     // 距离下一个目标的秒数
@@ -361,6 +398,7 @@
     }
 
     function updateGame(dt) {
+      if (state.tutorialOpen) return;   // 教学层打开时先不跑游戏逻辑
       // 云漂移（到屏幕右侧完全离开后再回到左侧，避免边缘处突然消失/出现）
       state.clouds.forEach(c => {
         c.x += c.v * dt;
@@ -414,11 +452,20 @@
       const scoreNow = (state.norm != null)
         ? state.norm
         : ((state.fused != null ? state.fused : state.focus) * 100);
-      const focused = !state.stale && scoreNow >= 50;
+      // 判定放宽：先平滑，再用滞回——到 45 分算“跟上”，掉到 38 分以下才算飘走。
+      // 这样在 50 分线附近轻微波动时不会来回闪烁。
+      if (state.scoreSmooth == null) state.scoreSmooth = scoreNow;
+      state.scoreSmooth += (scoreNow - state.scoreSmooth) * Math.min(1, dt * 3.2);
+      if (!state.focusOn) {
+        if (state.scoreSmooth >= 45) state.focusOn = true;
+      } else if (state.scoreSmooth < 38) {
+        state.focusOn = false;
+      }
+      const focused = !state.stale && state.focusOn;
       // 蓄力：跳跃中与平移中不蓄力；落地后等待水花/上浮的这段时间仍可蓄力
       if (!state.jumping.active && !state.settling && !state.stale) {
         if (focused) {
-          const gain = (scoreNow - 50 + 3) * dt * 0.075;
+          const gain = (state.scoreSmooth - 45 + 3) * dt * 0.075;
           state.energy = Math.min(100, state.energy + gain);
         }
         // 分心时不回退蓄力，只停止增长。时间仍在走，少跳几次本身就是代价，
@@ -484,7 +531,7 @@
       // 提示条：断流、或“正在蓄力但分心”。跳跃/平移期间本来就不蓄力，不算分心。
       const charging = !state.jumping.active && !state.settling && !state.stale;
       $("warn").classList.toggle("show", state.stale || (charging && !focused));
-      $("warn").textContent = state.stale ? "数据中断，先停一下" : "注意力飘走了，青蛙在等你（不会退回去）";
+      $("warn").textContent = state.stale ? "数据中断，先停一下" : "注意力飘走了，慢慢来";
 
       state.timeLeft -= dt;
       $("timer").textContent = formatClock(state.timeLeft);
@@ -849,7 +896,7 @@
       const frogScore = (state.norm != null)
         ? state.norm
         : ((state.fused != null ? state.fused : state.focus) * 100);
-      const focused = frogScore >= 50;
+      const focused = state.focusOn && !state.stale;
       if (state.jumping.active) {
         fx = interpolateJump(state.jumping.t);
         fy = frogBaseRaw(i0) + (frogBaseRaw(i1) - frogBaseRaw(i0)) * k - jumpArc(state.jumping.t);
@@ -1070,6 +1117,24 @@
     }
 
     $("btn-quit").addEventListener("click", () => { location.href = "index.html"; });
+
+    // 校准后的第一次开局：先讲一遍玩法，讲完就不再出现
+    (function setupTutorial() {
+      const box = $("tutorial");
+      const okBtn = $("tutorial-ok");
+      if (!box || !okBtn) return;
+      let done = false;
+      try { done = localStorage.getItem("bf-tutorial-done") === "1"; } catch (_) {}
+      if (!done && calib && !calibExpired) {
+        box.classList.remove("hidden");
+        state.tutorialOpen = true;
+      }
+      okBtn.addEventListener("click", () => {
+        box.classList.add("hidden");
+        state.tutorialOpen = false;
+        try { localStorage.setItem("bf-tutorial-done", "1"); } catch (_) {}
+      });
+    })();
 
     init().catch(e => {
       toast("游戏启动失败：" + e.message);
