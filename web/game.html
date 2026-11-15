@@ -185,7 +185,7 @@
         <div class="tutorial-card">
           <h3>玩法</h3>
           <ol>
-            <li>下方能量条涨到 <b class="tut-gold">金色区间</b> 时，点击池塘或按空格，青蛙就会起跳。</li>
+            <li>池塘上方的能量条涨到 <b class="tut-gold">金色区间</b> 时，点击池塘或按空格，青蛙就会起跳。</li>
             <li>走神的时候进度会停住，<b>不会往回退</b>，慢慢来就好。</li>
           </ol>
           <button class="btn btn-primary" id="tutorial-ok" type="button">开始玩</button>
@@ -196,7 +196,8 @@
     <div class="game-guidance">
       <p id="replay-label" class="hidden">脑电数据回放 · 使用已录制的心算信号</p>
       <p>蓄力进入金色区间后，点击池塘或按空格起跳。</p>
-      <p class="warn-banner" id="warn">注意力飘走了，慢慢来</p>
+      <p class="warn-banner show" id="warn">正在等待信号…</p>
+      <p id="game-error" class="hint hidden" role="alert"></p>
     </div>
 
     <div class="card hidden" id="manual-card">
@@ -212,11 +213,13 @@
     </div>
 
     <div class="btn-row">
+      <button id="btn-retry" class="btn btn-primary hidden" type="button">重新连接</button>
       <button id="btn-quit" class="btn btn-ghost">退出游戏</button>
     </div>
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/pond-effects.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     const canvas = $("game-canvas");
@@ -266,17 +269,30 @@
     // ---- 会话与基线 ----
     // 校准基线有效期 1 小时：有效期内刷新/关闭页面都无需重新校准；
     // 过期（或从未校准）时不允许用旧基线开局，先回校准页。
-    const demo = new URLSearchParams(location.search).get("demo") === "1";
-    const calibInfo = Store.calibInfo();
-    const calib = demo ? { baseline: 0.55 } : calibInfo.calib;
-    const prev = Store.load();
+    const params = new URLSearchParams(location.search);
+    const demoRequested = params.get("demo") === "1";
+    const requestedTest = params.get("test");
+    const demo = DeveloperTools.canTest && demoRequested;
+    const testMode = DeveloperTools.canTest && ["replay", "manual"].includes(requestedTest) ? requestedTest : null;
+    const developerRun = demo || !!testMode;
+    const deniedTest = (demoRequested || requestedTest) && !developerRun;
+    const calibrationStore = testMode ? Store.forDeveloperTest() : Store;
+    const calibInfo = testMode ? calibrationStore.calibInfo() : Store.playerCalibInfo();
+    const prev = calibrationStore.load();
+    const calib = deniedTest ? null : demo ? { baseline: 0.55 }
+      : testMode && prev?.source?.mode !== testMode ? null : calibInfo.calib;
     const baseline = calib ? calib.baseline : 0.4;
     const calibExpired = calibInfo.expired;
-    if (!calib) {
-      Store.clearCalib();
+    if (deniedTest) {
+      location.replace("index.html");
+    } else if (!calib) {
+      if (calibExpired) calibrationStore.clearCalib();
       toast(calibExpired ? "校准已超过 1 小时，需要再校准一次" : "先做一次校准，让青蛙认识你的状态");
       setTimeout(() => {
-        location.replace(calibExpired ? "calibrate.html?reason=expired" : "calibrate.html");
+        const query = new URLSearchParams();
+        if (calibExpired) query.set("reason", "expired");
+        if (testMode) query.set("test", testMode);
+        location.replace("calibrate.html" + (query.size ? "?" + query : ""));
       }, 1200);
     }
 
@@ -284,7 +300,7 @@
     const DURATION_MIN_SEC = 60;
     const DURATION_MAX_SEC = 3600;
     function readDurationSec() {
-      const raw = new URLSearchParams(location.search).get("sec")
+      const raw = params.get("sec")
                 || localStorage.getItem("bf-duration-sec");
       const n = Math.round(Number(raw));
       if (!Number.isFinite(n) || n <= 0) return 60;
@@ -309,22 +325,26 @@
       focusOn: false,      // 滞回后的“在状态”开关
       tutorialOpen: false, // 首次上手的教学层是否打开
       jumpWindow: null,    // 金色起跳区间 {lo,hi}（能量百分比）：在区间内点击可提前起跳
-      actions: { timed_jumps: 0, automatic_jumps: 0 },
+      actions: { timed_jumps: 0, automatic_jumps: 0, jumps: [] },
+      signalTime: 0,
       bpm: null, hrValid: false, hrMode: "off",
       energy: 0,
       score: 0,
       totalSec,
       timeLeft: totalSec,
       lastTs: null,
-      stale: false,       // 数据无效/断流：暂停蓄力
+      stale: true,        // 首帧到来前和断流期间均暂停蓄力
       lastFrameTs: 0,     // 最近一次有效帧时间（新鲜度检查）
       over: false,
+      saving: false,
+      leaving: false,
       manualMode: false,
       jumping: { active: false, t: 0, fromX: 0, toX: 0 },
       cur: 0,           // 青蛙当前所在荷叶在 lilies 中的下标
       pendingSettle: false,  // 落地后等待水花散尽、荷叶上浮稳定，再开始平移
       settling: false,  // 跳完后青蛙与荷叶一起平滑移回屏幕中间
       popups: [],     // 浮动文字 {x,y,text,t}
+      droplets: [],
       splashes: [],   // 水花涟漪 {x,y,r0,r1,t,life}
       clouds: [
         { x: 120, y: 52, s: 1.0, v: 8, phase: 0.6 },
@@ -368,13 +388,13 @@
       if (!calib) return;   // 无有效校准：已在上面安排跳转回校准页，不创建会话
       const prevMode = prev && prev.source ? prev.source.mode : null;
       // heart：仅心率玩法，没有脑电信号，判定完全来自心率分量
-      const mode = demo ? "manual" : ["manual", "hardware", "heart"].includes(prevMode) ? prevMode : "replay";
-      // 心率辅助源：?heart=hrd|mock 或 localStorage 的 bf-heart 决定是否接入；
+      const mode = demo ? "manual" : testMode || prevMode;
+      // 心率辅助源：?heart=hrd 或 localStorage 的 bf-heart 决定是否接入；
       // 未开启时整个链路保持纯 EEG，HUD 显示 "--"。
-      let heartMode = (new URLSearchParams(location.search).get("heart")
+      let heartMode = (params.get("heart")
         || localStorage.getItem("bf-heart") || "off").toLowerCase();
       // 仅心率模式不能关心率，否则整局没有可用信号
-      if (mode === "heart" && !["hrd", "mock", "csv"].includes(heartMode)) heartMode = "hrd";
+      if (mode === "heart") heartMode = "hrd";
       const heartRest = Number(localStorage.getItem("bf-heart-rest")) || null;
       const heartWeight = Number(localStorage.getItem("bf-heart-weight")) || 0.15;
       // baseline 必须随会话一起上报：报告页的橙色虚线与"高于基线占比"都依赖它
@@ -384,7 +404,7 @@
         body.score_low = calib.range.low;
         body.score_high = calib.range.high;
       }
-      if (!demo && ["hrd", "mock", "csv"].includes(heartMode)) {
+      if (!developerRun && heartMode === "hrd") {
         body.heart_mode = heartMode;
         if (heartRest) body.heart_rest_bpm = heartRest;
         body.heart_weight = heartWeight;
@@ -399,9 +419,13 @@
         body.osc_ports = (prev && prev.source && prev.source.osc_ports) || null;
       }
       const res = await API.post("/api/session", body);
+      if (state.leaving) {
+        API.endAbandonedSession(res.session_id);
+        return;
+      }
       state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null };
-      $("replay-label").textContent = demo ? "无设备试玩 · 滑块控制信号" : describeSignal(res.source);
-      $("replay-label").classList.toggle("hidden", !demo && mode !== "replay");
+      $("replay-label").textContent = developerRun ? "开发者测试 · " + describeSignal(res.source) : "";
+      $("replay-label").classList.toggle("hidden", !developerRun);
       state.manualMode = mode === "manual";
       if (demo) {
         await API.post(`/api/session/${res.session_id}/manual`, { focus: 0.8 });
@@ -410,10 +434,10 @@
       $("manual-card").classList.toggle("hidden", !state.manualMode);
 
       state.es = API.stream(res.session_id, {
-        onHello() { state.lastFrameTs = performance.now(); },
         onFrame(f) {
+          if (!f.valid || f.focus == null) { state.stale = true; return; }
           state.lastFrameTs = performance.now();
-          if (f.meta && f.meta.error) { state.stale = true; return; }  // 异常帧：显式无效
+          state.signalTime = f.t;
           state.stale = false;
           state.focus = f.focus; state.raw = f.raw;
           // 融合分：心率新鲜时后端已按权重修正；缺失/过期时与 focus 完全一致
@@ -425,8 +449,8 @@
             state.hrMode = f.hr.mode || "off";
           }
         },
-        onEnd() { finishGame(); },
-        onError() { state.stale = true; },
+        onEnd() { showGameError("本局连接已结束，请重新开局。", "重新开局"); },
+        onError() { showGameError("连接中断。请检查本地服务，再重新开局。", "重新开局"); },
         onStatus(s) { if (s === "reconnecting") state.stale = true; },
       });
 
@@ -470,6 +494,12 @@
 
       // 水花/浮字更新
       state.splashes = state.splashes.filter(p => (p.t += dt) < p.life);
+      state.droplets = state.droplets.filter(p => {
+        p.t += dt;
+        if (p.t >= p.life) return false;
+        PondEffects.advanceDroplet(p, dt);
+        return true;
+      });
       state.popups = state.popups.filter(p => (p.t += dt) < 1.2);
       // 荷叶下沉/上浮（弹簧阻尼）：dip > 0 沉入水面，dip < 0 回弹上浮
       updateLilyDips(dt);
@@ -512,7 +542,7 @@
         // 等水花和涟漪全部散尽、新荷叶回弹上浮停稳，再开始平移
         const l = lilies[state.cur];
         const calm = Math.abs(l.dip || 0) < 0.4 && Math.abs(l.dipVel || 0) < 2;
-        if (!state.splashes.length && calm) {
+        if (!state.splashes.length && !state.droplets.length && calm) {
           state.pendingSettle = false;
           state.settling = true;
         }
@@ -526,7 +556,7 @@
           state.energy = 15;
           rollJumpWindow();                        // 新一跳重新给一个金色窗口
           // 落地：新荷叶被压得下沉一截，四周溅起水花，随后回弹上浮
-          dipLily(landing, 95);
+          dipLily(landing, PondEffects.landingImpulse);
           spawnLandingSplash(landing.x, landing.y + 6);
           // 先等特效结束、上浮稳定，再平移（见 pendingSettle 分支）
           state.pendingSettle = true;
@@ -571,8 +601,11 @@
       // 提示条：断流、或“正在蓄力但分心”。跳跃/平移期间本来就不蓄力，不算分心。
       const charging = !state.jumping.active && !state.settling && !state.pendingSettle && !state.stale;
       $("warn").classList.toggle("show", state.stale || (charging && !focused));
-      $("warn").textContent = state.stale ? "数据中断，先停一下" : "注意力飘走了，慢慢来";
+      $("warn").textContent = state.stale
+        ? "正在等待信号，计时已暂停。请检查设备连接。"
+        : "注意力飘走了，慢慢来";
 
+      if (state.stale) return;
       state.timeLeft -= dt;
       $("timer").textContent = formatClock(state.timeLeft);
       if (state.timeLeft <= 0) finishGame();
@@ -594,10 +627,12 @@
       if (state.energy >= w.lo && state.energy <= w.hi) startJump(true);
     }
 
-    function startJump(perfect) {
+    function startJump(perfect = false) {
       const from = lilies[state.cur], to = lilies[state.cur + 1];
       state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x };
       state.actions[perfect ? "timed_jumps" : "automatic_jumps"] += 1;
+      const time = state.signalTime + (performance.now() - state.lastFrameTs) / 1000;
+      state.actions.jumps.push({ t: Math.round(time * 100) / 100, timed: perfect });
       state.score += perfect ? 2 : 1;
       $("score").textContent = state.score;
       state.popups.push({ x: from.x, y: from.y - 150, text: perfect ? "完美 +2" : "+1", t: 0 });
@@ -607,16 +642,8 @@
     }
 
     // 荷叶弹簧阻尼：给一次向下的冲量 → 下沉 → 回弹（略微上浮）→ 稳定
-    const LILY_SPRING_K = 150;
-    const LILY_SPRING_C = 19;
     function updateLilyDips(dt) {
-      lilies.forEach(l => {
-        if (l.dip === undefined) { l.dip = 0; l.dipVel = 0; }
-        const acc = -LILY_SPRING_K * l.dip - LILY_SPRING_C * l.dipVel;
-        l.dipVel += acc * dt;
-        l.dip += l.dipVel * dt;
-        if (Math.abs(l.dip) < 0.02 && Math.abs(l.dipVel) < 0.4) { l.dip = 0; l.dipVel = 0; }
-      });
+      lilies.forEach(lily => PondEffects.advancePad(lily, dt));
     }
     function dipLily(lily, impulse) {
       if (!lily) return;
@@ -627,7 +654,9 @@
     // 落水水花：涟漪圈 + 一圈向外上方飞溅的水珠
     function spawnLandingSplash(x, y) {
       if (reducedMotion.matches) return;
-      state.splashes.push({ x, y, r0: 42, r1: 72, t: 0, life: 0.55 });
+      const effect = PondEffects.landing(x, y);
+      state.splashes = effect.ripples;
+      state.droplets = effect.droplets;
     }
 
     // ---- 绘制 ----
@@ -648,6 +677,7 @@
       drawSplashes();   // 涟漪在水面上、荷叶之下：被荷叶遮住内圈，叶缘外才露出
       drawLilies(p, t);
       drawFrog(p, t);
+      drawDroplets();
       drawPopups();
       updateMeters();
     }
@@ -918,19 +948,13 @@
       ctx.save();
       ctx.translate(fx, fy);
       ctx.filter = p.frog;
-      paintEllipse(0, 17, 29, 9, "#346951");
-      paintEllipse(0, 7, 24, 22, "#609b68");
-      paintEllipse(0, 13, 16, 13, "#b9cf94");
-      for (const x of [-14, 14]) {
-        paintEllipse(x, -12, 10, 11, "#609b68");
-        paintEllipse(x, -12, 6, 7, "#fbf3d9");
-        paintEllipse(x + 1, -12, 3, 4, "#263b33");
-      }
-      ctx.strokeStyle = "#346951";
-      ctx.lineWidth = 2;
+      PondEffects.frogEllipses.forEach(shape => paintEllipse(...shape));
+      const mouth = PondEffects.frogMouth;
+      ctx.strokeStyle = mouth.color;
+      ctx.lineWidth = mouth.width;
       ctx.beginPath();
-      ctx.moveTo(-8, 5);
-      ctx.quadraticCurveTo(0, 10, 8, 5);
+      ctx.moveTo(...mouth.start);
+      ctx.quadraticCurveTo(...mouth.curve);
       ctx.stroke();
       ctx.restore();
     }
@@ -944,19 +968,27 @@
 
     function drawSplashes() {
       state.splashes.forEach(p => {
-        if (p.t < 0) return;   // 多圈涟漪可以错开出现
-        const k = p.t / p.life;
-        const r = p.r0 + (p.r1 - p.r0) * k;
+        if (p.t < 0) return;
+        const shape = PondEffects.rippleStyle(p);
         ctx.save();
-        ctx.globalAlpha = 0.42 * (1 - k);
-        ctx.strokeStyle = "rgba(255,255,255,.98)";
-        ctx.lineWidth = 3 * (1 - k) + 0.8;
+        ctx.globalAlpha = shape.opacity;
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = shape.width;
         ctx.beginPath();
-        // 贴水面的椭圆涟漪（透视压扁）
-        ctx.ellipse(p.x, p.y, r, r * 0.42, 0, 0, Math.PI * 2);
+        ctx.ellipse(p.x, p.y, shape.rx, shape.ry, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       });
+    }
+
+    function drawDroplets() {
+      ctx.save();
+      state.droplets.forEach(p => {
+        const shape = PondEffects.dropletStyle(p);
+        ctx.globalAlpha = shape.opacity;
+        paintEllipse(p.x, p.y, shape.rx, shape.ry, "#fff");
+      });
+      ctx.restore();
     }
 
     function drawPopups() {
@@ -1015,26 +1047,57 @@
     }
 
     // ---- 结束 ----
-    async function finishGame() {
-      if (state.over) return;
+    function showGameError(message, label, retry = () => location.reload()) {
       state.over = true;
+      state.es?.close();
+      $("tutorial").classList.add("hidden");
+      $("warn").classList.remove("show");
+      const error = $("game-error");
+      error.textContent = message;
+      error.classList.remove("hidden");
+      const button = $("btn-retry");
+      button.textContent = label;
+      button.onclick = retry;
+      button.classList.remove("hidden");
+      button.focus();
+    }
+
+    async function finishGame() {
+      if (state.saving || state.leaving) return;
+      state.over = true;
+      state.saving = true;
       if (state.es) state.es.close();
+      $("btn-retry").classList.add("hidden");
+      $("game-error").classList.add("hidden");
+      $("warn").textContent = "正在保存本局结果…";
+      $("warn").classList.add("show");
+      const sessionId = state.session.id;
       try {
-        const res = await API.post(`/api/session/${state.session.id}/finish`, {
+        await API.post(`/api/session/${sessionId}/finish`, {
           score: state.score,
           actions: state.actions,
           demo,
           played_sec: state.totalSec - Math.max(0, state.timeLeft),
           notes: "完整一局（" + formatClock(state.totalSec) + "）",
         });
-        location.href = "report.html?id=" + state.session.id;
+        state.session = null;
+        if (!state.leaving) location.href = "report.html?id=" + sessionId;
       } catch (e) {
-        toast("提交结果失败：" + e.message);
-        location.href = "report.html?id=" + state.session.id;
+        if (!state.leaving) showGameError("保存结果失败：" + e.message, "重试保存", finishGame);
+      } finally {
+        state.saving = false;
       }
     }
 
-    $("btn-quit").addEventListener("click", () => { location.href = "index.html"; });
+    $("btn-quit").addEventListener("click", () => { location.href = developerRun ? "dev.html" : "index.html"; });
+    window.addEventListener("pagehide", () => {
+      state.leaving = true;
+      state.es?.close();
+      if (state.session && !state.saving) API.endAbandonedSession(state.session.id);
+    });
+    window.addEventListener("pageshow", event => {
+      if (event.persisted) location.reload();
+    });
 
     // 校准后的第一次开局：先讲一遍玩法，讲完就不再出现
     (function setupTutorial() {
@@ -1042,7 +1105,9 @@
       const okBtn = $("tutorial-ok");
       if (!box || !okBtn) return;
       let done = false;
-      try { done = localStorage.getItem("bf-tutorial-done") === "1"; } catch (_) {}
+      const tutorialStorage = developerRun ? sessionStorage : localStorage;
+      const tutorialKey = developerRun ? "bf-dev-tutorial-done" : "bf-tutorial-done";
+      try { done = tutorialStorage.getItem(tutorialKey) === "1"; } catch (_) {}
       if (!done && calib && (demo || !calibExpired)) {
         box.classList.remove("hidden");
         state.tutorialOpen = true;
@@ -1050,13 +1115,12 @@
       okBtn.addEventListener("click", () => {
         box.classList.add("hidden");
         state.tutorialOpen = false;
-        try { localStorage.setItem("bf-tutorial-done", "1"); } catch (_) {}
+        try { tutorialStorage.setItem(tutorialKey, "1"); } catch (_) {}
       });
     })();
 
     init().catch(e => {
-      toast("游戏启动失败：" + e.message);
-      console.error(e);
+      if (!state.leaving) showGameError("游戏启动失败：" + e.message, "重试启动");
     });
   </script>
   <script src="assets/music.js" defer></script>

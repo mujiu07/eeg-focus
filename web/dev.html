@@ -56,6 +56,16 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>无设备试玩与验证</div>
+      <p class="hint">用滑块快速试玩，也可以用模拟信号或配对的 EDF 数据走完校准和游戏。测试记录单独保留。</p>
+      <div class="btn-row" style="margin-top:12px">
+        <a class="btn btn-primary" href="game.html?demo=1&amp;sec=60">无设备试玩 · 1 分钟</a>
+        <a class="btn btn-ghost" href="calibrate.html?test=replay">EDF 回放验证</a>
+        <a class="btn btn-ghost" href="calibrate.html?test=manual">手动模拟校准</a>
+      </div>
+    </div>
+
     <div class="card table-card">
       <div class="section-title"><span class="dot"></span>🧠 专注引擎（模型）</div>
       <div id="engine" class="hint">加载中……</div>
@@ -87,8 +97,16 @@
         </div>
       </div>
       <p class="hint" style="margin-top:10px;font-size:13.5px">
-        此处配置用于调试。玩家在校准页选择本局信号源。回放文件按"被试 · 段"列出（1=放松，2=心算专注）。
+        在此应用 Xmuse 配置后，玩家校准也会使用此端口。回放文件按"被试 · 段"列出（1=放松，2=心算专注）。
       </p>
+    </div>
+
+    <div class="card hidden" id="mock-heart-card">
+      <div class="section-title"><span class="dot"></span>心率模拟</div>
+      <div class="btn-row">
+        <button id="btn-mock-heart" class="btn btn-sm btn-ghost">启动模拟心率</button>
+      </div>
+      <p id="mock-heart-status" class="hint" role="status"></p>
     </div>
 
     <div class="card hidden" id="monitor-card">
@@ -127,6 +145,8 @@
   <script src="assets/api.js"></script>
   <script>
     const $ = id => document.getElementById(id);
+    DeveloperTools.enable();
+    window.addEventListener("pageshow", () => DeveloperTools.enable());
     let watchSession = null, watchEs = null, watchCurve = [];
 
     async function init() {
@@ -145,6 +165,8 @@
             if (i >= 0) $("file-select").selectedIndex = i;
           }
         }
+        const savedPorts = localStorage.getItem("bf-osc-ports");
+        if (savedPorts) $("osc-ports").value = savedPorts;
         syncFields();
       } catch (e) {
         $("engine").textContent = "加载失败：" + e.message;
@@ -192,9 +214,43 @@
       };
       try {
         const r = await API.post("/api/dev/source", body);
+        if (mode === "hardware") localStorage.setItem("bf-osc-ports", body.osc_ports);
         toast("信号源已应用：" + r.source_config.mode);
       } catch (e) {
         toast("应用失败：" + e.message);
+      }
+    });
+
+    const mockButton = $("btn-mock-heart");
+    function showMockStatus(status) {
+      const active = status.mode === "mock" && status.running;
+      mockButton.textContent = active ? "停止模拟心率" : "启动模拟心率";
+      $("mock-heart-status").textContent = active ? "模拟心率已启用" : "模拟心率已关闭";
+    }
+
+    API.get("/api/env").then(async env => {
+      if (!env.heart_supported) return;
+      showMockStatus(await API.get("/api/heart/status"));
+      $("mock-heart-card").classList.remove("hidden");
+    }).catch(() => {});
+
+    mockButton.addEventListener("click", async () => {
+      mockButton.disabled = true;
+      try {
+        const current = await API.get("/api/heart/status");
+        if (current.mode === "mock" && current.running) {
+          await API.post("/api/heart/stop");
+        } else if (current.running) {
+          $("mock-heart-status").textContent = "正在读取真实心率，请先停止采集。";
+          return;
+        } else {
+          await API.post("/api/heart/start", { mode: "mock" });
+        }
+        showMockStatus(await API.get("/api/heart/status"));
+      } catch (error) {
+        $("mock-heart-status").textContent = error.message;
+      } finally {
+        mockButton.disabled = false;
       }
     });
 

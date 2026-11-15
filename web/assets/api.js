@@ -23,6 +23,15 @@ const API = {
 
   get(url) { return this.json(url); },
 
+  endAbandonedSession(sessionId) {
+    return fetch(`/api/session/${sessionId}/finish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ played_sec: 0, notes: "abandoned" }),
+      keepalive: true,
+    }).catch(() => {});
+  },
+
   async replayPairs() {
     const { edf_files: files = [] } = await this.get("/api/player/replay");
     const tasks = new Map(files.filter(file => file.segment === 2)
@@ -95,6 +104,14 @@ const API = {
   },
 };
 
+// 本地界面分流：试玩入口只从开发者页启动，授权仅在当前标签页有效。
+const DeveloperTools = {
+  key: "bf-dev-testing",
+  enable() { sessionStorage.setItem(this.key, "1"); },
+  disable() { sessionStorage.removeItem(this.key); },
+  get canTest() { return sessionStorage.getItem(this.key) === "1"; },
+};
+
 function describeSignal(source = {}) {
   const file = source.file?.split(/[/\\]/).pop();
   const match = file?.match(/^Subject(\d+)_([12])\.edf$/i);
@@ -108,19 +125,32 @@ function describeSignal(source = {}) {
 // 超过 1 小时自动失效，必须回到校准页重新校准。
 const Store = {
   CALIB_KEY: "bf-calib",
+  SESSION_KEY: "bf-session",
+  storage: localStorage,
   CALIB_TTL_MS: 60 * 60 * 1000,   // 1 小时
 
+  forDeveloperTest() {
+    return { ...this, CALIB_KEY: "bf-dev-calib", SESSION_KEY: "bf-dev-session", storage: sessionStorage };
+  },
+
+  playerCalibInfo() {
+    const info = this.calibInfo();
+    const mode = this.load()?.source?.mode;
+    // 旧版本可能将回放或滑块的基线存成了玩家校准。
+    return ["hardware", "heart"].includes(mode) ? info : { ...info, calib: null, expired: false };
+  },
+
   save(sid, baseline, source) {
-    localStorage.setItem("bf-session", JSON.stringify({
+    this.storage.setItem(this.SESSION_KEY, JSON.stringify({
       session_id: sid, baseline, source, at: Date.now(),
     }));
   },
   load() {
-    try { return JSON.parse(localStorage.getItem("bf-session")) || null; }
+    try { return JSON.parse(this.storage.getItem(this.SESSION_KEY)) || null; }
     catch (_) { return null; }
   },
   clear() {
-    localStorage.removeItem("bf-session");
+    this.storage.removeItem(this.SESSION_KEY);
     this.clearCalib();
   },
 
@@ -128,11 +158,11 @@ const Store = {
   // 返回 { calib, expired, remainMs }：calib 为 null 表示不可用。
   calibInfo() {
     let raw = null;
-    try { raw = JSON.parse(localStorage.getItem(this.CALIB_KEY)) || null; }
+    try { raw = JSON.parse(this.storage.getItem(this.CALIB_KEY)) || null; }
     catch (_) { raw = null; }
 
     // 兼容旧版本（曾经写在 sessionStorage，且没有时间戳）：迁移一次，按当前时间起算
-    if (!raw) {
+    if (!raw && this.storage === localStorage) {
       try {
         const legacy = JSON.parse(sessionStorage.getItem(this.CALIB_KEY)) || null;
         if (legacy && legacy.baseline != null) {
@@ -153,8 +183,10 @@ const Store = {
 
   saveCalib(baseline, quantiles, range) {
     const payload = { baseline, quantiles, range: range || null, at: Date.now() };
-    localStorage.setItem(this.CALIB_KEY, JSON.stringify(payload));
-    try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }
+    this.storage.setItem(this.CALIB_KEY, JSON.stringify(payload));
+    if (this.storage === localStorage) {
+      try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }
+    }
     return payload;
   },
 
@@ -171,8 +203,10 @@ const Store = {
   },
 
   clearCalib() {
-    localStorage.removeItem(this.CALIB_KEY);
-    try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }
+    this.storage.removeItem(this.CALIB_KEY);
+    if (this.storage === localStorage) {
+      try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }
+    }
   },
 };
 

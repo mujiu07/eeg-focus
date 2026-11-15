@@ -11,6 +11,7 @@
     .stage { min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
     .stage.hidden { display: none; }
     .calib-hero { position: relative; padding: 22px 26px 20px; }
+    .calib-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
     /* 放松视频：只在“开始校准”后出现，独占画面，不被任何浮层覆盖 */
     .video-frame {
@@ -93,12 +94,15 @@
       </div>
     </div>
     <div class="card calib-hero" id="calib-hero">
-      <div class="brand">
-        <div class="logo-badge">🧠</div>
-        <div>
-          <h1>脑电校准</h1>
-          <div class="slogan" id="calib-slogan">先跟着视频放松一会儿</div>
+      <div class="calib-header">
+        <div class="brand">
+          <div class="logo-badge">🧠</div>
+          <div>
+            <h1>脑电校准</h1>
+            <div class="slogan" id="calib-slogan">先跟着视频放松一会儿</div>
+          </div>
         </div>
+        <a id="btn-home" class="btn btn-sm btn-ghost" href="index.html">返回首页</a>
       </div>
 
       <!-- 待校准 -->
@@ -111,6 +115,7 @@
         <div class="btn-row" style="margin-top:14px">
           <button id="btn-start" class="btn btn-primary">开始校准</button>
         </div>
+        <p id="calib-error" class="hint hidden" role="alert"></p>
       </div>
 
       <!-- 校准中 -->
@@ -123,18 +128,19 @@
           <div class="guide-pill" id="guide">看着画面，慢慢呼吸……</div>
           <div class="cd-row">
             <span class="cd-label">还剩</span>
-            <span class="countdown" id="countdown">40</span>
+            <span class="countdown" id="countdown">—</span>
             <span class="cd-label">秒</span>
           </div>
           <div class="focus-bar-wrap" style="width:100%;max-width:520px">
             <div class="focus-bar-label">
               <span>现在的状态</span>
-              <span class="pct" id="focus-pct">50%</span>
+              <span class="pct" id="focus-pct">—</span>
             </div>
             <div class="focus-bar-track">
               <div class="focus-bar-fill" id="focus-fill"></div>
             </div>
           </div>
+          <p id="calib-signal" class="hint" role="status"></p>
         </div>
         <div id="manual-ctl" class="hidden" style="width:100%;max-width:520px">
           <div class="slider-row">
@@ -169,7 +175,7 @@
           校准后 1 小时内有效：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。
         </p>
         <div class="btn-row" style="margin-top:10px">
-          <button id="btn-play" class="btn btn-primary">开始游戏 →</button>
+          <button id="btn-play" class="btn btn-primary">选择时长 →</button>
           <button id="btn-again" class="btn btn-ghost">重新校准</button>
         </div>
       </div>
@@ -180,12 +186,10 @@
       <div class="tip-box">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <label class="field">
-            <span>演示信号源</span>
+            <span>信号来源</span>
             <select id="source-select">
-              <option value="replay">🎧 真实脑电数据回放（放松段）</option>
-              <option value="manual">🎮 手动模拟</option>
+              <option value="hardware">Xmuse 脑电波仪</option>
               <option value="heart">❤️ 仅心率（不接脑电）</option>
-              <option value="hardware">📟 Xmuse 脑电波仪（OSC/UDP）</option>
             </select>
           </label>
           <label class="field" id="heart-field">
@@ -193,20 +197,13 @@
             <select id="heart-select">
               <option value="off">不启用（纯脑电）</option>
               <option value="hrd">❤️ AirPods 自动读取</option>
-              <option value="mock">🎲 模拟心率（演示用）</option>
             </select>
           </label>
-          <label class="field hidden" id="osc-field">
-            <span>OSC 端口（UDP）</span>
-            <input id="osc-ports" type="text" value="7000,8000" placeholder="7000,8000"
-                   style="max-width:180px;padding:8px 10px;border-radius:8px;border:1px solid #cfd8dc" />
-          </label>
-          <span class="badge">Xmuse Direct 默认推流到 127.0.0.1:7000（可同时监听 8000）</span>
+
         </div>
         <p id="replay-status" class="hint" role="status"></p>
-        <div style="margin-top:8px;font-size:13.5px">
-          回放模式：使用公开 EEG 数据集中"心算专注"与"放松"的真实脑电信号驱动游戏。
-          Xmuse 模式：先在 Xmuse Direct 连接设备并添加 OSC 输出（目标 127.0.0.1:7000 或 8000），再回到这里开始校准。
+        <div id="device-help" style="margin-top:8px;font-size:13.5px">
+          使用 Xmuse 时，请先在 Xmuse Direct 连接设备并开启脑电输出。
         </div>
       </div>
     </div>
@@ -215,19 +212,19 @@
   <script src="assets/api.js"></script>
   <script>
     const $ = id => document.getElementById(id);
-    const state = { session: null, es: null, focus: 0.5, running: false, done: false };
+    const state = { session: null, es: null, running: false, done: false };
+    let leaving = false;
+    const params = new URLSearchParams(location.search);
+    const requestedTest = params.get("test");
+    const testMode = DeveloperTools.canTest && ["replay", "manual"].includes(requestedTest) ? requestedTest : null;
+    if (requestedTest && !testMode) location.replace("calibrate.html");
+    const calibrationStore = testMode ? Store.forDeveloperTest() : Store;
 
     // 心率辅助源默认关闭：只有这次显式选了（或 URL 指定）才启用。
     // 不读上次的选择，避免旧配置在用户不知情的情况下自动打开心率。
-    const HEART_MODES = ["hrd", "mock", "csv", "off"];
-    const heartInit = (new URLSearchParams(location.search).get("heart") || "off").toLowerCase();
+    const HEART_MODES = ["hrd", "off"];
+    const heartInit = testMode ? "off" : (params.get("heart") || "off").toLowerCase();
     if (HEART_MODES.includes(heartInit)) $("heart-select").value = heartInit;
-
-    // 因"校准超过 1 小时"从首页/游戏页跳过来时，给出明确原因
-    if (new URLSearchParams(location.search).get("reason") === "expired") {
-      const slogan = document.querySelector(".slogan");
-      if (slogan) slogan.textContent = "上次校准已超过 1 小时，需要重新校准一次";
-    }
 
     // 两段式校准：0–20 秒放松（定 20 分），20–40 秒心算（定 80 分）
     const GUIDES = [
@@ -239,11 +236,6 @@
       ["再坚持几秒……", 35],
     ];
 
-    $("source-select").addEventListener("change", e => {
-      $("manual-ctl").classList.toggle("hidden", e.target.value !== "manual");
-      $("osc-field").classList.toggle("hidden", e.target.value !== "hardware");
-    });
-
     $("manual-slider").addEventListener("input", async e => {
       if (state.session && state.session.mode === "manual") {
         await API.post(`/api/session/${state.session.id}/manual`, { focus: e.target.value / 100 });
@@ -252,56 +244,102 @@
 
     const sourceSelect = $("source-select");
     const startButton = $("btn-start");
-    startButton.disabled = true;
-    const replayPairs = API.replayPairs().catch(() => null).then(pairs => {
+    if (testMode) {
+      const label = testMode === "replay" ? "EDF 回放验证" : "手动模拟校准";
+      sourceSelect.replaceChildren(new Option(label, testMode));
+      sourceSelect.disabled = true;
+      $("btn-home").href = "dev.html";
+      $("btn-home").textContent = "返回开发者模式";
+      $("btn-play").textContent = "开始测试 →";
+      $("device-help").classList.add("hidden");
+      $("heart-field").classList.add("hidden");
+    }
+    startButton.disabled = testMode === "replay";
+    const replayPairs = testMode === "replay" ? API.replayPairs().catch(() => null).then(pairs => {
       if (!pairs?.length) {
-        sourceSelect.querySelector('[value="replay"]').disabled = true;
-        if (sourceSelect.value === "replay") sourceSelect.value = "manual";
         $("replay-status").textContent = pairs
-          ? "回放需要一组放松和心算 EDF。当前可用手动模拟。"
-          : "暂时无法读取回放列表。可刷新重试，或选择手动模拟。";
+          ? "回放需要一组放松和心算 EDF。可返回开发者模式改用手动模拟。"
+          : "暂时无法读取回放列表，可刷新重试。";
       } else {
         $("replay-status").textContent = "已找到 " + pairs.length + " 组回放。校准和游戏使用同一位被试的记录。";
+        startButton.disabled = false;
       }
-      startButton.disabled = false;
       return pairs || [];
-    });
+    }) : null;
 
     startButton.addEventListener("click", async () => {
+      $("calib-error").classList.add("hidden");
       startButton.disabled = true;
       sourceSelect.disabled = true;
+      $("heart-select").disabled = true;
+      startButton.textContent = "正在连接…";
       const mode = sourceSelect.value;
       try {
         const pair = mode === "replay" ? (await replayPairs)[0] : null;
         const body = mode === "replay"
           ? { mode, file: pair.rest.path }
-          : { mode, osc_ports: mode === "hardware" ? $("osc-ports").value : null };
+          : { mode, osc_ports: mode === "hardware" ? localStorage.getItem("bf-osc-ports") : null };
         // 心率辅助：页面下拉框选择，并持久化给游戏页沿用
-        let heartMode = $("heart-select").value || "off";
+        let heartMode = testMode ? "off" : $("heart-select").value || "off";
         if (mode === "heart" && heartMode === "off") {
           // 仅心率模式没有脑电可依，心率必须开启
           heartMode = "hrd";
           $("heart-select").value = "hrd";
         }
-        localStorage.setItem("bf-heart", heartMode);
         if (heartMode !== "off") body.heart_mode = heartMode;
         const res = await API.post("/api/session", body);
+        if (leaving) {
+          API.endAbandonedSession(res.session_id);
+          return;
+        }
         state.session = {
           id: res.session_id,
           mode,
           file: (res.source && res.source.file) || null,
           osc_ports: (res.source && res.source.osc_ports) || null,
+          heartMode,
         };
         startCalibration();
       } catch (err) {
-        startButton.disabled = false;
-        sourceSelect.disabled = false;
-        toast("启动失败：" + err.message);
+        showCalibrationError("启动失败：" + err.message);
       }
     });
 
     let planSec = 40;       // 校准总时长：有视频时跟随视频全长
     let videoMode = false;  // true = 整段视频当引导，后端走 video_full 定标
+
+    function stopCalibration() {
+      state.es?.close();
+      state.es = null;
+      state.running = false;
+      playRelaxVideo(false);
+      const session = state.session;
+      state.session = null;
+      if (session && !session.finished) API.endAbandonedSession(session.id);
+    }
+
+    function showCalibrationError(message) {
+      if (leaving) return;
+      stopCalibration();
+      $("running").classList.add("hidden");
+      $("loading").classList.add("hidden");
+      $("idle").classList.remove("hidden");
+      $("calib-error").textContent = message;
+      $("calib-error").classList.remove("hidden");
+      startButton.textContent = "重试校准";
+      startButton.disabled = false;
+      sourceSelect.disabled = !!testMode;
+      $("heart-select").disabled = false;
+      startButton.focus();
+    }
+
+    window.addEventListener("pagehide", () => {
+      leaving = true;
+      stopCalibration();
+    });
+    window.addEventListener("pageshow", event => {
+      if (event.persisted) location.reload();
+    });
 
     function startCalibration() {
       state.running = true;
@@ -321,17 +359,40 @@
       }
       syncIdleCopy();
       $("countdown").textContent = String(planSec);
+      $("focus-pct").textContent = "—";
+      $("focus-fill").style.width = "0%";
+      $("calib-signal").textContent = "正在等待信号…";
+      const signalHelp = state.session.mode === "hardware"
+        ? "未收到脑电信号。请检查 Xmuse 是否已连接并开启脑电输出。"
+        : state.session.mode === "heart"
+          ? "未收到心率信号。请检查 AirPods 是否正在采集心率。"
+          : "未收到测试信号，请重试。";
+      let hasSignal = false;
       playRelaxVideo(true);
 
       state.es = API.stream(state.session.id, {
         onFrame(f) {
-          state.focus = f.focus;
-          const pct = Math.round(f.focus * 100);
-          $("focus-pct").textContent = pct + "%";
+          const valid = f.valid && f.focus != null;
+          hasSignal ||= valid;
+          const pct = valid ? Math.round(f.focus * 100) : 0;
+          $("focus-pct").textContent = valid ? pct + "%" : "—";
           $("focus-fill").style.width = pct + "%";
+          const status = $("calib-signal");
+          const next = valid ? "" : signalHelp;
+          if (status.textContent !== next) status.textContent = next;
           $("countdown").textContent = Math.max(0, Math.ceil(planSec - f.t));
           updateGuide(f.t);
-          if (f.t >= planSec) finishCalibration();
+          const signalWait = state.session.mode === "heart" ? 25 : 12;
+          if ((!hasSignal && f.t >= signalWait) || (!valid && f.t >= planSec)) {
+            showCalibrationError(signalHelp);
+          } else if (f.t >= planSec) {
+            finishCalibration();
+          }
+        },
+        onEnd() { showCalibrationError("校准连接已结束，请重试。"); },
+        onError() { showCalibrationError("连接中断，请重试校准。"); },
+        onStatus(status) {
+          if (status === "reconnecting") $("calib-signal").textContent = "正在重新连接…";
         },
       });
     }
@@ -348,7 +409,11 @@
       const el = document.getElementById("idle-hint");
       const slogan = document.getElementById("calib-slogan");
       if (slogan) {
-        slogan.textContent = videoReady()
+        slogan.textContent = testMode
+          ? (testMode === "replay" ? "EDF 回放验证" : "手动模拟校准") + " · 开发者模式"
+          : params.get("reason") === "expired"
+          ? "上次校准已超过 1 小时，需要重新校准一次"
+          : videoReady()
           ? "先跟着视频放松一会儿，再开始玩"
           : "先放松 20 秒，再做 20 秒心算";
       }
@@ -412,6 +477,7 @@
       if (state.done || !state.running) return;
       state.done = true; state.running = false;
       if (state.es) state.es.close();
+      playRelaxVideo(false);
       // 倒计时结束，结果还没回来：显示加载进度条
       $("running").classList.add("hidden");
       $("loading").classList.remove("hidden");
@@ -421,36 +487,42 @@
         // 服务端只补足尚未采满的剩余时间（通常立即返回），保证加载条至少显示 0.9s，避免一闪而过
         const wait = 900 - (performance.now() - t0);
         if (wait > 0) await new Promise(r => setTimeout(r, wait));
+        if (leaving) return;
         const baseline = res.baseline;
-        const saved = Store.saveCalib(baseline, res.calibration.quantiles,
+        if (!testMode) localStorage.setItem("bf-heart", state.session.heartMode);
+        const saved = calibrationStore.saveCalib(baseline, res.calibration.quantiles,
           res.score_range || res.calibration.range);
         // 静息心率基线：校准期间心率样本足够时由服务端写入 rest_bpm，
         // 游戏页据此把心率映射成“平静/专注”分量。
-        if (res.heart && res.heart.used_as_rest && res.heart.mean != null) {
+        if (!testMode && res.heart && res.heart.used_as_rest && res.heart.mean != null) {
           localStorage.setItem("bf-heart-rest", String(Math.round(res.heart.mean)));
         }
         const until = new Date(saved.at + Store.CALIB_TTL_MS);
         const untilText = until.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
         $("valid-tip").textContent =
-          `校准后 1 小时内有效（至 ${untilText}）：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。`;
-        Store.save(state.session.id, baseline, {
+          testMode ? "测试基线仅在当前标签页使用，与玩家校准分开保存。"
+            : `校准后 1 小时内有效（至 ${untilText}）：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。`;
+        calibrationStore.save(state.session.id, baseline, {
           mode: state.session.mode,
           file: state.session.file,
           osc_ports: state.session.osc_ports,
         });
         // 校准会话到此结束：释放硬件 UDP 端口，游戏页会新建一局硬件会话
         try {
-          await API.post(`/api/session/${state.session.id}/finish`, {
+          const session = state.session;
+          await API.post(`/api/session/${session.id}/finish`, {
             score: 0, played_sec: 0, notes: "calibration",
           });
+          session.finished = true;
         } catch (_) { /* 释放失败不阻塞进入游戏，后端仍会兜底 */ }
+        if (leaving) return;
         $("loading").classList.add("hidden");
         $("done").classList.remove("hidden");
         const rng = res.score_range || res.calibration.range || {};
         $("baseline-show").textContent =
           (rng.low != null ? Math.round(rng.low * 100) : "—") + " – " +
           (rng.high != null ? Math.round(rng.high * 100) : "—");
-        $("source-select").disabled = false;
+        $("source-select").disabled = !!testMode;
         $("heart-select").disabled = false;
         // 校准期间采到的心率样本：显示静息心率，并作为游戏页的融合参照
         if (state.session.mode === "replay" || state.session.mode === "manual") {
@@ -466,13 +538,13 @@
             "本次心率样本不足，沿用上次静息心率或默认值";
         }
       } catch (err) {
-        toast("校准失败：" + err.message);
-        location.reload();
+        state.done = false;
+        showCalibrationError("校准失败：" + err.message);
       }
     }
 
-    $("btn-play").addEventListener("click", () => { location.href = "game.html"; });
-    $("btn-again").addEventListener("click", () => { Store.clear(); location.reload(); });
+    $("btn-play").addEventListener("click", () => { location.href = testMode ? "game.html?test=" + testMode + "&sec=60" : "index.html?pick=1"; });
+    $("btn-again").addEventListener("click", () => location.reload());
 
     // 心率只在 macOS 可用（依赖 AirPods 心率进程），其他系统直接隐藏入口
     fetch("/api/env").then(r => r.json()).then(env => {
@@ -486,8 +558,8 @@
       const hs = document.getElementById("heart-select");
       if (hs) hs.value = "off";
       const ss = document.getElementById("source-select");
-      if (ss && ss.value === "heart") ss.value = "replay";
-      try { localStorage.setItem("bf-heart", "off"); } catch (_) {}
+      if (ss && !ss.value && !testMode) ss.value = "hardware";
+      try { if (!testMode) localStorage.setItem("bf-heart", "off"); } catch (_) {}
     }).catch(() => {});
   </script>
   <script src="assets/music.js" defer></script>

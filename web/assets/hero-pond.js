@@ -7,6 +7,7 @@
   "use strict";
 
   var frog = document.getElementById("heroFrog");
+  var frogArtwork = document.getElementById("pondFrogArtwork");
   var splashLayer = document.getElementById("heroSplashes");
   var dropletLayer = document.getElementById("heroDroplets");
   var padEls = [0, 1, 2].map(function (i) { return document.getElementById("heroLily" + i); });
@@ -14,14 +15,12 @@
     document.querySelectorAll("#heroFish .pond-fish")
   );
 
-  if (!frog || !splashLayer || !dropletLayer || padEls.some(function (el) { return !el; })) return;
+  if (!frog || !frogArtwork || !splashLayer || !dropletLayer || padEls.some(function (el) { return !el; })) return;
 
   var NS = "http://www.w3.org/2000/svg";
   var FROG_OFFSET = 28;       // 青蛙中心相对荷叶中心的偏移（与游戏一致）
   var JUMP_DUR = 0.55;        // 单次跳跃时长（秒）
   var JUMP_ARC = 66;          // 跳跃抛物线高度
-  var SPRING_K = 150;         // 荷叶弹簧刚度
-  var SPRING_C = 9;           // 弹簧阻尼
   var START_DELAY = 0.9;      // 首跳前停顿
   var TURN_PAUSE = 0.45;      // 每次落地稳定后的停顿
 
@@ -60,8 +59,25 @@
     };
   });
 
-  var reduceMotion = window.matchMedia &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var raf = 0;
+  var visible = true;
+
+  function appendShape(parent, tag, attributes) {
+    var shape = document.createElementNS(NS, tag);
+    Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, value));
+    parent.appendChild(shape);
+    return shape;
+  }
+
+  PondEffects.frogEllipses.forEach(([cx, cy, rx, ry, fill]) => {
+    appendShape(frogArtwork, "ellipse", { cx, cy, rx, ry, fill });
+  });
+  var mouth = PondEffects.frogMouth;
+  appendShape(frogArtwork, "path", {
+    d: "M " + mouth.start.join(" ") + " Q " + mouth.curve.join(" "),
+    fill: "none", stroke: mouth.color, "stroke-width": mouth.width,
+  });
 
   function setPad(p, i, t, dt) {
     var bob = Math.sin(t * 1.4 + p.phase) * 2.5;
@@ -91,8 +107,7 @@
       x = p.x;
       y = p.y + p.dip - FROG_OFFSET + Math.sin(t * 2.2) * 2;
     }
-    frog.setAttribute("x", x.toFixed(2));
-    frog.setAttribute("y", y.toFixed(2));
+    frog.setAttribute("transform", "translate(" + x.toFixed(2) + " " + y.toFixed(2) + ")");
   }
 
   // 小鱼沿平缓的正弦轨迹在水下游动，掉头时水平翻转
@@ -117,99 +132,33 @@
     p.dipVel += impulse;
   }
 
-  function updateDips(dt) {
-    for (var i = 0; i < pads.length; i++) {
-      var p = pads[i];
-      var acc = -SPRING_K * p.dip - SPRING_C * p.dipVel;
-      p.dipVel += acc * dt;
-      p.dip += p.dipVel * dt;
-      if (Math.abs(p.dip) < 0.02 && Math.abs(p.dipVel) < 0.4) {
-        p.dip = 0;
-        p.dipVel = 0;
-      }
-    }
-  }
-
   function spawnSplash(x, y) {
-    // 三圈错开的涟漪（尺寸与游戏内一致）
-    for (var i = 0; i < 3; i++) {
-      var ripple = document.createElementNS(NS, "ellipse");
-      ripple.setAttribute("fill", "none");
-      ripple.setAttribute("stroke", "#ffffff");
-      splashLayer.appendChild(ripple);
-      splashes.push({
-        el: ripple,
-        x: x,
-        y: y + 2,
-        r0: 44 + i * 7,
-        r1: 82 + i * 18,
-        t: -i * 0.07,
-        life: 0.75 + i * 0.14,
-      });
-    }
-
-    // 一圈向外上方飞溅的水珠（与游戏一致）
-    for (var j = 0; j < 14; j++) {
-      var a = (Math.PI * 2 * j) / 14 + (Math.random() - 0.5) * 0.45;
-      var drop = document.createElementNS(NS, "ellipse");
-      drop.setAttribute("fill", "#ffffff");
-      dropletLayer.appendChild(drop);
-      droplets.push({
-        el: drop,
-        x: x + Math.cos(a) * 34,
-        y: y + Math.sin(a) * 12 - 2,
-        vx: Math.cos(a) * (50 + Math.random() * 75),
-        vy: -(185 + Math.random() * 135) + Math.sin(a) * 35,
-        r: 2 + Math.random() * 2.3,
-        t: 0,
-        life: 0.5 + Math.random() * 0.42,
-      });
-    }
+    var effect = PondEffects.landing(x, y);
+    splashes = effect.ripples;
+    droplets = effect.droplets;
+    splashes.forEach(p => {
+      p.el = appendShape(splashLayer, "ellipse", { fill: "none", stroke: "#fff", opacity: 0 });
+    });
+    droplets.forEach(p => {
+      p.el = appendShape(dropletLayer, "ellipse", { fill: "#fff", opacity: 0 });
+    });
   }
 
-  function removeNode(el) {
-    if (el && el.parentNode) el.parentNode.removeChild(el);
-  }
-
-  function updateSplashes(dt) {
-    splashes = splashes.filter(function (p) {
+  function updateParticles(particles, dt, style, advance) {
+    return particles.filter(p => {
       p.t += dt;
       if (p.t >= p.life) {
-        removeNode(p.el);
+        p.el.remove();
         return false;
       }
-      if (p.t < 0) {
-        p.el.setAttribute("opacity", "0");
-        return true;
-      }
-      var k = p.t / p.life;
-      var r = p.r0 + (p.r1 - p.r0) * k;
-      p.el.setAttribute("cx", p.x.toFixed(2));
-      p.el.setAttribute("cy", p.y.toFixed(2));
-      p.el.setAttribute("rx", r.toFixed(2));
-      p.el.setAttribute("ry", (r * 0.42).toFixed(2));
-      p.el.setAttribute("stroke-opacity", (0.78 * (1 - k)).toFixed(3));
-      p.el.setAttribute("stroke-width", (3 * (1 - k) + 0.8).toFixed(2));
-      p.el.setAttribute("opacity", "1");
-      return true;
-    });
-
-    droplets = droplets.filter(function (d) {
-      d.t += dt;
-      if (d.t >= d.life) {
-        removeNode(d.el);
-        return false;
-      }
-      d.vy += 700 * dt;   // 水珠受重力回落
-      d.x += d.vx * dt;
-      d.y += d.vy * dt;
-      var k = d.t / d.life;
-      var stretch = 1 + Math.min(1.1, Math.abs(d.vy) / 520);
-      d.el.setAttribute("cx", d.x.toFixed(2));
-      d.el.setAttribute("cy", d.y.toFixed(2));
-      d.el.setAttribute("rx", d.r.toFixed(2));
-      d.el.setAttribute("ry", (d.r * stretch).toFixed(2));
-      d.el.setAttribute("fill-opacity", (0.92 * (1 - k * k)).toFixed(3));
+      if (advance) advance(p, dt);
+      var shape = style(p);
+      p.el.setAttribute("cx", p.x);
+      p.el.setAttribute("cy", p.y);
+      p.el.setAttribute("rx", shape.rx);
+      p.el.setAttribute("ry", shape.ry);
+      p.el.setAttribute("opacity", shape.opacity);
+      if (shape.width !== undefined) p.el.setAttribute("stroke-width", shape.width);
       return true;
     });
   }
@@ -230,13 +179,15 @@
     jumping = null;
     mode = "settle";
     var p = pads[cur];
-    dipLily(p, 250);            // 落地：目标荷叶被压下
+    dipLily(p, PondEffects.landingImpulse);            // 落地：目标荷叶被压下
     spawnSplash(p.x, p.y + 6);  // 落水水花
+    HeroWater?.disturb(p.x, p.y + 7, 2.8);
   }
 
   function step(dt, t) {
-    updateDips(dt);
-    updateSplashes(dt);
+    pads.forEach(p => PondEffects.advancePad(p, dt));
+    splashes = updateParticles(splashes, dt, PondEffects.rippleStyle);
+    droplets = updateParticles(droplets, dt, PondEffects.dropletStyle, PondEffects.advanceDroplet);
 
     if (jumping) {
       jumping.t += dt;
@@ -262,8 +213,20 @@
     if (!lastTs) lastTs = ts;
     var dt = Math.min((ts - lastTs) / 1000, 0.05);
     lastTs = ts;
-    step(dt, ts / 1000);
-    requestAnimationFrame(tick);
+    var time = ts / 1000;
+    step(dt, time);
+    HeroWater?.step(dt, time);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function syncAnimation() {
+    if (motion.matches || !visible || document.hidden) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      lastTs = 0;
+    } else if (!raf) {
+      raf = requestAnimationFrame(tick);
+    }
   }
 
   // 首帧先摆好位置，再开始动画
@@ -272,5 +235,13 @@
   setFrog(startT);
   setFish(startT);
 
-  if (!reduceMotion) requestAnimationFrame(tick);
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      syncAnimation();
+    }).observe(frog.ownerSVGElement);
+  }
+  document.addEventListener("visibilitychange", syncAnimation);
+  motion.addEventListener("change", syncAnimation);
+  syncAnimation();
 })();

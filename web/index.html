@@ -9,6 +9,23 @@
   <link rel="stylesheet" href="assets/sky.css">
   <script src="assets/sky.js"></script>
   <style>
+    .logo-badge--frog {
+      background: linear-gradient(145deg, #f6f9e8, #c6e5cb);
+      box-shadow: 0 5px 14px rgba(36, 81, 62, .16), inset 0 1px 0 rgba(255, 255, 255, .85);
+    }
+    .logo-badge--frog svg { display: block; width: 100%; height: 100%; }
+    .pond-touch {
+      position: absolute; inset: 60% 0 0; width: 100%;
+      border: 0; background: transparent; color: #f5fbf8; cursor: crosshair;
+      display: flex; align-items: flex-end; justify-content: flex-end; padding: 10px 14px;
+    }
+    .pond-touch:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
+    .pond-touch span {
+      background: rgba(16, 43, 53, .88); font-family: inherit;
+      font-size: 12px; font-weight: 600; line-height: 1.4;
+      padding: 5px 10px; border-radius: 999px; pointer-events: none;
+    }
+    @media (prefers-reduced-motion: reduce) { .pond-touch { display: none; } }
     .hero-card { position: relative; overflow: hidden; padding: 0; }
     .hero-top { display: flex; align-items: center; gap: 14px; padding: 24px 30px 6px; }
     .hero-body { padding: 10px 30px 8px; text-align: center; }
@@ -119,13 +136,16 @@
     <!-- 品牌 -->
     <div class="card" style="padding:20px 26px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
       <div class="brand">
-        <div class="logo-badge">🐸</div>
+        <div class="logo-badge logo-badge--frog" aria-hidden="true">
+          <svg viewBox="-40 -37 80 80" focusable="false">
+            <use href="#pondFrogArtwork"/>
+          </svg>
+        </div>
         <div>
           <h1>专注小蛙</h1>
           <div class="slogan">看得见的专注力，玩出来的好状态</div>
         </div>
       </div>
-      <span class="badge">🧠 脑电驱动 · MVP</span>
     </div>
 
     <!-- 英雄区 -->
@@ -161,7 +181,7 @@
         <div class="sub">保持专注让能量条涨到金色区间，点一下青蛙就跳出去</div>
       </div>
       <div class="hero-art">
-        <svg class="hero-svg" viewBox="0 0 880 210" aria-hidden="true">
+        <svg class="hero-svg" viewBox="0 0 880 250" aria-hidden="true">
           <defs>
             <linearGradient id="hSky" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stop-color="#dff4fb"/>
@@ -173,7 +193,7 @@
             </filter>
             <!-- 水花只出现在水面上，不溅到远山和天空 -->
             <clipPath id="hSplashClip">
-              <rect x="0" y="150" width="880" height="60"/>
+              <rect x="0" y="150" width="880" height="100"/>
             </clipPath>
             <linearGradient id="hWater" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stop-color="#9fd8e2"/><stop offset="1" stop-color="#6fb8c9"/>
@@ -201,7 +221,7 @@
               <circle cx="25.4" cy="-1.9" r="1.5" fill="#0c3340" opacity=".55"/>
             </g>
           </defs>
-          <rect width="880" height="210" fill="url(#hSky)"/>
+          <rect width="880" height="250" fill="url(#hSky)"/>
 
           <!-- 夜空星星：由 sky.js 生成并交替闪烁 -->
           <g id="heroStars" aria-hidden="true"></g>
@@ -273,11 +293,10 @@
             <path d="M0 150 Q 180 84 360 132 T 880 118 L 880 210 L 0 210 Z" fill="#c9e9df" opacity=".8"/>
             <path d="M0 172 Q 260 116 520 158 T 880 150 L 880 210 L 0 210 Z" fill="#b3ddd6" opacity=".9"/>
           </g>
-          <rect y="150" width="880" height="60" fill="url(#hWater)"/>
-          <g id="heroGlints">
-            <path d="M0 160 Q 220 152 440 162 T 880 156" stroke="#ffffff" stroke-width="2.5" fill="none" opacity=".5"/>
-            <path d="M0 176 Q 240 170 480 178 T 880 172" stroke="#ffffff" stroke-width="2" fill="none" opacity=".35"/>
-          </g>
+          <rect y="150" width="880" height="100" fill="url(#hWater)"/>
+          <foreignObject x="0" y="150" width="880" height="100">
+            <canvas id="heroWater" style="display:block;width:880px;height:100px"></canvas>
+          </foreignObject>
 
           <!-- 黎明：左侧暖阳的水面反光 -->
           <g id="heroDawnGlow" filter="url(#hSoft)" opacity="0">
@@ -350,21 +369,24 @@
           </g>
 
           <!-- 青蛙：由 hero-pond.js 驱动跳跃、荷叶起伏与水花 -->
-          <text id="heroFrog" class="hero-frog" x="450" y="136"
-                text-anchor="middle" dominant-baseline="central">🐸</text>
+          <g id="heroFrog" class="hero-frog">
+            <g id="pondFrogArtwork"></g>
+          </g>
 
           <!-- 溅起的水珠：画在青蛙上方 -->
           <g id="heroDroplets"></g>
         </svg>
+        <button id="pond-touch" class="pond-touch hidden" type="button" aria-label="在池塘里激起水纹">
+          <span aria-hidden="true">轻点水面</span>
+        </button>
       </div>
       <div style="padding:14px 30px 26px;text-align:center">
         <div class="btn-row">
           <button id="btn-start" class="btn btn-primary">开始游戏</button>
-          <a class="btn btn-ghost" href="game.html?demo=1&amp;sec=60">无设备试玩 · 1 分钟</a>
           <button id="btn-calib" class="btn btn-warm">进入脑电校准</button>
         </div>
         <p class="hint" id="calib-status" style="margin-top:14px;font-size:14px">
-          首次使用请先做一次 <strong>脑电校准</strong>（约 1 分钟），系统按你今天的状态定分数，玩起来才准
+          首次使用请先做一次 <strong>信号校准</strong>，系统会按你今天的状态设定专注线。
         </p>
       </div>
     </div>
@@ -376,7 +398,7 @@
         <div class="step">
           <div class="num">1</div>
           <div class="t">🧘 先做校准</div>
-          <div class="d">跟着视频做一次 60 秒呼吸放松<br>系统按你今天的状态定出分数</div>
+          <div class="d">按校准页的提示完成校准<br>系统会设定你今天的专注线</div>
         </div>
         <div class="step">
           <div class="num">2</div>
@@ -400,7 +422,6 @@
     </div>
 
     <div class="btn-row">
-      <button id="btn-dev" class="btn btn-sm btn-ghost">开发者模式</button>
       <button id="btn-settings" class="btn btn-sm btn-ghost">信号设置</button>
     </div>
   </div>
@@ -442,18 +463,26 @@
 
   <script src="assets/api.js"></script>
   <script>
+    DeveloperTools.disable();
+    window.addEventListener("pageshow", () => {
+      DeveloperTools.disable();
+      renderCalibStatus();
+    });
     const btnStart = document.getElementById("btn-start");
 
     // 校准只在 1 小时内有效：过期需重新校准，页面上的提示实时刷新
+    const defaultCalibStatus = document.getElementById("calib-status").innerHTML;
     function renderCalibStatus() {
       const el = document.getElementById("calib-status");
       if (!el) return;
-      const info = Store.calibInfo();
+      const info = Store.playerCalibInfo();
       if (info.calib) {
         const min = Math.max(1, Math.ceil(info.remainMs / 60000));
         el.innerHTML = `校准基线有效，剩余约 <strong>${min} 分钟</strong>，期间刷新或关闭页面都无需重新校准`;
       } else if (info.expired) {
         el.innerHTML = `校准已超过 <strong>1 小时</strong>，请重新校准后再开始`;
+      } else {
+        el.innerHTML = defaultCalibStatus;
       }
     }
     renderCalibStatus();
@@ -486,8 +515,8 @@
     // 返回合法秒数；非法输入返回 null
     function currentSeconds() {
       if (selected !== "custom") return selected;
-      const n = Math.round(Number(minutesInput.value));
-      if (!Number.isFinite(n)) return null;
+      const n = Number(minutesInput.value);
+      if (!Number.isInteger(n)) return null;
       const sec = n * 60;
       if (sec < DURATION_MIN_SEC || sec > DURATION_MAX_SEC) return null;
       return sec;
@@ -495,7 +524,7 @@
 
     function openDurationDialog() {
       // 每次点击都重新校验有效期（页面可能停留很久才点开始）
-      const info = Store.calibInfo();
+      const info = Store.playerCalibInfo();
       if (!info.calib) {
         if (info.expired) {
           toast("校准已超过 1 小时，需要重新校准");
@@ -508,7 +537,7 @@
       }
       applySelection(selected);
       mask.classList.remove("hidden");
-      (selected === "custom" ? minutesInput : opts[1]).focus({ preventScroll: true });
+      (selected === "custom" ? minutesInput : opts.find(btn => Number(btn.dataset.sec) === selected)).focus({ preventScroll: true });
     }
 
     function closeDurationDialog() {
@@ -555,8 +584,24 @@
     document.getElementById("btn-calib").addEventListener("click", () => {
       location.href = "calibrate.html";
     });
-    document.getElementById("btn-dev").addEventListener("click", () => {
-      location.href = "dev.html";
+    const developerKeys = [
+      "ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown",
+      "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a", "b", "a",
+    ];
+    let recentKeys = [];
+    window.addEventListener("keydown", event => {
+      const editing = event.target.closest?.("input, textarea, select, [contenteditable]");
+      if (editing || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) {
+        recentKeys = [];
+        return;
+      }
+      if (event.repeat) return;
+      recentKeys.push(event.key.length === 1 ? event.key.toLowerCase() : event.key);
+      if (recentKeys.length > developerKeys.length) recentKeys.shift();
+      if (developerKeys.every((key, i) => recentKeys[i] === key)) {
+        recentKeys = [];
+        location.href = "dev.html";
+      }
     });
     document.getElementById("btn-settings").addEventListener("click", () => {
       location.href = "calibrate.html#signal-settings";
@@ -593,6 +638,8 @@
       openDurationDialog();
     }
   </script>
+  <script src="assets/pond-effects.js"></script>
+  <script src="assets/hero-water.js"></script>
   <script src="assets/hero-pond.js"></script>
   <script src="assets/music.js" defer></script>
 </body>

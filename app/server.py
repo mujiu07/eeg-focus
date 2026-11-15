@@ -24,7 +24,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, NonNegativeInt
+from pydantic import BaseModel, Field, NonNegativeInt
 from typing import Optional
 from sse_starlette.sse import EventSourceResponse
 
@@ -42,7 +42,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.5")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.6")
 
 # ---------------------------------------------------------------------------
 # 全局状态
@@ -301,11 +301,17 @@ class ManualSet(BaseModel):
     focus: float = 0.5
 
 
+class JumpEvent(BaseModel):
+    t: float = Field(ge=0, allow_inf_nan=False)
+    timed: bool
+
+
 class GameActions(BaseModel):
     timed_jumps: NonNegativeInt
     automatic_jumps: NonNegativeInt
     targets_shown: Optional[NonNegativeInt] = None
     targets_hit: Optional[NonNegativeInt] = None
+    jumps: Optional[list[JumpEvent]] = Field(default=None, max_length=3600)
 
 
 class SessionFinish(BaseModel):
@@ -391,7 +397,9 @@ def player_recent():
             report = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if not report.get("played_sec"):
+        if not report.get("played_sec") or report.get("demo"):
+            continue
+        if (report.get("source") or {}).get("name") not in ("hardware", "heart"):
             continue
         reports.append({
             key: report.get(key) for key in ("session_id", "source", "score", "played_sec")
@@ -437,12 +445,12 @@ def dev_switch_source(body: SourceSwitch):
 
 @app.post("/api/session")
 async def create_session(body: SessionCreate):
-    # 非 macOS 没有心率采集实现：忽略心率源，纯心率玩法退回脑电回放。
+    # 非 macOS 没有心率采集实现；纯心率玩法不能改用一段录好的脑电。
     if not HEART_SUPPORTED:
         if body.heart_mode and body.heart_mode != "off":
             body.heart_mode = "off"
         if body.mode == "heart":
-            body.mode = "replay"
+            raise HTTPException(400, "当前系统不支持仅心率模式，请连接 Xmuse 使用脑电模式。")
     # 仅心率模式没有脑电信号，必须接一个心率源；未显式指定时默认 AirPods 自动读取。
     if body.mode == "heart" and (not body.heart_mode or body.heart_mode == "off"):
         body.heart_mode = "hrd"

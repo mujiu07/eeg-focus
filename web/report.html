@@ -8,6 +8,22 @@
   <link rel="stylesheet" href="assets/vinyl.css">
   <style>
     .curve-card { background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.78)); }
+    .curve-stage { position: relative; }
+    #curve { display: block; }
+    #curve-cursor {
+      position: absolute; inset: 0; border-radius: inherit; box-shadow: none;
+      cursor: crosshair; touch-action: pan-y;
+    }
+    .curve-review {
+      display: grid; gap: 10px; margin-top: 14px; padding: 12px 14px;
+      border: 1px solid var(--card-border); border-radius: 16px;
+      background: var(--card); color: var(--ink);
+    }
+    .curve-controls, .curve-readout { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+    .curve-controls input { flex: 1 1 130px; min-width: 0; accent-color: var(--accent); }
+    .curve-readout { font-variant-numeric: tabular-nums; }
+    #curve-event { color: var(--ink-soft); font-size: 13px; }
+    #curve-time { min-width: 6ch; }
     .parent-note {
       background: linear-gradient(135deg, rgba(255,232,210,.5), rgba(255,255,255,.7));
       border: 1px solid rgba(247,164,85,.35);
@@ -282,7 +298,7 @@
       <p class="hint">正在读取报告……</p>
     </div>
 
-    <div class="card cheer-card" id="cheer" aria-live="polite">
+    <div class="card cheer-card hidden" id="cheer" aria-live="polite">
       <canvas class="cheer-confetti" id="confetti" aria-hidden="true"></canvas>
       <div class="cheer-glow" aria-hidden="true"></div>
       <div class="cheer-inner">
@@ -347,25 +363,42 @@
       <p id="actions-summary"></p>
     </div>
 
-    <div class="card curve-card">
+    <div class="card curve-card hidden">
       <div class="section-title"><span class="dot"></span><span id="curve-title">专注曲线</span></div>
-      <canvas id="curve" width="880" height="230"></canvas>
+      <div class="curve-stage">
+        <canvas id="curve" width="880" height="230" role="img" aria-label="本局信号分数曲线"></canvas>
+        <canvas id="curve-cursor" width="880" height="230" aria-hidden="true"></canvas>
+      </div>
+      <div class="curve-review hidden" id="curve-review">
+        <div class="curve-readout">
+          <strong id="curve-time">0:00</strong>
+          <span id="curve-score"></span>
+          <span id="curve-event"></span>
+        </div>
+        <div class="curve-controls">
+          <button id="curve-play" class="btn btn-sm btn-primary" type="button">播放 4×</button>
+          <input id="curve-seek" type="range" min="0" step="any" value="0" aria-label="训练回放时间">
+          <button id="curve-prev" class="btn btn-sm btn-ghost" type="button">上一次起跳</button>
+          <button id="curve-next" class="btn btn-sm btn-ghost" type="button">下一次起跳</button>
+        </div>
+      </div>
       <p class="hint" style="font-size:13.5px;margin-top:10px">
-        <span class="badge">浅绿色区域</span> 专注状态（蓄力/跳出）&nbsp;·&nbsp;
-        <span class="badge">橙色虚线</span> 你的专注基线
+        <span class="badge">橙色虚线</span> 50 分专注线
+        <span class="hidden" id="curve-jump-legend"> · 金色菱形为主动起跳，蓝色圆点为自动起跳</span>
       </p>
       <p class="hint" id="curve-tip" style="display:none;margin-top:6px;font-size:13px;color:#c26a1b"></p>
     </div>
 
-    <div class="card">
+    <div class="card hidden" id="parent-card">
       <div class="section-title"><span class="dot"></span>💬 给家长的话<span class="pn-badge">仅供参考</span></div>
       <p class="hint hidden" id="parent-source"></p>
       <div class="parent-note" id="parent-note">正在根据本局数据生成分析与建议……</div>
     </div>
 
     <div class="btn-row">
-      <button id="btn-again" class="btn btn-primary">再来一局</button>
-      <button id="btn-home" class="btn btn-ghost">🏠 回首页</button>
+      <button id="btn-again" class="btn btn-primary hidden">再来一局</button>
+      <button id="btn-retry-report" class="btn btn-primary hidden">重试读取</button>
+      <a id="btn-home" class="btn btn-ghost" href="index.html">返回首页</a>
     </div>
   </div>
 
@@ -548,11 +581,29 @@
     sizeConfettiCanvas();
 
     async function load() {
+      $("btn-retry-report").classList.add("hidden");
+      const message = document.createElement("p");
+      message.className = "hint";
+      message.setAttribute("role", "status");
+      message.textContent = "正在读取报告……";
+      $("report").replaceChildren(message);
+      if (!sid) {
+        message.textContent = "未指定训练记录。请从首页的「最近训练」打开报告。";
+        return;
+      }
+      const details = [$("cheer"), document.querySelector(".curve-card"), $("parent-card")];
       try {
-        const r = await API.get("/api/report/" + sid);
+        const r = await API.get("/api/report/" + encodeURIComponent(sid));
+        details.forEach(card => card.classList.remove("hidden"));
+        $("btn-again").classList.remove("hidden");
         render(r);
       } catch (e) {
-        $("report").innerHTML = `<p class="hint">读取失败：${e.message}</p>`;
+        details.forEach(card => card.classList.add("hidden"));
+        $("actions-card").classList.add("hidden");
+        $("btn-again").classList.add("hidden");
+        message.textContent = "读取报告失败：" + e.message;
+        $("report").replaceChildren(message);
+        $("btn-retry-report").classList.remove("hidden");
       }
     }
 
@@ -752,9 +803,9 @@
       `;
     }
 
-    let currentReport;
+    let developerReport = false;
+    let retryHref = "index.html?pick=1";
     function render(r) {
-      currentReport = r;
       const above = r.above_mid_ratio != null ? Math.round(r.above_mid_ratio * 100)
         : (r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null);
       const hr = r.heart || {};
@@ -764,6 +815,16 @@
       const source = r.source || {};
       const isReplay = source.name === "replay" || !!source.file;
       const isManual = source.name === "manual";
+      developerReport = r.demo || isReplay || isManual;
+      if (developerReport) {
+        retryHref = DeveloperTools.canTest
+          ? r.demo ? "game.html?demo=1&sec=60" : "game.html?test=" + (isReplay ? "replay" : "manual") + "&sec=60"
+          : "dev.html";
+        $("btn-again").textContent = "再试一次";
+        $("btn-again").classList.toggle("hidden", !DeveloperTools.canTest);
+        $("btn-home").textContent = "返回开发者模式";
+        $("btn-home").href = "dev.html";
+      }
       const recorded = source.name === "hardware" || source.name === "heart";
       const srcName = r.demo ? "无设备试玩 · 手动模拟" : describeSignal(source);
       $("actions-card").classList.toggle("hidden", !r.actions);
@@ -795,9 +856,9 @@
         const v = (p.score != null) ? p.score
           : ((p.focus_fused != null ? p.focus_fused : p.focus) != null
             ? (p.focus_fused != null ? p.focus_fused : p.focus) * 100 : null);
-        return { t: p.t, focus: v == null ? null : v / 100 };
-      }).filter(p => p.focus != null);
-      drawCurve(scoreCurve, 0.5, r.hr_curve || []);
+        return { t: p.t, focus: v == null ? null : Math.max(0, Math.min(1, v / 100)) };
+      }).filter(p => Number.isFinite(p.focus) && Number.isFinite(p.t));
+      setupCurveReview(scoreCurve, r.hr_curve || [], r.actions?.jumps || []);
       const tip = $("curve-tip");
       if (tip) {
         if (!scoreCurve.length) {
@@ -842,7 +903,143 @@
       };
     }
 
-    let lastCurve = [], lastBaseline = null, lastHr = [];
+    let lastCurve = [], lastBaseline = null, lastHr = [], jumps = [];
+    let curveMax = 0, cursorTime = 0, playback = null;
+    const plot = { left: 58, right: 20, top: 26, bottom: 34 };
+    const seek = $("curve-seek");
+
+    function setupCurveReview(curve, heart, events) {
+      jumps = events.filter(event => Number.isFinite(event.t) && event.t >= 0)
+        .sort((a, b) => a.t - b.t);
+      curveMax = Math.max(0, curve.at(-1)?.t || 0, heart.at(-1)?.t || 0, jumps.at(-1)?.t || 0);
+      $("curve-review").classList.toggle("hidden", !curve.length || curveMax === 0);
+      $("curve-jump-legend").classList.toggle("hidden", !curve.length || !jumps.length);
+      $("curve-prev").classList.toggle("hidden", !jumps.length);
+      $("curve-next").classList.toggle("hidden", !jumps.length);
+      seek.max = curveMax;
+      drawCurve(curve, .5, heart);
+      if (curve.length && curveMax) setCursor(curve[0].t);
+    }
+
+    function chartX(t) {
+      return plot.left + ($("curve").width - plot.left - plot.right) * t / Math.max(10, curveMax);
+    }
+
+    function nearestSample(t) {
+      let low = 0, high = lastCurve.length;
+      while (low < high) {
+        const mid = (low + high) >>> 1;
+        if (lastCurve[mid].t < t) low = mid + 1;
+        else high = mid;
+      }
+      const before = lastCurve[low - 1], after = lastCurve[low];
+      const point = !before || (after && after.t - t < t - before.t) ? after : before;
+      return point && Math.abs(point.t - t) <= 1.25 ? point : null;
+    }
+
+    function setCursor(time) {
+      cursorTime = Math.min(curveMax, Math.max(0, time));
+      seek.value = cursorTime;
+      const sec = Math.floor(cursorTime);
+      const clock = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+      const point = nearestSample(cursorTime);
+      const score = point ? "信号 " + Math.round(point.focus * 100) + " 分" : "此处无有效采样";
+      const jump = jumps.find(event => Math.abs(event.t - cursorTime) < .4);
+      $("curve-time").textContent = clock;
+      $("curve-score").textContent = score;
+      $("curve-event").textContent = jump ? (jump.timed ? "主动起跳" : "蓄满自动起跳") : "";
+      seek.setAttribute("aria-valuetext", clock + "，" + score);
+      $("curve-prev").disabled = !jumps.some(event => event.t < cursorTime - .05);
+      $("curve-next").disabled = !jumps.some(event => event.t > cursorTime + .05);
+      drawCursor(point);
+    }
+
+    function drawCursor(point) {
+      const c = $("curve-cursor"), ctx = c.getContext("2d");
+      const theme = chartTheme();
+      const x = chartX(cursorTime), bottom = c.height - plot.bottom;
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.strokeStyle = theme.label;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, plot.top);
+      ctx.lineTo(x, bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (point) {
+        const y = plot.top + (bottom - plot.top) * (1 - point.focus);
+        ctx.fillStyle = theme.curve;
+        ctx.strokeStyle = theme.halo;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(chartX(point.t), y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+    }
+
+    function stopPlayback() {
+      if (playback != null) cancelAnimationFrame(playback);
+      playback = null;
+      $("curve-play").textContent = "播放 4×";
+    }
+
+    $("curve-play").addEventListener("click", () => {
+      if (playback != null) { stopPlayback(); return; }
+      if (cursorTime >= curveMax - .01) setCursor(0);
+      let last = performance.now();
+      function advance(now) {
+        setCursor(cursorTime + Math.min(.05, (now - last) / 1000) * 4);
+        last = now;
+        if (cursorTime < curveMax) playback = requestAnimationFrame(advance);
+        else stopPlayback();
+      }
+      $("curve-play").textContent = "暂停";
+      playback = requestAnimationFrame(advance);
+    });
+
+    seek.addEventListener("input", () => {
+      stopPlayback();
+      setCursor(Number(seek.value));
+    });
+    seek.addEventListener("keydown", event => {
+      const direction = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[event.key];
+      if (!direction) return;
+      event.preventDefault();
+      stopPlayback();
+      setCursor(cursorTime + direction * (event.shiftKey ? 5 : 1));
+    });
+    $("curve-prev").addEventListener("click", () => {
+      const jump = jumps.findLast(event => event.t < cursorTime - .05);
+      if (jump) { stopPlayback(); setCursor(jump.t); }
+    });
+    $("curve-next").addEventListener("click", () => {
+      const jump = jumps.find(event => event.t > cursorTime + .05);
+      if (jump) { stopPlayback(); setCursor(jump.t); }
+    });
+    const chartOverlay = $("curve-cursor");
+    function scrubCurve(event, snapToJump = false) {
+      const rect = chartOverlay.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width * chartOverlay.width;
+      const y = (event.clientY - rect.top) / rect.height * chartOverlay.height;
+      if (snapToJump && Math.abs(y - (chartOverlay.height - plot.bottom - 7)) < 14) {
+        const jump = jumps.find(item => Math.abs(chartX(item.t) - x) < 9);
+        if (jump) { setCursor(jump.t); return; }
+      }
+      const time = (x - plot.left) / (chartOverlay.width - plot.left - plot.right) * Math.max(10, curveMax);
+      setCursor(time);
+    }
+    chartOverlay.addEventListener("pointerdown", event => {
+      if (event.button !== 0 || !lastCurve.length || !curveMax) return;
+      stopPlayback();
+      chartOverlay.setPointerCapture(event.pointerId);
+      scrubCurve(event, true);
+    });
+    chartOverlay.addEventListener("pointermove", event => {
+      if (chartOverlay.hasPointerCapture(event.pointerId)) scrubCurve(event);
+    });
+    window.addEventListener("pagehide", stopPlayback);
 
     function drawCurve(curve, baseline, hrCurve) {
       lastCurve = curve || [];
@@ -852,13 +1049,18 @@
       const theme = chartTheme();
       const c = $("curve");
       const ctx = c.getContext("2d");
-      const W = c.width, H = c.height, padL = 58, padR = 20, padT = 26, padB = 34;
+      const W = c.width, H = c.height, { left: padL, right: padR, top: padT, bottom: padB } = plot;
       ctx.clearRect(0, 0, W, H);
       if (!curve.length) return;
-      const xs = curve.map(p => p.t).concat(hr.map(p => p.t));
-      const xmax = Math.max(Math.max(...xs), 10);
-      const X = t => padL + (W - padL - padR) * (t / xmax);
+      const xmax = Math.max(10, curveMax);
+      const X = chartX;
       const Y = v => padT + (H - padT - padB) * (1 - Math.min(Math.max(v, 0), 1));
+      const segments = [[curve[0]]];
+      for (let i = 1; i < curve.length; i++) {
+        // Reports save every other valid frame, normally about a second apart.
+        if (curve[i].t - curve[i - 1].t > 2.5) segments.push([]);
+        segments.at(-1).push(curve[i]);
+      }
 
       // 网格 + 纵轴刻度
       ctx.font = "12px 'PingFang SC', sans-serif";
@@ -869,7 +1071,7 @@
         ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
         ctx.fillStyle = theme.label;
         ctx.textAlign = "right";
-        ctx.fillText(Math.round(gy / 4 * 100) + "%", padL - 10, y + 4);
+        ctx.fillText(Math.round(gy / 4 * 100), padL - 10, y + 4);
       }
 
       // 专注状态（focus >= 基线）的浅绿区间：先把连续段合并，再一次性填充。
@@ -880,6 +1082,7 @@
         const runs = [];
         let run = null;
         curve.forEach((p, i) => {
+          if (i && p.t - curve[i - 1].t > 2.5) run = null;
           if (p.focus >= baseline) {
             if (!run) { run = [i, i]; runs.push(run); }
             run[1] = i;
@@ -897,23 +1100,27 @@
       const g = ctx.createLinearGradient(0, padT, 0, H - padB);
       g.addColorStop(0, theme.areaTop);
       g.addColorStop(1, theme.areaBot);
-      ctx.beginPath();
-      curve.forEach((p, i) => {
-        const x = X(p.t), y = Y(p.focus);
-        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      });
-      ctx.lineTo(X(curve[curve.length - 1].t), H - padB);
-      ctx.lineTo(X(curve[0].t), H - padB);
-      ctx.closePath();
       ctx.fillStyle = g;
-      ctx.fill();
+      for (const segment of segments) {
+        ctx.beginPath();
+        segment.forEach((point, i) => {
+          if (i) ctx.lineTo(X(point.t), Y(point.focus));
+          else ctx.moveTo(X(point.t), Y(point.focus));
+        });
+        ctx.lineTo(X(segment.at(-1).t), H - padB);
+        ctx.lineTo(X(segment[0].t), H - padB);
+        ctx.closePath();
+        ctx.fill();
+      }
 
       // 曲线
       ctx.beginPath();
-      curve.forEach((p, i) => {
-        const x = X(p.t), y = Y(p.focus);
-        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      });
+      for (const segment of segments) {
+        segment.forEach((point, i) => {
+          if (i) ctx.lineTo(X(point.t), Y(point.focus));
+          else ctx.moveTo(X(point.t), Y(point.focus));
+        });
+      }
       ctx.strokeStyle = theme.curve;
       ctx.lineWidth = 3;
       ctx.lineJoin = "round";
@@ -964,7 +1171,7 @@
         ctx.beginPath(); ctx.moveTo(padL, by); ctx.lineTo(W - padR, by); ctx.stroke();
         ctx.restore();
 
-        const label = "基线 " + Math.round(baseline * 100) + "%";
+        const label = Math.round(baseline * 100) + " 分";
         ctx.font = "700 13px 'PingFang SC', sans-serif";
         const lx = W - padR - ctx.measureText(label).width - 10;
         let ly = by - 10;
@@ -978,6 +1185,22 @@
         ctx.fillText(label, lx, ly);
       }
 
+      for (const jump of jumps) {
+        const x = X(jump.t), y = H - padB - 7;
+        ctx.fillStyle = jump.timed ? theme.baseline : "#568ee0";
+        ctx.beginPath();
+        if (jump.timed) {
+          ctx.moveTo(x, y - 5);
+          ctx.lineTo(x + 5, y);
+          ctx.lineTo(x, y + 5);
+          ctx.lineTo(x - 5, y);
+          ctx.closePath();
+        } else {
+          ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+
       // 横轴
       ctx.fillStyle = theme.label;
       ctx.textAlign = "center";
@@ -988,11 +1211,14 @@
     }
 
     document.addEventListener("skychange", () => {
-      if (lastCurve.length) drawCurve(lastCurve, lastBaseline, lastHr);
+      if (lastCurve.length) {
+        drawCurve(lastCurve, lastBaseline, lastHr);
+        drawCursor(nearestSample(cursorTime));
+      }
     });
 
-    $("btn-again").addEventListener("click", () => { location.href = currentReport?.demo ? "game.html?demo=1&sec=60" : "index.html?pick=1"; });
-    $("btn-home").addEventListener("click", () => { location.href = "index.html"; });
+    $("btn-again").addEventListener("click", () => { location.href = retryHref; });
+    $("btn-retry-report").addEventListener("click", load);
     load();
   </script>
   <script src="assets/music.js" defer></script>
