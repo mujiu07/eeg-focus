@@ -15,3 +15,10 @@ python-osc>=1.8,<2.0
 # 此时改用纯 Python 的 edfio（app/sources.py 会自动选择可用实现）
 pyedflib>=0.1.42; python_version < "3.13"
 edfio>=0.4; python_version >= "3.13"
+
+# 训练报告导出（app/export.py）：PDF / Excel / Word
+# 缺失时报告页仍可正常查看，只是对应导出格式会提示「暂时不可用」
+reportlab>=4.2
+openpyxl>=3.1
+python-docx>=1.1
+

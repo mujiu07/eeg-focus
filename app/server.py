@@ -21,14 +21,15 @@ from copy import copy
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, NonNegativeInt
 from typing import Optional
 from sse_starlette.sse import EventSourceResponse
 
 from .focus_engine import FocusEngine, features
+from . import export as report_export
 from . import sources
 from .heart import heart
 
@@ -42,7 +43,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.6")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.7")
 
 # ---------------------------------------------------------------------------
 # 全局状态
@@ -320,6 +321,11 @@ class SessionFinish(BaseModel):
     score: Optional[int] = None
     played_sec: Optional[float] = None
     notes: Optional[str] = None
+
+
+class ExportRequest(BaseModel):
+    """导出时前端把页面上「给家长的话」纯文本一起送来，保证文件与屏幕一致。"""
+    parent_note: Optional[str] = Field(default=None, max_length=20000)
 
 
 class SourceSwitch(BaseModel):
@@ -714,14 +720,47 @@ async def finish_session(sid: str, body: SessionFinish):
 
 @app.get("/api/report/{sid}")
 def get_report(sid: str):
+    return _load_report(sid)
+
+
+# ---------------------------------------------------------------------------
+# 报告导出：PDF / Excel / Word / CSV / JSON + 分享链接
+# ---------------------------------------------------------------------------
+def _load_report(sid: str) -> dict:
+    """优先读结束态的内存会话，其次读落盘的 outputs/sessions/<sid>.json。"""
     s = _sessions.get(sid)
-    if not s or not s.finished:
-        # 尝试从磁盘读
-        p = os.path.join(SESSIONS_DIR, f"{sid}.json")
-        if os.path.exists(p):
-            return json.load(open(p, encoding="utf-8"))
-        raise HTTPException(404, "报告不存在或会话未结束")
-    return s.stats
+    if s and s.finished:
+        return s.stats
+    p = os.path.join(SESSIONS_DIR, f"{sid}.json")
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    raise HTTPException(404, "报告不存在或会话未结束")
+
+
+async def _export_response(sid: str, fmt: str, body: Optional[ExportRequest]):
+    report = _load_report(sid)
+    parent_note = body.parent_note if body else None
+    try:
+        payload, filename, media_type = report_export.export_report(report, fmt, parent_note)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except report_export.ExportUnavailable as exc:
+        raise HTTPException(501, str(exc))
+    except Exception as exc:  # noqa: BLE001 - 导出失败要给出可读原因，不返回 500 空响应
+        raise HTTPException(500, f"导出 {fmt.upper()} 失败：{exc}")
+    headers = {"Content-Disposition": report_export.content_disposition(filename)}
+    return Response(content=payload, media_type=media_type, headers=headers)
+
+
+@app.get("/api/report/{sid}/export/{fmt}")
+async def export_report_get(sid: str, fmt: str):
+    return await _export_response(sid, fmt, None)
+
+
+@app.post("/api/report/{sid}/export/{fmt}")
+async def export_report_post(sid: str, fmt: str, body: Optional[ExportRequest] = None):
+    return await _export_response(sid, fmt, body)
 
 
 # ---------------------------------------------------------------------------

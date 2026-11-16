@@ -210,6 +210,7 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/achievements.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     const state = { session: null, es: null, running: false, done: false };
@@ -507,6 +508,8 @@
           file: state.session.file,
           osc_ports: state.session.osc_ports,
         });
+        // 第一次校准成功 → 解锁「池塘小卫士」（开发者试玩不计入）
+        if (!testMode) Achievements.recordCalib();
         // 校准会话到此结束：释放硬件 UDP 端口，游戏页会新建一局硬件会话
         try {
           const session = state.session;

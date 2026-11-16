@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>专注小蛙 - 看得见的专注力，玩出来的好状态</title>
+  <title>专注小蛙 - 小青蛙陪你蹦蹦跳，专注力嗖嗖涨！</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <link rel="stylesheet" href="assets/sky.css">
+  <link rel="stylesheet" href="assets/achievements.css">
   <script src="assets/sky.js"></script>
   <style>
     .logo-badge--frog {
@@ -14,17 +15,13 @@
       box-shadow: 0 5px 14px rgba(36, 81, 62, .16), inset 0 1px 0 rgba(255, 255, 255, .85);
     }
     .logo-badge--frog svg { display: block; width: 100%; height: 100%; }
+    /* 水面 canvas 铺满池塘：去掉圆角，四个角都是带波纹的水，不留纯色角 */
+    #heroWater { border-radius: 0; box-shadow: none; }
     .pond-touch {
       position: absolute; inset: 60% 0 0; width: 100%;
-      border: 0; background: transparent; color: #f5fbf8; cursor: crosshair;
-      display: flex; align-items: flex-end; justify-content: flex-end; padding: 10px 14px;
+      border: 0; background: transparent; cursor: crosshair;
     }
     .pond-touch:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
-    .pond-touch span {
-      background: rgba(16, 43, 53, .88); font-family: inherit;
-      font-size: 12px; font-weight: 600; line-height: 1.4;
-      padding: 5px 10px; border-radius: 999px; pointer-events: none;
-    }
     @media (prefers-reduced-motion: reduce) { .pond-touch { display: none; } }
     .hero-card { position: relative; overflow: hidden; padding: 0; }
     .hero-top { display: flex; align-items: center; gap: 14px; padding: 24px 30px 6px; }
@@ -143,9 +140,11 @@
         </div>
         <div>
           <h1>专注小蛙</h1>
-          <div class="slogan">看得见的专注力，玩出来的好状态</div>
+          <div class="slogan">小青蛙陪你蹦蹦跳，专注力嗖嗖涨！</div>
         </div>
       </div>
+      <!-- 成就徽章入口：奖杯 -->
+      <div id="achievement-entry" class="ach-entry"></div>
     </div>
 
     <!-- 英雄区 -->
@@ -178,7 +177,7 @@
       </div>
       <div class="hero-body">
         <div class="title">和小蛙一起，练出好专注！</div>
-        <div class="sub">保持专注让能量条涨到金色区间，点一下青蛙就跳出去</div>
+        <div class="sub">小青蛙陪你蹦蹦跳，专注力嗖嗖涨！</div>
       </div>
       <div class="hero-art">
         <svg class="hero-svg" viewBox="0 0 880 250" aria-hidden="true">
@@ -376,9 +375,7 @@
           <!-- 溅起的水珠：画在青蛙上方 -->
           <g id="heroDroplets"></g>
         </svg>
-        <button id="pond-touch" class="pond-touch hidden" type="button" aria-label="在池塘里激起水纹">
-          <span aria-hidden="true">轻点水面</span>
-        </button>
+        <button id="pond-touch" class="pond-touch hidden" type="button" aria-label="在池塘里激起水纹"></button>
       </div>
       <div style="padding:14px 30px 26px;text-align:center">
         <div class="btn-row">
@@ -403,7 +400,7 @@
         <div class="step">
           <div class="num">2</div>
           <div class="t">🎯 专注蓄力</div>
-          <div class="d">在状态时能量条会往上涨<br>涨到金色区间就能起跳</div>
+          <div class="d">在状态时能量条会往上涨</div>
         </div>
         <div class="step">
           <div class="num">3</div>
@@ -421,9 +418,6 @@
       </div>
     </div>
 
-    <div class="btn-row">
-      <button id="btn-settings" class="btn btn-sm btn-ghost">信号设置</button>
-    </div>
   </div>
 
   <!-- 游戏时长选择 -->
@@ -462,6 +456,7 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/achievements.js"></script>
   <script>
     DeveloperTools.disable();
     window.addEventListener("pageshow", () => {
@@ -602,9 +597,6 @@
         recentKeys = [];
         location.href = "dev.html";
       }
-    });
-    document.getElementById("btn-settings").addEventListener("click", () => {
-      location.href = "calibrate.html#signal-settings";
     });
 
     async function loadRecent() {

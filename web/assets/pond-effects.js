@@ -22,6 +22,25 @@ const PondEffects = {
     }
   },
 
+  // 新荷叶从水下顶破水面：一圈更大的涟漪 + 中间高、四周低的水珠
+  emerging(x, y) {
+    const ripples = Array.from({ length: 3 }, (_, i) => ({
+      x, y: y + 2, r0: 26 + i * 6, r1: 62 + i * 17,
+      t: -i * 0.05, life: 0.7 + i * 0.13,
+    }));
+    const droplets = Array.from({ length: 13 }, (_, i) => {
+      const angle = Math.PI * 2 * i / 13 + (Math.random() - 0.5) * 0.4;
+      const lift = 1 - Math.abs(Math.cos(angle)) * 0.35;   // 叶心位置的水柱更高
+      return {
+        x: x + Math.cos(angle) * 20, y: y + Math.sin(angle) * 7 - 2,
+        vx: Math.cos(angle) * (42 + Math.random() * 58),
+        vy: -(205 + Math.random() * 140) * lift + Math.sin(angle) * 26,
+        r: 1.6 + Math.random() * 2.2, t: 0, life: 0.45 + Math.random() * 0.4,
+      };
+    });
+    return { ripples, droplets };
+  },
+
   landing(x, y) {
     const ripples = Array.from({ length: 3 }, (_, i) => ({
       x, y: y + 2, r0: 44 + i * 7, r1: 82 + i * 18,

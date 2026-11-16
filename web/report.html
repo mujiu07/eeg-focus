@@ -263,6 +263,41 @@
     @media (prefers-reduced-motion: reduce) {
       .cheer-frog, .frog-shadow, .spark, .frog-eye, .cheer-card::after, .cheer-main { animation: none !important; }
     }
+
+    /* ---------------- 导出 / 分享 ---------------- */
+    .export-row {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-top: 14px;
+    }
+    .export-row .btn { min-width: 132px; }
+    .export-meta {
+      margin-top: 12px; font-size: 13px; color: var(--ink-soft);
+    }
+    .linklike {
+      background: none; border: 0; padding: 0;
+      font: inherit; color: var(--accent-dark);
+      text-decoration: underline; text-underline-offset: 3px;
+      cursor: pointer;
+    }
+    .linklike:hover { color: var(--accent); }
+    .linklike[disabled] { opacity: .5; cursor: wait; }
+    .export-sep { margin: 0 7px; opacity: .45; }
+    #export-status { margin-top: 10px; }
+
+    @media print {
+      .bubbles, .sky-veil, .page-skybar, .cheer-card, .btn-row, #export-card,
+      .curve-controls, #curve-cursor, #btn-retry-report { display: none !important; }
+      body { background: #fff !important; }
+      .wrap { max-width: none; padding: 0 !important; }
+      .card {
+        box-shadow: none !important;
+        border: 1px solid #d8e2e0 !important;
+        background: #fff !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .curve-card, #parent-card { break-inside: avoid; }
+    }
   </style>
   <link rel="stylesheet" href="assets/sky.css">
   <script src="assets/sky.js"></script>
@@ -395,6 +430,24 @@
       <div class="parent-note" id="parent-note">正在根据本局数据生成分析与建议……</div>
     </div>
 
+    <div class="card hidden" id="export-card">
+      <div class="section-title"><span class="dot"></span>📤 导出这份报告</div>
+      <p class="hint">导出内容与本页一致：概览数据、专注曲线、给家长的话。PDF 已排好版，适合打印或直接发给家长；Excel 附带逐点曲线和折线图。</p>
+      <div class="export-row">
+        <button class="btn btn-primary" type="button" data-export="pdf">📄 下载 PDF</button>
+        <button class="btn btn-ghost" type="button" data-export="xlsx">📊 Excel 表格</button>
+        <button class="btn btn-ghost" type="button" data-export="docx">📝 Word 文档</button>
+      </div>
+      <div class="export-meta">
+        <button class="linklike" type="button" data-export="csv">逐点数据 CSV</button>
+        <span class="export-sep">·</span>
+        <button class="linklike" type="button" data-export="json">原始 JSON</button>
+        <span class="export-sep">·</span>
+        <button class="linklike" type="button" id="btn-print">打印本页</button>
+      </div>
+      <p class="hint hidden" id="export-status" role="status" aria-live="polite"></p>
+    </div>
+
     <div class="btn-row">
       <button id="btn-again" class="btn btn-primary hidden">再来一局</button>
       <button id="btn-retry-report" class="btn btn-primary hidden">重试读取</button>
@@ -403,6 +456,7 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/achievements.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     const sid = new URLSearchParams(location.search).get("id");
@@ -591,7 +645,7 @@
         message.textContent = "未指定训练记录。请从首页的「最近训练」打开报告。";
         return;
       }
-      const details = [$("cheer"), document.querySelector(".curve-card"), $("parent-card")];
+      const details = [$("cheer"), document.querySelector(".curve-card"), $("parent-card"), $("export-card")];
       try {
         const r = await API.get("/api/report/" + encodeURIComponent(sid));
         details.forEach(card => card.classList.remove("hidden"));
@@ -1216,6 +1270,68 @@
         drawCursor(nearestSample(cursorTime));
       }
     });
+
+    /* ---------------- 导出与分享 ---------------- */
+    function setExportStatus(text, isError) {
+      const el = $("export-status");
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove("hidden");
+      el.style.color = isError ? "#c2413d" : "";
+    }
+
+    function filenameFromDisposition(value, fallback) {
+      if (!value) return fallback;
+      const star = /filename\*=UTF-8''([^;]+)/i.exec(value);
+      if (star) {
+        try { return decodeURIComponent(star[1]); } catch (e) { /* 用下面的兜底 */ }
+      }
+      const plain = /filename="([^"]+)"/i.exec(value);
+      return plain ? plain[1] : fallback;
+    }
+
+    async function downloadExport(fmt, button) {
+      if (!sid) return;
+      const noteEl = $("parent-note");
+      const note = noteEl ? noteEl.innerText : "";
+      if (button) button.disabled = true;
+      setExportStatus("正在生成文件……");
+      try {
+        const res = await fetch("/api/report/" + encodeURIComponent(sid) + "/export/" + fmt, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parent_note: note }),
+        });
+        if (!res.ok) {
+          let detail = "";
+          try {
+            const data = await res.json();
+            detail = data.detail || "";
+          } catch (e) { /* 非 JSON 错误体 */ }
+          throw new Error(detail || ("导出失败（HTTP " + res.status + "）"));
+        }
+        const blob = await res.blob();
+        const name = filenameFromDisposition(res.headers.get("Content-Disposition"), "report." + fmt);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        setExportStatus("已生成：" + name);
+      } catch (err) {
+        setExportStatus("导出失败：" + err.message, true);
+      } finally {
+        if (button) button.disabled = false;
+      }
+    }
+
+    document.querySelectorAll("#export-card [data-export]").forEach(btn => {
+      btn.addEventListener("click", () => downloadExport(btn.dataset.export, btn));
+    });
+    $("btn-print").addEventListener("click", () => window.print());
 
     $("btn-again").addEventListener("click", () => { location.href = retryHref; });
     $("btn-retry-report").addEventListener("click", load);

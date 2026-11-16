@@ -109,6 +109,205 @@
     }
     .tut-gold { color: #795219; }
 
+    /* ---- 开局倒数 / 结算转场 ----
+       同一套梦境池塘语言：青蛙蹲在荷叶上、涟漪一圈圈散开、
+       暖白卡片配青绿渐变数字；遮罩只做低刺激的水雾，不用纯黑。 */
+    .cue {
+      position: absolute; inset: 0; z-index: 40;
+      display: grid; place-items: center;
+      border-radius: 20px;
+      opacity: 0; visibility: hidden; pointer-events: none;
+      background:
+        radial-gradient(120% 88% at 50% -6%, rgba(255, 255, 255, .5), transparent 64%),
+        rgba(18, 54, 62, .34);
+      -webkit-backdrop-filter: blur(5px) saturate(1.06);
+      backdrop-filter: blur(5px) saturate(1.06);
+      transition: opacity .42s ease, visibility .42s;
+    }
+    .cue.show { opacity: 1; visibility: visible; pointer-events: auto; }
+    .cue.leaving { opacity: 0; transition-duration: .45s; }
+
+    .cue-card {
+      position: relative;
+      width: min(76%, 372px);
+      padding: 22px 26px 20px;
+      border-radius: 26px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(255, 252, 245, .98), rgba(255, 249, 238, .95));
+      border: 1px solid rgba(255, 255, 255, .92);
+      box-shadow: 0 26px 64px rgba(17, 60, 70, .3), inset 0 1px 0 rgba(255, 255, 255, .9);
+      transform: translateY(16px) scale(.96);
+      transition: transform .55s cubic-bezier(.22, 1, .36, 1);
+    }
+    .cue.show .cue-card { transform: none; }
+
+    /* 荷叶 + 青蛙：与画布里的落点同构，只是换成首页那只 emoji 小蛙 */
+    .cue-pad { position: relative; width: 108px; height: 78px; margin: 0 auto 2px; }
+    .cue-ripple {
+      position: absolute; left: 50%; bottom: 9px;
+      width: 76px; height: 25px; border-radius: 50%;
+      border: 2px solid rgba(88, 194, 112, .4);
+      transform: translate(-50%, 0) scale(.5);
+      opacity: 0;
+    }
+    .cue.show .cue-ripple { animation: cueRipple 2.8s ease-out infinite; }
+    .cue.show .cue-ripple:nth-child(2) { animation-delay: 1.4s; }
+    @keyframes cueRipple {
+      0%   { transform: translate(-50%, 0) scale(.5); opacity: .8; }
+      70%  { opacity: .22; }
+      100% { transform: translate(-50%, 0) scale(1.9); opacity: 0; }
+    }
+    .cue-leaf {
+      position: absolute; left: 50%; bottom: 14px;
+      width: 86px; height: 30px; border-radius: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(62% 82% at 40% 26%, #d3f8d5, #7edb8c 58%, #46b463);
+      box-shadow: inset 0 -5px 9px rgba(30, 96, 56, .18), 0 10px 18px rgba(47, 110, 128, .16);
+      animation: cueBob 3.4s ease-in-out infinite;
+    }
+    @keyframes cueBob {
+      0%, 100% { transform: translateX(-50%) translateY(1px) rotate(-.6deg); }
+      50%      { transform: translateX(-50%) translateY(-3px) rotate(.6deg); }
+    }
+    .cue-frog {
+      position: absolute; left: 50%; top: -33px;
+      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "PingFang SC", sans-serif;
+      font-size: 36px; line-height: 1;
+      transform: translateX(-50%);
+      filter: drop-shadow(0 7px 9px rgba(47, 110, 128, .28));
+      animation: cueFrogBob 3.4s ease-in-out infinite;
+    }
+    @keyframes cueFrogBob {
+      0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+      50%      { transform: translateX(-50%) translateY(-4px) scale(1.03); }
+    }
+
+    /* 结算：小蛙跳上荷叶、水花散开、金色光点向上飘 */
+    .cue--end .cue-leaf { animation: cueLeafSettle .95s cubic-bezier(.3, 0, .35, 1) both; }
+    .cue--end .cue-frog { animation: cueHop .78s cubic-bezier(.28, -.25, .4, 1) both; }
+    @keyframes cueLeafSettle {
+      0%   { transform: translateX(-50%) scale(.92, 1); }
+      38%  { transform: translateX(-50%) scale(1.05, .9); }
+      64%  { transform: translateX(-50%) scale(.98, 1.04); }
+      100% { transform: translateX(-50%) scale(1, 1); }
+    }
+    @keyframes cueHop {
+      0%   { transform: translate(-50%, 18px) scale(.82); opacity: 0; }
+      28%  { opacity: 1; }
+      56%  { transform: translate(-50%, -30px) scale(1.04, .97); }
+      82%  { transform: translate(-50%, 2px) scale(.97, 1.03); }
+      100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+    }
+    .cue-splash {
+      position: absolute; left: 50%; bottom: 8px;
+      width: 80px; height: 26px; border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, .9);
+      transform: translate(-50%, 0) scale(.4);
+      opacity: 0;
+    }
+    .cue--end .cue-splash { animation: cueSplash .85s .5s ease-out both; }
+    @keyframes cueSplash {
+      0%   { transform: translate(-50%, 0) scale(.35); opacity: .9; }
+      100% { transform: translate(-50%, -16px) scale(1.5, 2.1); opacity: 0; }
+    }
+    .cue-spark {
+      position: absolute; width: 6px; height: 6px; border-radius: 50%;
+      background: #ffda86; box-shadow: 0 0 9px rgba(255, 196, 96, .9);
+      opacity: 0;
+    }
+    .cue--end .cue-spark { animation: cueSpark 1.7s .55s ease-out both; }
+    @keyframes cueSpark {
+      0%   { transform: translateY(6px) scale(.4); opacity: 0; }
+      24%  { opacity: 1; }
+      100% { transform: translateY(-34px) scale(1); opacity: 0; }
+    }
+
+    /* 倒数数字：与校准页 .countdown 同一青绿渐变；GO 换成暖金色 */
+    .cue-kicker {
+      margin-top: 2px;
+      font-size: 11px; font-weight: 800; letter-spacing: .28em;
+      color: var(--ink-soft);
+    }
+    .cue-count-wrap { position: relative; display: grid; place-items: center; height: 98px; margin-top: 2px; }
+    .cue-halo {
+      position: absolute; width: 80px; height: 80px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 218, 134, .5), rgba(255, 218, 134, 0) 68%);
+      opacity: 0;
+    }
+    .cue-count {
+      position: relative;
+      font-size: 84px; line-height: 1; font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      background: linear-gradient(152deg, #27817c, #3aa7a0 56%, #58c270);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .cue-count.go {
+      font-size: 58px; letter-spacing: 2px;
+      background: linear-gradient(140deg, #f7a455, #ffc37e 52%, #ffda86);
+      -webkit-background-clip: text; background-clip: text;
+    }
+    .cue-count.pop { animation: cuePop .62s cubic-bezier(.22, 1.35, .4, 1) both; }
+    .cue-halo.pop { animation: cueHalo .95s cubic-bezier(.2, .7, .3, 1) both; }
+    @keyframes cuePop {
+      0%   { transform: scale(.58); opacity: 0; }
+      58%  { transform: scale(1.07); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes cueHalo {
+      0%   { transform: scale(.4); opacity: .85; }
+      100% { transform: scale(1.7); opacity: 0; }
+    }
+
+    .cue-title { margin-top: 6px; font-size: 25px; font-weight: 900; letter-spacing: 1px; color: var(--ink); }
+    .cue--end .cue-title { margin-top: 2px; }
+    .cue-sub {
+      margin-top: 7px; min-height: 2.8em;
+      font-size: 14px; line-height: 1.5; font-weight: 600; color: var(--ink-soft);
+    }
+    .cue-dots { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
+    .cue-dots i {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(58, 108, 122, .16);
+      transition: background .3s ease, transform .3s ease;
+    }
+    .cue-dots i.on { background: var(--accent); transform: scale(1.2); }
+
+    .cue-stats { display: flex; justify-content: center; gap: 8px; margin: 11px 0 4px; }
+    .cue-stat {
+      min-width: 78px; padding: 8px 10px 7px;
+      border-radius: 14px;
+      background: rgba(58, 167, 160, .08);
+      border: 1px solid rgba(58, 167, 160, .16);
+    }
+    .cue-stat b { display: block; font-size: 20px; font-weight: 900; color: var(--accent-dark); line-height: 1.2; }
+    .cue-stat span { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); letter-spacing: .4px; }
+    .cue-score { background: rgba(255, 195, 126, .16); border-color: rgba(247, 164, 85, .26); }
+    .cue-score b { color: #b9782c; }
+    .cue-load {
+      width: 148px; height: 5px; margin: 12px auto 0;
+      border-radius: 999px; background: rgba(58, 108, 122, .12); overflow: hidden;
+    }
+    .cue-load i {
+      display: block; width: 42%; height: 100%; border-radius: inherit;
+      background: linear-gradient(90deg, #53bdb2, #79d279);
+      animation: cueLoad 1.15s ease-in-out infinite;
+    }
+    @keyframes cueLoad {
+      0%   { transform: translateX(-130%); }
+      100% { transform: translateX(380%); }
+    }
+
+
+    @media (prefers-reduced-motion: reduce) {
+      .cue, .cue-card, .cue-count.pop, .cue-halo.pop,
+      .cue--end .cue-leaf, .cue--end .cue-frog, .cue--end .cue-splash,
+      .cue--end .cue-spark, .cue.show .cue-ripple {
+        animation-duration: .01ms; animation-delay: 0ms; transition-duration: .01ms;
+      }
+      .cue-leaf, .cue-frog { animation: none; }
+    }
+
     @media (max-width: 560px) {
       .canvas-wrap { display: flex; flex-direction: column; }
       .tutorial {
@@ -122,6 +321,14 @@
       .hud { justify-content: center; }
       .hud-item { gap: 6px; padding: 7px 10px; font-size: 15px; }
       .hud-item .icon { font-size: 17px; }
+      /* 手机上的池塘只有两三百像素高，转场改为覆盖整屏才放得下 */
+      .cue { position: fixed; border-radius: 0; }
+      .cue-card { width: min(88%, 360px); padding: 18px 20px 16px; }
+      .cue-pad { height: 70px; }
+      .cue-count-wrap { height: 86px; }
+      .cue-count { font-size: 72px; }
+      .cue-count.go { font-size: 48px; }
+      .cue-title { font-size: 22px; }
     }
 
     /* 非 macOS 不显示心率 HUD（心率采集依赖 macOS 的 hrd 进程） */
@@ -191,6 +398,49 @@
           <button class="btn btn-primary" id="tutorial-ok" type="button">开始玩</button>
         </div>
       </div>
+
+      <!-- 开局倒数：3 → 2 → 1 → 开始！ -->
+      <div class="cue cue--start" id="start-cue" role="status" aria-hidden="true" aria-live="polite">
+        <div class="cue-card">
+          <div class="cue-pad" aria-hidden="true">
+            <span class="cue-ripple"></span>
+            <span class="cue-ripple"></span>
+            <div class="cue-leaf"><span class="cue-frog">🐸</span></div>
+          </div>
+          <p class="cue-kicker">专注小蛙</p>
+          <div class="cue-count-wrap">
+            <span class="cue-halo" aria-hidden="true"></span>
+            <span class="cue-count">3</span>
+          </div>
+          <p class="cue-sub">坐稳，慢慢吸一口气</p>
+          <div class="cue-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+
+      <!-- 结算：小蛙跳回荷叶，报告生成中 -->
+      <div class="cue cue--end" id="end-cue" role="status" aria-hidden="true" aria-live="polite">
+        <div class="cue-card">
+          <div class="cue-pad" aria-hidden="true">
+            <span class="cue-ripple"></span>
+            <span class="cue-ripple"></span>
+            <span class="cue-splash"></span>
+            <div class="cue-leaf"><span class="cue-frog">🐸</span></div>
+          </div>
+          <span class="cue-spark" style="left:13%;top:16%" aria-hidden="true"></span>
+          <span class="cue-spark" style="right:14%;top:11%;animation-delay:.75s" aria-hidden="true"></span>
+          <span class="cue-spark" style="right:21%;top:42%;animation-delay:1.05s" aria-hidden="true"></span>
+          <p class="cue-kicker">本局完成</p>
+          <p class="cue-title">这一局结束啦</p>
+          <div class="cue-stats">
+            <div class="cue-stat cue-score"><b>0</b><span>得分</span></div>
+            <div class="cue-stat cue-jumps"><b>0</b><span>跳跃次数</span></div>
+            <div class="cue-stat cue-time"><b>00:00</b><span>专注时长</span></div>
+          </div>
+          <p class="cue-sub">正在生成专注报告…</p>
+          <div class="cue-load" aria-hidden="true"><i></i></div>
+        </div>
+      </div>
+
     </div>
 
     <div class="game-guidance">
@@ -219,11 +469,34 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/achievements.js"></script>
   <script src="assets/pond-effects.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     const canvas = $("game-canvas");
     const ctx = canvas.getContext("2d");
+
+    // ---- 画布分辨率适配 ----
+    // 逻辑坐标系固定 900×460；位图按「实际显示宽度 × devicePixelRatio」创建，
+    // 让 1 个位图像素正好落在 1 个设备像素上。否则浏览器会把 900×460 的画布
+    // 拉伸重采样，半透明白云缓慢漂移时边缘会逐帧抖动，看起来就像在闪烁。
+    const W = 900, H = 460;
+    const view = { x: 1, y: 1 };
+
+    function fitCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // clientWidth 不含 3px 外边框：位图必须与内容区 1:1，否则仍会被缩放
+      const cssW = canvas.clientWidth || canvas.getBoundingClientRect().width || W;
+      const cssH = cssW * H / W;
+      const bw = Math.max(1, Math.round(cssW * dpr));
+      const bh = Math.max(1, Math.round(cssH * dpr));
+      const sx = bw / W, sy = bh / H;
+      if (canvas.width === bw && canvas.height === bh && view.x === sx && view.y === sy) return;
+      canvas.width = bw;
+      canvas.height = bh;
+      view.x = sx;
+      view.y = sy;
+    }
 
     // ---- 天空主题：与首页（index.html）共用 sky.js 里的同一份色板 ----
     // 黎明 / 白天 / 傍晚 / 黑夜切换时，画布的天空、日月星、云、远山、水面、
@@ -316,6 +589,11 @@
       return String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
     }
 
+    // 云的横向包围盒：三个椭圆合起来最远横向半径 = 20s + 20s = 40s。
+    // 出界判定与循环回绕都用这个值，保证云是「完全离开屏幕」后才从另一侧进来，
+    // 不会在边缘处突然消失/出现（那同样会被看成闪烁）。
+    const CLOUD_HALF_W = 40;
+
     const state = {
       session: null, es: null,
       focus: baseline, raw: baseline,
@@ -324,6 +602,7 @@
       scoreSmooth: null,   // 平滑后的分数：避免单帧抖动让判定反复横跳
       focusOn: false,      // 滞回后的“在状态”开关
       tutorialOpen: false, // 首次上手的教学层是否打开
+      introOpen: false,    // 开局倒数是否正在播放（计时与蓄力暂停）
       jumpWindow: null,    // 金色起跳区间 {lo,hi}（能量百分比）：在区间内点击可提前起跳
       actions: { timed_jumps: 0, automatic_jumps: 0, jumps: [] },
       signalTime: 0,
@@ -335,6 +614,7 @@
       lastTs: null,
       stale: true,        // 首帧到来前和断流期间均暂停蓄力
       lastFrameTs: 0,     // 最近一次有效帧时间（新鲜度检查）
+      clock: 0,           // 平滑累积的动画时钟（秒）：不用 rAF 墙钟，避免切后台/掉帧时跳变
       over: false,
       saving: false,
       leaving: false,
@@ -357,26 +637,46 @@
 
     // 荷叶布局（青蛙等待位固定在屏幕中间 cx=450：当前荷叶中心 = cx）
     let lilies = [];
-    const CX = canvas.width / 2;
+    const CX = W / 2;
+    const LILY_GAP_MIN = 160;     // 相邻荷叶最小间距
+    const LILY_GAP_SPREAD = 45;   // 间距随机增量
+    const LILY_SPAWN_SEC = 0.62;  // 新荷叶从水下浮到水面的时长（一次跳跃内完成）
+    const LILY_RISE = 54;         // 出水前藏在水面下的深度（px）
+    const LILY_BREAK_AT = 0.32;   // 浮到这个进度时叶缘刚好顶破水面，溅起水花
     function resetLilies() {
-      const n = 6;
+      // 开局只摆「青蛙所在」和「下一跳目标」两片。之后每次起跳，
+      // 都先在青蛙右边让新荷叶从水下浮出来，等它出水、水花散尽后才平移视角。
       lilies = [];
       state.cur = 0;
       let x = CX;   // 青蛙初始位置 = 荷叶正中心（叶脉交点）
-      for (let i = 0; i < n; i++) {
-        lilies.push({ x, y: 340 - (i % 2) * 26, bob: Math.random() * Math.PI * 2, dip: 0, dipVel: 0 });
-        x += 170 + (i * 37) % 40;
+      for (let i = 0; i < 2; i++) {
+        lilies.push({
+          x, y: 340 - (i % 2) * 26, bob: Math.random() * Math.PI * 2,
+          dip: 0, dipVel: 0, spawn: 1, surfaced: true,
+        });
+        x += LILY_GAP_MIN + Math.random() * LILY_GAP_SPREAD;
       }
     }
-    // 前方补一片新荷叶（落在最右侧荷叶的右边）
+    // 前方补一片新荷叶（落在最右侧荷叶的右边，留在画面内好让孩子看见它浮出来）
     function addLily() {
       const last = lilies[lilies.length - 1];
-      lilies.push({
-        x: last.x + 170 + Math.random() * 60,
+      const x = Math.min(last.x + LILY_GAP_MIN + Math.random() * LILY_GAP_SPREAD,
+                         W - 70);
+      const lily = {
+        x,
         y: last.y === 340 ? 314 : 340,
         bob: Math.random() * Math.PI * 2,
         dip: 0, dipVel: 0,
-      });
+        spawn: 0,        // 0 → 1：从水下浮上水面，浮完才允许平移视角
+        surfaced: false, // 是否已经顶破水面（水花只放一次）
+      };
+      lilies.push(lily);
+      return lily;
+    }
+    // 起跳前就保证「青蛙右边」已经有一片正在浮上来的新荷叶：
+    // 孩子先看到荷叶和水花，之后才会看到视角平移，避免落地后凭空冒出来。
+    function ensureNextLily() {
+      if (!lilies[state.cur + 2]) addLily();
     }
     resetLilies();
     // 第一次跳给一个更早的窗口，别让孩子干等到满格
@@ -386,6 +686,7 @@
     // ---- 创建会话 ----
     async function init() {
       if (!calib) return;   // 无有效校准：已在上面安排跳转回校准页，不创建会话
+      state.introOpen = true;   // 会话建立到倒数结束之间，先冻结计时与蓄力
       const prevMode = prev && prev.source ? prev.source.mode : null;
       // heart：仅心率玩法，没有脑电信号，判定完全来自心率分量
       const mode = demo ? "manual" : testMode || prevMode;
@@ -455,6 +756,8 @@
       });
 
       requestAnimationFrame(loop);
+      // 没有教学层就立刻倒数；教学层“开始玩”会再触发一次（内部去重）
+      if (!state.tutorialOpen) requestStartCue();
     }
 
     // ---- 手动模式 ----
@@ -479,17 +782,21 @@
       if (state.over) return;
       const dt = state.lastTs ? Math.min((ts - state.lastTs) / 1000, 0.05) : 0.016;
       state.lastTs = ts;
+      // 动画时钟逐帧累加并限幅：浏览器切后台、掉帧或恢复时不会突然跳一大步，
+      // 云和星星的位移/明暗因此始终连续，不会出现"闪一下"。
+      state.clock += dt;
       updateGame(dt);
-      draw(ts);
+      draw(state.clock);
       requestAnimationFrame(loop);
     }
 
-    function updateGame(dt) {
-      if (state.tutorialOpen) return;   // 教学层打开时先不跑游戏逻辑
-      // 云漂移（到屏幕右侧完全离开后再回到左侧，避免边缘处突然消失/出现）
+    // 纯视觉推进：云、水花、荷叶的呼吸与判定无关，开局倒数时也继续跑
+    function updateAmbient(dt) {
+      // 云漂移：完全移出右侧后才从左侧外面重新进入（按包围盒判定，不靠固定留白）
       state.clouds.forEach(c => {
         c.x += c.v * dt;
-        if (c.x > canvas.width + 80) c.x = -90;
+        const halfW = CLOUD_HALF_W * c.s;
+        if (c.x - halfW > W) c.x = -halfW;
       });
 
       // 水花/浮字更新
@@ -503,6 +810,15 @@
       state.popups = state.popups.filter(p => (p.t += dt) < 1.2);
       // 荷叶下沉/上浮（弹簧阻尼）：dip > 0 沉入水面，dip < 0 回弹上浮
       updateLilyDips(dt);
+      // 新荷叶从水下浮上来的进度（浮出水面前不平移视角）
+      updateLilySpawns(dt);
+    }
+
+    function updateGame(dt) {
+      if (state.tutorialOpen) return;   // 教学层打开时先不跑游戏逻辑
+      updateAmbient(dt);
+      // 开局倒数期间只让画面呼吸：计时、蓄力与判定全部暂停
+      if (state.introOpen) return;
 
       // 主动任务 1：错过窗口就顺延到能量前方，孩子始终有下一个可追的目标
       if (state.jumpWindow && !state.jumping.active && !state.settling && !state.pendingSettle
@@ -539,10 +855,13 @@
       }
 
       if (state.pendingSettle) {
-        // 等水花和涟漪全部散尽、新荷叶回弹上浮停稳，再开始平移
+        // 顺序：起跳时右边的新荷叶已经开始从水下往上浮，等它完全出水、水花散尽、
+        // 荷叶回弹停稳，才允许平移视角——落地点不会突然多出一片荷叶。
         const l = lilies[state.cur];
         const calm = Math.abs(l.dip || 0) < 0.4 && Math.abs(l.dipVel || 0) < 2;
-        if (!state.splashes.length && !state.droplets.length && calm) {
+        const next = lilies[state.cur + 1];
+        const grown = !next || next.spawn >= 1;
+        if (!state.splashes.length && !state.droplets.length && calm && grown) {
           state.pendingSettle = false;
           state.settling = true;
         }
@@ -552,7 +871,8 @@
           const landing = lilies[state.cur + 1];   // 目标荷叶
           state.jumping.active = false;
           state.cur += 1;                          // 青蛙落到下一片，旧荷叶保留在左侧
-          if (!lilies[state.cur + 1]) addLily();   // 前方始终留一片下一跳的荷叶
+          // 正常流程里下一片在起跳时（ensureNextLily）就已生成，这里只是兜底
+          if (!lilies[state.cur + 1]) addLily();
           state.energy = 15;
           rollJumpWindow();                        // 新一跳重新给一个金色窗口
           // 落地：新荷叶被压得下沉一截，四周溅起水花，随后回弹上浮
@@ -620,7 +940,7 @@
     }
 
     function tryJumpTap() {
-      if (state.over || state.stale || state.tutorialOpen) return;
+      if (state.over || state.stale || state.tutorialOpen || state.introOpen) return;
       if (state.jumping.active || state.settling || state.pendingSettle) return;
       const w = state.jumpWindow;
       if (!w) return;
@@ -629,6 +949,8 @@
 
     function startJump(perfect = false) {
       const from = lilies[state.cur], to = lilies[state.cur + 1];
+      if (!from || !to) return;
+      ensureNextLily();   // 新荷叶现在就从水下往上浮，落到目标荷叶时它已经在水面上了
       state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x };
       state.actions[perfect ? "timed_jumps" : "automatic_jumps"] += 1;
       const time = state.signalTime + (performance.now() - state.lastFrameTs) / 1000;
@@ -645,6 +967,20 @@
     function updateLilyDips(dt) {
       lilies.forEach(lily => PondEffects.advancePad(lily, dt));
     }
+    // 新荷叶从水下浮上来：spawn 0 → 1，浮完才允许视角平移
+    function updateLilySpawns(dt) {
+      lilies.forEach(lily => {
+        if (lily.spawn >= 1) return;
+        const before = lily.spawn;
+        lily.spawn = Math.min(1, lily.spawn + dt / LILY_SPAWN_SEC);
+        // 叶缘顶破水面的那一瞬：溅起水花和涟漪（每次只放一次）
+        if (!lily.surfaced && before < LILY_BREAK_AT && lily.spawn >= LILY_BREAK_AT) {
+          lily.surfaced = true;
+          spawnEmergingSplash(lily.x, lily.y + 6);
+        }
+        if (lily.spawn >= 1) lily.surfaced = true;
+      });
+    }
     function dipLily(lily, impulse) {
       if (!lily) return;
       if (lily.dip === undefined) { lily.dip = 0; lily.dipVel = 0; }
@@ -655,20 +991,33 @@
     function spawnLandingSplash(x, y) {
       if (reducedMotion.matches) return;
       const effect = PondEffects.landing(x, y);
-      state.splashes = effect.ripples;
-      state.droplets = effect.droplets;
+      state.splashes = state.splashes.concat(effect.ripples);
+      state.droplets = state.droplets.concat(effect.droplets);
+    }
+
+    // 新荷叶出水的水花：比落地更"涌"一点，中间水柱带得更高
+    function spawnEmergingSplash(x, y) {
+      if (reducedMotion.matches) return;
+      const effect = PondEffects.emerging(x, y);
+      state.splashes = state.splashes.concat(effect.ripples);
+      state.droplets = state.droplets.concat(effect.droplets);
     }
 
     // ---- 绘制 ----
-    function draw(ts) {
-      const t = ts / 1000;
+    // t 是平滑累积的动画时钟（秒），不是 rAF 墙钟时间戳
+    function draw(t) {
       const p = theme();
+      // 先按设备像素清空整张位图，再切回 900×460 逻辑坐标绘制
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.filter = "none";
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(view.x, 0, 0, view.y, 0, 0);
 
       drawSky(p);
       drawStars(p, t);
       drawSun(p, t);
-      drawClouds(p, t);
+      drawClouds(p);
       drawMist(p);
       drawMountains(p);
       drawTrees(p);
@@ -688,7 +1037,7 @@
       g.addColorStop(0.5, p.sky[1]);
       g.addColorStop(1, p.sky[2]);
       ctx.fillStyle = g;
-      ctx.fillRect(0, 0, canvas.width, 240);
+      ctx.fillRect(0, 0, W, 240);
     }
 
     // 夜空星星：与首页一样缓慢明暗交替
@@ -742,22 +1091,30 @@
       }
     }
 
-    function drawClouds(p, t) {
+    // 白云绘制约定（后续改动请保持）：
+    // 1) 云只做缓慢水平漂移：不做上下浮动、不用随机量、不在帧内改透明度。
+    //    半透明白云任何一点位置或亮度抖动，都会被看成"闪烁"。
+    // 2) 云心对齐到设备像素网格：每次只移动整数个设备像素，边缘覆盖率在帧间
+    //    保持不变，不会出现抗锯齿边缘"沙沙"抖动的感觉。
+    // 3) 云的整体透明度只由当前天空色板 p.cloud.alpha 决定；天空渐变期间
+    //    由 sky.js 逐帧插值，除此之外不再叠加任何重复的 alpha 修饰。
+    function drawClouds(p) {
       if (!p.cloud) return;   // 黑夜不显示云
+      const px = view.x;      // 逻辑像素 -> 设备像素的比例
+      ctx.save();
+      ctx.globalAlpha = p.cloud.alpha;
+      ctx.fillStyle = p.cloud.fill;
       state.clouds.forEach(c => {
-        ctx.save();
-        ctx.globalAlpha = p.cloud.alpha;
-        ctx.fillStyle = p.cloud.fill;
-        const s = c.s;
-        // 相位固定为 c.phase，不能拿移动中的 c.x 当相位，否则云会随漂移上下颤
-        const bob = Math.sin(t * 0.45 + c.phase) * 2.2;
+        const k = c.s;
+        const x = Math.round(c.x * px) / px;   // 对齐设备像素，消除亚像素抖动
+        const y = c.y;
         ctx.beginPath();
-        ctx.ellipse(c.x, c.y + bob, 34 * s, 13 * s, 0, 0, Math.PI * 2);
-        ctx.ellipse(c.x + 18 * s, c.y - 9 * s + bob, 22 * s, 11 * s, 0, 0, Math.PI * 2);
-        ctx.ellipse(c.x - 20 * s, c.y - 5 * s + bob, 20 * s, 10 * s, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y, 34 * k, 13 * k, 0, 0, Math.PI * 2);
+        ctx.ellipse(x + 18 * k, y - 9 * k, 22 * k, 11 * k, 0, 0, Math.PI * 2);
+        ctx.ellipse(x - 20 * k, y - 5 * k, 20 * k, 10 * k, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
       });
+      ctx.restore();
     }
 
     // 晨昏时地平线附近的薄雾（首页 #heroMist 同款）
@@ -811,11 +1168,11 @@
     }
 
     function drawWater(p, t) {
-      const g = ctx.createLinearGradient(0, 230, 0, canvas.height);
+      const g = ctx.createLinearGradient(0, 230, 0, H);
       g.addColorStop(0, p.water[0]);
       g.addColorStop(1, p.water[1]);
       ctx.fillStyle = g;
-      ctx.fillRect(0, 230, canvas.width, canvas.height - 230);
+      ctx.fillRect(0, 230, W, H - 230);
 
       // 水波层
       ctx.lineWidth = 3;
@@ -823,7 +1180,7 @@
         ctx.strokeStyle = `rgba(255,255,255,${(0.42 - layer * 0.09) * p.waves})`;
         const base = 268 + layer * 42;
         ctx.beginPath();
-        for (let x = 0; x <= canvas.width; x += 10) {
+        for (let x = 0; x <= W; x += 10) {
           const y = base + Math.sin(x * 0.018 + t * (0.7 + layer * 0.12) + layer * 1.7) * 5;
           x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
@@ -869,23 +1226,57 @@
 
     function drawLilies(p, t) {
       lilies.forEach((l, i) => {
+        const spawn = l.spawn == null ? 1 : l.spawn;
+        if (spawn <= 0) return;
+        // 出水动画：先快后慢地浮上来（ease-out）；还没出水时整片叶子压暗、带一点模糊和水色，
+        // 看上去就是"沉在水下正在往上浮"，而不是在水面上凭空出现。
+        const sunk = Math.pow(1 - spawn, 2.2);              // 1 → 0
+        const rise = sunk * LILY_RISE;                      // 还差多少才浮到水面
+        const under = Math.min(1, Math.max(0, rise / 28));  // 1 = 完全在水下
+        const grow = 1 - Math.pow(1 - spawn, 3);
+        const alpha = Math.min(1, 0.5 + spawn * 0.9);
         const bob = Math.sin(t * 1.4 + l.bob) * 2.5;
         const dip = l.dip || 0;
-        const y = l.y + bob + dip;   // 下沉量直接加在荷叶中心
-        const s = i === state.cur ? 1.15 : 1;
+        const y = l.y + bob + dip + rise;   // 下沉量直接加在荷叶中心
+        const s = (i === state.cur ? 1.15 : 1) * (0.28 + 0.72 * grow);
         // 下沉时轻微压扁、回弹上浮时轻微拉伸，让"被踩下去"更有重量感
         const squash = Math.max(-0.075, Math.min(0.13, dip * 0.013));
-        // 水面倒影
+        // 出水过程：水面被顶起来的鼓包 + 一圈向外散开的水纹（越接近水面越淡）
+        if (spawn < 1) {
+          const ring = 28 + 36 * grow;
+          ctx.save();
+          ctx.globalAlpha = 0.42 * under;
+          ctx.fillStyle = "rgba(226,248,255,.95)";
+          ctx.beginPath();
+          ctx.ellipse(l.x, l.y + 3, 42 * (0.55 + 0.45 * grow), 14 * (0.55 + 0.45 * grow),
+                      0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 0.55 * (1 - grow * 0.9);
+          ctx.strokeStyle = "rgba(255,255,255,.9)";
+          ctx.lineWidth = 2.6 - 1.4 * grow;
+          ctx.beginPath();
+          ctx.ellipse(l.x, l.y + 6, ring, ring * 0.4, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        // 水面倒影（还沉在水下时不留倒影）
         ctx.save();
-        ctx.globalAlpha = 0.16;
+        ctx.globalAlpha = 0.16 * alpha * (1 - under);
         ctx.fillStyle = "#1d6f86";
         ctx.beginPath();
         ctx.ellipse(l.x + 4, l.y + 14 + bob * 0.4 + dip * 0.5, 44 * s, 18 * s, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
-        // 荷叶：明度随天空模式变化（与首页 #heroLilies 的滤镜一致）
+        // 荷叶：明度随天空模式变化（与首页 #heroLilies 的滤镜一致）；
+        // 水下时再叠一层压暗 + 模糊，浮出水面后恢复常态。
+        const dry = p.flora && p.flora !== "none" ? p.flora + " " : "";
         ctx.save();
-        ctx.filter = p.flora;
+        ctx.globalAlpha = alpha;
+        ctx.filter = under > 0.02
+          ? dry + `brightness(${(1 - 0.45 * under).toFixed(3)}) `
+                 + `saturate(${(1 - 0.28 * under).toFixed(3)}) `
+                 + `blur(${(1.5 * under).toFixed(2)}px)`
+          : (dry.trim() || "none");
         ctx.translate(l.x, y);
         ctx.scale(s * (1 + squash * 0.5), s * (1 - squash));
         const g = ctx.createRadialGradient(6, -8, 4, 0, 0, 48);
@@ -911,6 +1302,15 @@
         ctx.moveTo(-18, -11); ctx.lineTo(18, 11);
         ctx.moveTo(-18, 11); ctx.lineTo(18, -11);
         ctx.stroke();
+        // 还没出水：整片叶子再罩一层水色，让它真的有"隔着水"的感觉
+        if (under > 0.02) {
+          ctx.globalAlpha = 0.5 * under;
+          ctx.filter = "none";
+          ctx.fillStyle = "rgba(118,203,219,.6)";
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 47, 26, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       });
     }
@@ -1046,10 +1446,119 @@
       ctx.closePath();
     }
 
+    // ---- 开局倒数 / 结算转场 ----
+    // 与池塘同一套语言：青蛙蹲在荷叶上、涟漪一圈圈散开、暖白卡片配青绿渐变数字。
+    // 倒数期间 state.introOpen 冻结计时、蓄力与判定，只让背景的云和水继续呼吸。
+    const startCue = $("start-cue");
+    const endCue = $("end-cue");
+    let startCueState = "idle";   // idle | pending | playing | done
+    let startCueTimers = [];
+    let endCueTimer = null;
+
+    function replayClass(el, cls) {
+      if (!el) return;
+      el.classList.remove(cls);
+      void el.offsetWidth;   // 强制回流，让同一个元素能重新播放动画
+      el.classList.add(cls);
+    }
+
+    function cueCount(cue, text, go = false) {
+      if (!cue) return;
+      const num = cue.querySelector(".cue-count");
+      num.textContent = text;
+      num.classList.toggle("go", go);
+      replayClass(num, "pop");
+      replayClass(cue.querySelector(".cue-halo"), "pop");
+    }
+
+    function requestStartCue() {
+      if (startCueState === "playing" || startCueState === "done") return;
+      if (!state.session) { startCueState = "pending"; return; }
+      if (!startCue) { startCueState = "done"; return; }
+      startCueState = "playing";
+      state.introOpen = true;
+      state.lastTs = null;
+      const sub = startCue.querySelector(".cue-sub");
+      const dots = Array.from(startCue.querySelectorAll(".cue-dots i"));
+      $("lamp-text").textContent = "准备中";
+      $("warn").classList.remove("show");   // 倒数期间不显示“正在等待信号”
+      startCue.classList.remove("leaving");
+      startCue.classList.add("show");
+      startCue.setAttribute("aria-hidden", "false");
+
+      startCueTimers.forEach(clearTimeout);
+      startCueTimers = [
+        ["3", "坐稳，慢慢吸一口气"],
+        ["2", "眼睛看向池塘，肩膀放松"],
+        ["1", "小蛙要跳了，跟着它一起专注"],
+      ].map(([n, tip], i) => setTimeout(() => {
+        cueCount(startCue, n);
+        sub.textContent = tip;
+        dots.forEach((d, j) => d.classList.toggle("on", j <= i));
+      }, i * 1000));
+
+      startCueTimers.push(setTimeout(() => {
+        cueCount(startCue, "开始！", true);
+        sub.textContent = "专注的时候，小蛙就会往前跳";
+        dots.forEach(d => d.classList.add("on"));
+      }, 3000));
+
+      startCueTimers.push(setTimeout(() => startCue.classList.add("leaving"), 3760));
+      startCueTimers.push(setTimeout(() => {
+        startCue.classList.remove("show", "leaving");
+        startCue.setAttribute("aria-hidden", "true");
+        state.introOpen = false;
+        state.lastTs = null;
+        startCueState = "done";
+      }, 4220));
+    }
+
+    function cancelStartCue() {
+      startCueTimers.forEach(clearTimeout);
+      startCueTimers = [];
+      startCueState = "done";
+      state.introOpen = false;
+      if (!startCue) return;
+      startCue.classList.remove("show", "leaving");
+      startCue.setAttribute("aria-hidden", "true");
+    }
+
+    function showEndCue() {
+      if (!endCue) return Promise.resolve();
+      const score = state.score;
+      const jumps = state.actions.timed_jumps + state.actions.automatic_jumps;
+      const played = Math.max(0, Math.round(state.totalSec - Math.max(0, state.timeLeft)));
+      endCue.querySelector(".cue-score b").textContent = score;
+      endCue.querySelector(".cue-jumps b").textContent = jumps;
+      endCue.querySelector(".cue-time b").textContent = formatClock(played);
+      endCue.querySelector(".cue-sub").textContent =
+        score >= 10 ? "小蛙跳得又稳又远，这一局真棒！"
+          : score >= 4 ? "小蛙跟着你的专注往前跳了好几步。"
+          : score > 0 ? "小蛙出发啦，下次再陪它走远一点。"
+          : "这次小蛙还没出发，慢慢来，我们再来一次。";
+      endCue.classList.remove("leaving");
+      endCue.classList.add("show");
+      endCue.setAttribute("aria-hidden", "false");
+      // 结算至少展示 1.8 秒；保存请求与动画并行，报告页不会突兀地跳出来
+      return new Promise(resolve => {
+        clearTimeout(endCueTimer);
+        endCueTimer = setTimeout(resolve, 1800);
+      });
+    }
+
+    function hideEndCue() {
+      clearTimeout(endCueTimer);
+      if (!endCue) return;
+      endCue.classList.remove("show", "leaving");
+      endCue.setAttribute("aria-hidden", "true");
+    }
+
     // ---- 结束 ----
     function showGameError(message, label, retry = () => location.reload()) {
       state.over = true;
       state.es?.close();
+      cancelStartCue();
+      hideEndCue();
       $("tutorial").classList.add("hidden");
       $("warn").classList.remove("show");
       const error = $("game-error");
@@ -1072,17 +1581,26 @@
       $("warn").textContent = "正在保存本局结果…";
       $("warn").classList.add("show");
       const sessionId = state.session.id;
+      const ending = showEndCue();   // 结算转场与保存并行，节省等待
       try {
+        const playedSec = state.totalSec - Math.max(0, state.timeLeft);
         await API.post(`/api/session/${sessionId}/finish`, {
           score: state.score,
           actions: state.actions,
           demo,
-          played_sec: state.totalSec - Math.max(0, state.timeLeft),
+          played_sec: playedSec,
           notes: "完整一局（" + formatClock(state.totalSec) + "）",
         });
         state.session = null;
+        // 完整玩完一局 → 计入「专注小达人」时长与当天打卡（试玩/演示不计入）
+        if (!developerRun && !state.achievementsRecorded) {
+          state.achievementsRecorded = true;
+          Achievements.recordSession({ playedSec: playedSec });
+        }
+        await ending;   // 至少让结束动画完整播完，再进报告页
         if (!state.leaving) location.href = "report.html?id=" + sessionId;
       } catch (e) {
+        hideEndCue();
         if (!state.leaving) showGameError("保存结果失败：" + e.message, "重试保存", finishGame);
       } finally {
         state.saving = false;
@@ -1116,8 +1634,17 @@
         box.classList.add("hidden");
         state.tutorialOpen = false;
         try { tutorialStorage.setItem(tutorialKey, "1"); } catch (_) {}
+        requestStartCue();   // 教学层关掉后才开始倒数
       });
     })();
+
+    // 分辨率适配：首帧绘制前先算一次，窗口尺寸或缩放变化时重算
+    fitCanvas();
+    window.addEventListener("resize", fitCanvas);
+    window.addEventListener("orientationchange", fitCanvas);
+    window.addEventListener("pageshow", fitCanvas);
+    // 容器宽度变化（窗口缩放以外的情形）同样要重新适配，否则画布会被再次拉伸
+    if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(canvas);
 
     init().catch(e => {
       if (!state.leaving) showGameError("游戏启动失败：" + e.message, "重试启动");

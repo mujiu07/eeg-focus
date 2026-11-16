@@ -1,0 +1,281 @@
+/* ============================================================
+   专注小蛙 · 成就系统
+   首页大白卡右侧奖杯入口 + 成就徽章面板
+   ============================================================ */
+
+/* ---------- 大白卡右侧：奖杯入口 ---------- */
+.ach-entry { display: flex; align-items: center; margin-left: auto; }
+
+.ach-chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 7px 17px 7px 8px;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1.5px solid rgba(240, 169, 78, .32);
+  background: linear-gradient(140deg, rgba(255, 255, 255, .96), rgba(255, 246, 231, .9));
+  box-shadow: 0 6px 18px rgba(214, 148, 66, .16), inset 0 1px 0 rgba(255, 255, 255, .92);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.ach-chip:hover {
+  transform: translateY(-2px);
+  border-color: rgba(240, 169, 78, .55);
+  box-shadow: 0 10px 24px rgba(214, 148, 66, .26), inset 0 1px 0 rgba(255, 255, 255, .92);
+}
+.ach-chip:active { transform: translateY(0) scale(.98); }
+.ach-chip:focus-visible { outline: 3px solid rgba(240, 169, 78, .45); outline-offset: 3px; }
+
+.ach-chip__badge {
+  width: 46px; height: 46px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, #fff6dd, #ffdca6 58%, #f6bd75);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .95), 0 4px 10px rgba(214, 148, 66, .3);
+}
+.ach-chip__badge svg { display: block; width: 30px; height: 30px; }
+
+.ach-chip__meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
+.ach-chip__title {
+  font-size: 15.5px; font-weight: 900; letter-spacing: 1.5px;
+  color: #8a5417;
+}
+.ach-chip__count {
+  font-size: 12.5px; font-weight: 700; letter-spacing: .5px;
+  color: #b3813f;
+}
+
+.ach-chip__new {
+  position: absolute; top: 4px; right: 9px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #ff8f4d;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .95);
+  animation: achNewPulse 1.8s ease-in-out infinite;
+}
+@keyframes achNewPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.35); opacity: .6; }
+}
+
+/* ---------- 成就面板 ---------- */
+.ach-mask {
+  position: fixed; inset: 0; z-index: 70;
+  display: grid; place-items: center;
+  padding: 20px;
+  background: rgba(35, 70, 79, .34);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: achMaskIn .18s ease;
+}
+@keyframes achMaskIn { from { opacity: 0; } to { opacity: 1; } }
+
+.ach-card {
+  position: relative;
+  width: min(620px, 100%);
+  max-height: min(86vh, 780px);
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(255, 253, 247, .96));
+  border: 1.5px solid rgba(255, 255, 255, .95);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 26px 70px rgba(35, 70, 79, .3);
+  animation: achCardIn .22s cubic-bezier(.2, .9, .3, 1.2);
+  overflow: hidden;
+}
+@keyframes achCardIn {
+  from { opacity: .5; transform: translateY(16px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ach-close {
+  position: absolute; top: 14px; right: 14px; z-index: 2;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border: none; border-radius: 50%;
+  background: rgba(58, 108, 122, .08);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background .15s, color .15s, transform .15s;
+}
+.ach-close svg { width: 16px; height: 16px; display: block; }
+.ach-close:hover { background: rgba(58, 108, 122, .16); color: var(--ink); transform: rotate(90deg); }
+.ach-close:focus-visible { outline: 3px solid rgba(58, 167, 160, .4); outline-offset: 2px; }
+
+.ach-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 24px 62px 16px 26px;
+}
+.ach-head__icon {
+  width: 54px; height: 54px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #fff6de, #ffdca6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .95), 0 8px 18px rgba(214, 148, 66, .26);
+}
+.ach-head__icon svg { display: block; width: 34px; height: 34px; }
+.ach-head h2 {
+  font-size: 21px; font-weight: 900; letter-spacing: 1.5px;
+  color: var(--ink);
+}
+.ach-head p {
+  margin-top: 4px;
+  font-size: 13px; font-weight: 600; color: var(--ink-soft);
+  letter-spacing: .3px;
+}
+
+.ach-body {
+  padding: 2px 26px 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ach-group + .ach-group { margin-top: 20px; }
+.ach-group__head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+}
+.ach-group__name {
+  font-size: 14.5px; font-weight: 900; letter-spacing: .8px;
+  color: var(--accent-dark);
+  white-space: nowrap;
+}
+.ach-group__bar {
+  flex: 1; height: 6px; border-radius: 999px;
+  background: rgba(58, 108, 122, .12);
+  overflow: hidden;
+}
+.ach-group__bar i {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #ffd27f, #f0a94e);
+  transition: width .3s ease;
+}
+.ach-group__count {
+  font-size: 12.5px; font-weight: 800;
+  color: #b3813f;
+  white-space: nowrap;
+}
+
+.ach-item {
+  display: flex; gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .74);
+  border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 4px 12px rgba(47, 110, 128, .06);
+}
+.ach-item + .ach-item { margin-top: 8px; }
+.ach-item.is-unlocked {
+  background: linear-gradient(140deg, #fffdf6, #fdf1dd);
+  border-color: rgba(240, 169, 78, .35);
+  box-shadow: 0 6px 16px rgba(214, 148, 66, .16);
+}
+
+.ach-item__icon {
+  width: 40px; height: 40px; flex: none;
+  display: grid; place-items: center;
+  font-size: 20px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f7fbf3, #e4f3e5);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .9);
+  filter: grayscale(1) brightness(.86);
+  opacity: .62;
+  transition: filter .2s, opacity .2s;
+}
+.ach-item.is-unlocked .ach-item__icon {
+  filter: none; opacity: 1;
+  background: radial-gradient(circle at 34% 28%, #fff6dd, #ffdca6);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .9), 0 4px 10px rgba(214, 148, 66, .22);
+}
+
+.ach-item__main { flex: 1; min-width: 0; }
+.ach-item__title {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 15px; font-weight: 800; color: var(--ink);
+  letter-spacing: .3px;
+}
+.ach-item__tag {
+  font-size: 11.5px; font-weight: 800;
+  padding: 2px 8px; border-radius: 999px;
+  color: #a5701f;
+  background: rgba(255, 207, 115, .34);
+  border: 1px solid rgba(240, 169, 78, .35);
+}
+.ach-item__tag--locked {
+  color: var(--ink-soft);
+  background: rgba(58, 108, 122, .07);
+  border-color: rgba(58, 108, 122, .14);
+}
+.ach-item__desc {
+  margin-top: 3px;
+  font-size: 13px; color: var(--ink-soft);
+  line-height: 1.5;
+}
+.ach-item__progress {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 9px;
+}
+.ach-item__track {
+  flex: 1; height: 6px; border-radius: 999px;
+  background: rgba(58, 108, 122, .12);
+  overflow: hidden;
+}
+.ach-item__track i {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #9fe3a3, var(--accent));
+  transition: width .3s ease;
+}
+.ach-item__meta {
+  font-size: 11.5px; font-weight: 700; color: var(--ink-soft);
+  white-space: nowrap;
+}
+.ach-item__got {
+  margin-top: 6px;
+  font-size: 11.5px; font-weight: 700;
+  color: #b3813f;
+}
+
+.ach-foot {
+  padding: 12px 26px 20px;
+  font-size: 12px; line-height: 1.7;
+  color: var(--ink-soft);
+  border-top: 1px solid rgba(58, 108, 122, .08);
+  background: rgba(255, 253, 247, .7);
+}
+
+/* ---------- 窄屏 ---------- */
+/* 宽屏右上角悬浮着黑胶唱片机：让奖杯避开它，避免被盖住 */
+@media (min-width: 1101px) and (max-width: 1390px) {
+  .ach-entry { margin-right: 160px; }
+}
+
+@media (max-width: 640px) {
+  .ach-chip { padding: 6px 14px 6px 6px; gap: 8px; }
+  .ach-chip__badge { width: 40px; height: 40px; }
+  .ach-chip__badge svg { width: 26px; height: 26px; }
+  .ach-chip__title { font-size: 14.5px; }
+  .ach-mask { padding: 12px; }
+  .ach-head { padding: 20px 56px 14px 20px; }
+  .ach-body { padding: 0 20px 2px; }
+  .ach-foot { padding: 10px 20px 16px; }
+}
+/* 窄屏：奖杯入口独占一行，横向铺满大白卡，避免右侧只剩一个孤零零的圆钮 */
+@media (max-width: 560px) {
+  .ach-entry { width: 100%; margin-left: 0; }
+  .ach-chip { width: 100%; justify-content: flex-start; border-radius: 18px; padding: 8px 16px 8px 8px; }
+  .ach-chip::after {
+    content: "查看徽章 ›";
+    margin-left: auto;
+    font-size: 12.5px; font-weight: 700;
+    color: #b3813f;
+    letter-spacing: .5px;
+  }
+  .ach-chip__title { font-size: 15.5px; }
+}
+@media (max-width: 420px) {
+  .ach-item { padding: 11px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ach-chip, .ach-close, .ach-group__bar i, .ach-item__track i { transition: none; }
+  .ach-chip__new { animation: none; }
+  .ach-mask, .ach-card { animation: none; }
+}
