@@ -1,0 +1,436 @@
+/* ============================================================
+   专注小蛙 · 成就解锁动画
+   本局结束 → 报告生成前的过场：
+   背景虚化压暗，小蛙举着金牌从左一跳一跳跳到画面中央，转身面向
+   玩家，把金牌递到镜头前放大发光，文案弹出后小蛙原地开心跳跃。
+   覆盖层挂在 body 上（position: fixed），所以不受画布尺寸限制。
+   ============================================================ */
+
+.ach-cine {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  font-family: var(--font, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif);
+  color: #fff6e4;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .46s ease, visibility .46s;
+}
+.ach-cine.is-on { opacity: 1; visibility: visible; pointer-events: auto; }
+/* 必须排在 .is-on 之后：淡出时仍保留 is-on 的 visibility，只把透明度收掉 */
+.ach-cine.is-off { opacity: 0; pointer-events: none; }
+
+/* ---------- 背景：池水虚化 + 压暗，只留一点青色和金色暖光 ---------- */
+.ach-cine__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(56% 44% at 50% 42%, rgba(255, 214, 138, .16), transparent 72%),
+    radial-gradient(120% 86% at 50% 0%, rgba(36, 84, 92, .22), transparent 62%),
+    rgba(8, 28, 34, .78);
+  -webkit-backdrop-filter: blur(11px) saturate(.92) brightness(.62);
+  backdrop-filter: blur(11px) saturate(.92) brightness(.62);
+}
+
+/* ---------- 舞台 ---------- */
+.ach-cine__stage {
+  position: relative;
+  width: min(96vw, 920px);
+  height: min(92vh, 700px);
+}
+
+/* ---------- 文案 ---------- */
+.ach-cine__copy {
+  position: absolute;
+  left: 50%;
+  top: 4%;
+  width: min(90%, 640px);
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, 14px);
+  will-change: transform, opacity;
+}
+.ach-cine.is-burst .ach-cine__copy {
+  animation: achCopyIn .72s cubic-bezier(.2, .9, .3, 1) both;
+}
+@keyframes achCopyIn {
+  0%   { opacity: 0; transform: translate(-50%, 16px) scale(.96); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.ach-cine__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .42em;
+  color: #ffe2a6;
+  text-shadow: 0 2px 12px rgba(255, 186, 90, .45);
+}
+.ach-cine__kicker::before,
+.ach-cine__kicker::after {
+  content: "";
+  width: clamp(22px, 5vw, 54px);
+  height: 1.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(255, 216, 140, 0), rgba(255, 216, 140, .85));
+}
+.ach-cine__kicker::after {
+  background: linear-gradient(90deg, rgba(255, 216, 140, .85), rgba(255, 216, 140, 0));
+}
+
+.ach-cine__title {
+  margin: 0;
+  font-size: clamp(21px, 3.2vw, 32px);
+  font-weight: 900;
+  line-height: 1.38;
+  letter-spacing: .01em;
+  text-shadow: 0 3px 22px rgba(255, 168, 62, .35), 0 1px 0 rgba(255, 255, 255, .12);
+}
+.ach-cine__name {
+  padding: 0 .16em;
+  font-weight: 900;
+  background: linear-gradient(180deg, #fff6ce 6%, #ffd473 52%, #eda03a 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 12px rgba(255, 176, 66, .5));
+}
+.ach-cine__desc {
+  margin: 9px 0 0;
+  font-size: clamp(12.5px, 1.5vw, 14.5px);
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: rgba(255, 244, 222, .74);
+}
+
+/* ---------- 金牌光晕 ---------- */
+.ach-cine__halo {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: clamp(280px, 56vh, 520px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scale(.24);
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(circle,
+    rgba(255, 236, 174, .62),
+    rgba(255, 200, 104, .3) 40%,
+    rgba(255, 182, 76, .1) 58%,
+    transparent 70%);
+  filter: blur(6px);
+}
+.ach-cine.is-burst .ach-cine__halo {
+  animation:
+    achHaloBurst 1.15s cubic-bezier(.18, .9, .3, 1) both,
+    achHaloBreathe 3.4s 1.15s ease-in-out infinite;
+}
+@keyframes achHaloBurst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.24); }
+  46%  { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  100% { opacity: .92; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes achHaloBreathe {
+  0%, 100% { opacity: .82; transform: translate(-50%, -50%) scale(1); }
+  50%      { opacity: 1; transform: translate(-50%, -50%) scale(1.07); }
+}
+
+/* 光芒射线：一圈细金线，缓慢旋转；径向遮罩让边缘自然消失 */
+.ach-cine__rays {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: clamp(320px, 66vh, 620px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+  background: repeating-conic-gradient(from 0deg,
+    rgba(255, 226, 158, .5) 0deg 1.6deg,
+    rgba(255, 214, 130, 0) 1.6deg 13deg);
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,.9) 14%, rgba(0,0,0,.45) 34%, transparent 62%);
+  mask-image: radial-gradient(circle, rgba(0,0,0,.9) 14%, rgba(0,0,0,.45) 34%, transparent 62%);
+  transition: opacity .9s ease;
+}
+.ach-cine.is-burst .ach-cine__rays {
+  opacity: .7;
+  animation: achRaysSpin 26s linear infinite;
+}
+@keyframes achRaysSpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* ---------- 金牌 ---------- */
+.ach-cine__medal {
+  position: absolute;
+  left: 56%;
+  top: 88%;
+  width: clamp(104px, 13vh, 132px);
+  z-index: 6;
+  opacity: 0;
+  transform: translate(-50%, -66%) scale(.3) rotate(-12deg);
+  filter: drop-shadow(0 10px 18px rgba(74, 40, 6, .35));
+  transition:
+    opacity .32s ease,
+    left 1s cubic-bezier(.16, .84, .24, 1.02),
+    top 1s cubic-bezier(.16, .84, .24, 1.02),
+    transform 1s cubic-bezier(.16, .84, .24, 1.02);
+  will-change: transform, top;
+}
+.ach-cine__medal svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* 转身之后，金牌先在青蛙右手边亮起（像从手里捧出来） */
+.ach-cine.is-face .ach-cine__medal { opacity: .95; }
+
+/* 递牌：升到画面中央并放大到镜头前 */
+.ach-cine.is-give .ach-cine__medal {
+  opacity: 1;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -66%) scale(1.62) rotate(0deg);
+}
+
+/* 光晕爆发后：金牌轻轻上下浮动，亮度呼吸 */
+.ach-cine.is-burst .ach-cine__medal {
+  opacity: 1;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -66%) scale(1.62);
+  animation: achMedalFloat 3.6s ease-in-out infinite;
+  filter:
+    drop-shadow(0 0 24px rgba(255, 204, 110, .8))
+    drop-shadow(0 10px 22px rgba(74, 40, 6, .38));
+}
+@keyframes achMedalFloat {
+  0%, 100% { transform: translate(-50%, -66%) scale(1.62) translateY(0); }
+  50%      { transform: translate(-50%, -66%) scale(1.62) translateY(-9px); }
+}
+
+/* ---------- 小蛙 ---------- */
+.ach-cine__frog {
+  position: absolute;
+  left: 50%;
+  bottom: 3%;
+  width: clamp(156px, 26vh, 216px);
+  z-index: 5;
+  transform: translateX(-50%);
+}
+.ach-cine__frog svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* hop 层负责横向位移（从屏幕左侧外跳进来），原地欢呼时不移动 */
+.ach-cine__frog-hop { position: relative; }
+.ach-cine.is-hop .ach-cine__frog-hop {
+  animation: achHopIn 1.55s cubic-bezier(.4, .04, .46, .96) both;
+}
+@keyframes achHopIn {
+  0%   { transform: translate(-58vw, 2vh) scale(1, 1); opacity: 0; }
+  5%   { opacity: 1; }
+  12%  { transform: translate(-49vw, -5vh) scale(1.03, .96); }
+  20%  { transform: translate(-44vw, 0) scale(1.07, .93); }
+  32%  { transform: translate(-34vw, -6vh) scale(1.03, .96); }
+  40%  { transform: translate(-29vw, 0) scale(1.07, .93); }
+  52%  { transform: translate(-19vw, -6.5vh) scale(1.03, .96); }
+  60%  { transform: translate(-14vw, 0) scale(1.06, .94); }
+  74%  { transform: translate(-5vw, -6vh) scale(1.03, .97); }
+  82%  { transform: translate(-1vw, 0) scale(1.05, .95); }
+  91%  { transform: translate(0, -2.4vh) scale(1.01, .99); }
+  100% { transform: translate(0, 0) scale(1, 1); }
+}
+
+/* 脚下影子：跟着 hop 层一起走，落地压扁 */
+.ach-cine__frog-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 64%;
+  height: 20px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(50% 50% at 50% 50%, rgba(8, 34, 28, .55), rgba(8, 34, 28, 0) 74%);
+  filter: blur(2px);
+}
+
+/* 落地涟漪，只在欢呼阶段循环出现 */
+.ach-cine__ripple {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 76%;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 224, 158, .55);
+  transform: translateX(-50%) scale(.5);
+  opacity: 0;
+  pointer-events: none;
+}
+.ach-cine.is-burst .ach-cine__ripple {
+  animation: achRipple 1.9s .1s ease-out infinite;
+}
+@keyframes achRipple {
+  0%   { transform: translateX(-50%) scale(.5); opacity: .75; }
+  70%  { opacity: .18; }
+  100% { transform: translateX(-50%) scale(1.55, 1.15); opacity: 0; }
+}
+
+/* body 层负责原地起跳（burst 后循环） */
+.ach-cine__frog-body { transform-origin: 50% 100%; }
+.ach-cine.is-burst .ach-cine__frog-body {
+  animation: achFrogJoy .64s cubic-bezier(.3, 0, .4, 1) infinite;
+}
+@keyframes achFrogJoy {
+  0%   { transform: translateY(0) scale(1, 1); }
+  26%  { transform: translateY(-14px) scale(.99, 1.02); }
+  42%  { transform: translateY(-30px) scale(1, 1); }
+  58%  { transform: translateY(0) scale(1.05, .95); }
+  70%  { transform: translateY(-7px) scale(.995, 1.005); }
+  82%  { transform: translateY(0) scale(1.015, .985); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+
+/* tilt 层负责"侧身赶路 → 转身面向玩家" */
+.ach-cine__frog-tilt {
+  transform-origin: 50% 88%;
+  transform: perspective(700px) rotateY(-34deg);
+}
+.ach-cine.is-face .ach-cine__frog-tilt {
+  animation: achTurnFront .6s cubic-bezier(.24, .9, .3, 1) both;
+}
+@keyframes achTurnFront {
+  0%   { transform: perspective(700px) rotateY(-34deg); }
+  62%  { transform: perspective(700px) rotateY(9deg); }
+  100% { transform: perspective(700px) rotateY(0deg); }
+}
+
+/* 手里的小金牌：跟着小蛙一路跳过来，递牌时淡出，换成中央的大金牌 */
+.frog-coin { opacity: 0; transition: opacity .22s ease; }
+.ach-cine.is-hop .frog-coin { opacity: 1; }
+.ach-cine.is-give .frog-coin { opacity: 0; }
+
+/* 眼睛与嘴巴：睁眼 → 笑眯眯，抿嘴 → 张口笑 */
+.frog-eyes--smile,
+.frog-mouth--open { opacity: 0; transition: opacity .24s ease; }
+.ach-cine.is-burst .frog-eyes--open { opacity: 0; }
+.ach-cine.is-burst .frog-eyes--smile { opacity: 1; }
+.ach-cine.is-burst .frog-mouth--line { opacity: 0; }
+.ach-cine.is-burst .frog-mouth--open { opacity: 1; }
+
+/* 手臂：递牌时从身侧抬到胸前上方 */
+.frog-arm { transition: transform .55s cubic-bezier(.3, 1.4, .5, 1); }
+.ach-cine.is-give .frog-arm--l { transform: rotate(132deg); }
+.ach-cine.is-give .frog-arm--r { transform: rotate(-132deg); }
+
+/* ---------- 金色粒子 ---------- */
+.ach-cine__sparks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ach-cine__sparks i {
+  position: absolute;
+  width: var(--s, 5px);
+  height: var(--s, 5px);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffbe2, #ffcf72 58%, rgba(255, 190, 90, 0) 74%);
+  box-shadow: 0 0 9px rgba(255, 205, 120, .9);
+  opacity: 0;
+  animation: achSparkUp var(--t, 2.6s) var(--d, 0s) ease-out infinite;
+}
+@keyframes achSparkUp {
+  0%   { transform: translateY(12px) scale(.4); opacity: 0; }
+  18%  { opacity: 1; }
+  100% { transform: translateY(-46vh) scale(.9); opacity: 0; }
+}
+
+/* ---------- 继续提示 ---------- */
+.ach-cine__hint {
+  position: absolute;
+  right: 1.5%;
+  bottom: 1.5%;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  color: rgba(255, 244, 224, .58);
+  opacity: 0;
+  transition: opacity .5s ease, color .3s ease;
+}
+.ach-cine.is-ready .ach-cine__hint {
+  opacity: 1;
+  animation: achHintBreath 2.2s ease-in-out infinite;
+}
+@keyframes achHintBreath {
+  0%, 100% { opacity: .5; }
+  50%      { opacity: .95; }
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 560px) {
+  .ach-cine__stage { height: min(94vh, 640px); }
+  .ach-cine__copy { top: 3%; width: 92%; }
+  .ach-cine__kicker { letter-spacing: .32em; }
+  .ach-cine__frog { bottom: 1%; }
+  /* 手机竖屏底部被小蛙占满，继续提示改为隐藏（点按跳过仍然有效） */
+  .ach-cine__hint { display: none; }
+}
+
+/* 手机横屏 / 极矮窗口：整体缩小，避免金牌和文案打架 */
+@media (max-height: 520px) {
+  .ach-cine__stage { height: 96vh; width: min(98vw, 760px); }
+  .ach-cine__copy { top: 2%; }
+  .ach-cine__kicker { margin-bottom: 4px; font-size: 10.5px; }
+  .ach-cine__desc { margin-top: 4px; font-size: 11.5px; }
+  .ach-cine__medal { width: clamp(70px, 17vh, 96px); top: 54%; }
+  .ach-cine.is-give .ach-cine__medal,
+  .ach-cine.is-burst .ach-cine__medal { top: 48%; transform: translate(-50%, -66%) scale(1.35); }
+  @keyframes achMedalFloat {
+    0%, 100% { transform: translate(-50%, -66%) scale(1.35) translateY(0); }
+    50%      { transform: translate(-50%, -66%) scale(1.35) translateY(-5px); }
+  }
+  .ach-cine__frog { width: clamp(104px, 26vh, 150px); }
+  .ach-cine__halo { width: clamp(220px, 58vh, 380px); }
+  .ach-cine__hint { display: none; }
+}
+
+/* ---------- 降低动态偏好：不做跨越、放大和循环跳动 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ach-cine,
+  .ach-cine__copy,
+  .ach-cine__halo,
+  .ach-cine__rays,
+  .ach-cine__medal,
+  .ach-cine__frog-hop,
+  .ach-cine__frog-body,
+  .ach-cine__frog-tilt,
+  .ach-cine__ripple,
+  .ach-cine__sparks i,
+  .ach-cine__hint {
+    animation: none !important;
+    transition-duration: .01ms !important;
+  }
+  .ach-cine.is-burst .ach-cine__copy { opacity: 1; transform: translate(-50%, 0); }
+  .ach-cine__halo { opacity: .8; transform: translate(-50%, -50%) scale(1); }
+  .ach-cine__medal,
+  .ach-cine.is-give .ach-cine__medal,
+  .ach-cine.is-burst .ach-cine__medal {
+    opacity: 1;
+    top: 46%;
+    transform: translate(-50%, -66%) scale(1.5);
+  }
+  .ach-cine.is-give .ach-cine__frog-hop,
+  .ach-cine.is-burst .ach-cine__frog-hop { transform: translate(0, 0); }
+  .ach-cine__frog-tilt { transform: none; }
+  .frog-arm { transition: none; }
+  .ach-cine.is-burst .frog-eyes--open { opacity: 0; }
+  .ach-cine.is-burst .frog-eyes--smile,
+  .ach-cine.is-burst .frog-mouth--open { opacity: 1; }
+  .ach-cine__rays { opacity: .4; }
+}

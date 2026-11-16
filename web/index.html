@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="assets/vinyl.css">
   <link rel="stylesheet" href="assets/sky.css">
   <link rel="stylesheet" href="assets/achievements.css">
+  <link rel="stylesheet" href="assets/dressup.css">
+  <link rel="stylesheet" href="assets/shop.css">
   <script src="assets/sky.js"></script>
   <style>
     .logo-badge--frog {
@@ -143,8 +145,12 @@
           <div class="slogan">小青蛙陪你蹦蹦跳，专注力嗖嗖涨！</div>
         </div>
       </div>
-      <!-- 成就徽章入口：奖杯 -->
-      <div id="achievement-entry" class="ach-entry"></div>
+      <!-- 右侧入口：成就居左，商城居中，装扮占最右侧（成就原来的位置） -->
+      <div class="hero-entries">
+        <div id="achievement-entry" class="ach-entry"></div>
+        <div id="shop-entry" class="shop-entry"></div>
+        <div id="dressup-entry" class="dress-entry"></div>
+      </div>
     </div>
 
     <!-- 英雄区 -->
@@ -369,7 +375,11 @@
 
           <!-- 青蛙：由 hero-pond.js 驱动跳跃、荷叶起伏与水花 -->
           <g id="heroFrog" class="hero-frog">
+            <!-- 背饰（披风、翅膀、背包）画在身体后面 -->
+            <g id="pondFrogOutfitBack"></g>
             <g id="pondFrogArtwork"></g>
+            <!-- 正饰（头饰、面饰、颈饰）画在身体前面 -->
+            <g id="pondFrogOutfit"></g>
           </g>
 
           <!-- 溅起的水珠：画在青蛙上方 -->
@@ -631,8 +641,11 @@
     }
   </script>
   <script src="assets/pond-effects.js"></script>
+  <script src="assets/wallet.js"></script>
   <script src="assets/hero-water.js"></script>
   <script src="assets/hero-pond.js"></script>
+  <script src="assets/dressup.js"></script>
+  <script src="assets/shop.js"></script>
   <script src="assets/music.js" defer></script>
 </body>
 </html>

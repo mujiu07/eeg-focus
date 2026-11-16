@@ -6,6 +6,7 @@
   <title>专注小蛙 - 游戏</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
+  <link rel="stylesheet" href="assets/achievement-cinematic.css">
   <style>
     .canvas-wrap { position: relative; width: 100%; max-width: 900px; }
     #game-canvas {
@@ -284,6 +285,19 @@
     .cue-stat span { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); letter-spacing: .4px; }
     .cue-score { background: rgba(255, 195, 126, .16); border-color: rgba(247, 164, 85, .26); }
     .cue-score b { color: #b9782c; }
+    .cue-points {
+      display: inline-block;
+      margin: 2px 0 2px;
+      padding: 3px 12px;
+      border-radius: 999px;
+      background: rgba(247, 201, 107, .18);
+      border: 1px solid rgba(217, 164, 65, .3);
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #8a5f14;
+      letter-spacing: .3px;
+    }
+    .cue-points b { font-size: 13.5px; font-weight: 900; }
     .cue-load {
       width: 148px; height: 5px; margin: 12px auto 0;
       border-radius: 999px; background: rgba(58, 108, 122, .12); overflow: hidden;
@@ -436,6 +450,7 @@
             <div class="cue-stat cue-jumps"><b>0</b><span>跳跃次数</span></div>
             <div class="cue-stat cue-time"><b>00:00</b><span>专注时长</span></div>
           </div>
+          <p class="cue-points hidden" id="cue-points">本局积分 +<b>0</b></p>
           <p class="cue-sub">正在生成专注报告…</p>
           <div class="cue-load" aria-hidden="true"><i></i></div>
         </div>
@@ -470,7 +485,10 @@
 
   <script src="assets/api.js"></script>
   <script src="assets/achievements.js"></script>
+  <script src="assets/achievement-cinematic.js"></script>
   <script src="assets/pond-effects.js"></script>
+  <script src="assets/wallet.js"></script>
+  <script src="assets/dressup.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     const canvas = $("game-canvas");
@@ -617,6 +635,7 @@
       clock: 0,           // 平滑累积的动画时钟（秒）：不用 rAF 墙钟，避免切后台/掉帧时跳变
       over: false,
       saving: false,
+      pointsSettled: false,   // 本局积分只结算一次（保存失败重试时不重复累加）
       leaving: false,
       manualMode: false,
       jumping: { active: false, t: 0, fromX: 0, toX: 0 },
@@ -1333,6 +1352,8 @@
         fx = lilies[i0].x;   // 荷叶正中心（叶脉交点）
         fy = frogBase(i0) + Math.sin(t * 2.2) * 2;
       }
+      // 尾迹用世界坐标，画在青蛙身后
+      if (window.DressUp) DressUp.drawTrail(ctx, t, fx, fy, state.jumping.active);
       // 阴影：贴荷叶/水面，随跳跃高度缩小
       ctx.save();
       ctx.globalAlpha = 0.2 * (1 - 0.55 * Math.sin(k * Math.PI));
@@ -1348,6 +1369,8 @@
       ctx.save();
       ctx.translate(fx, fy);
       ctx.filter = p.frog;
+      // 背饰画在身体后面（披风、翅膀、背包），正饰画在身体前面
+      if (window.DressUp) DressUp.drawCanvas(ctx, "back", t);
       PondEffects.frogEllipses.forEach(shape => paintEllipse(...shape));
       const mouth = PondEffects.frogMouth;
       ctx.strokeStyle = mouth.color;
@@ -1356,6 +1379,7 @@
       ctx.moveTo(...mouth.start);
       ctx.quadraticCurveTo(...mouth.curve);
       ctx.stroke();
+      if (window.DressUp) DressUp.drawCanvas(ctx, "front", t);
       ctx.restore();
     }
 
@@ -1531,6 +1555,15 @@
       endCue.querySelector(".cue-score b").textContent = score;
       endCue.querySelector(".cue-jumps b").textContent = jumps;
       endCue.querySelector(".cue-time b").textContent = formatClock(played);
+      const pointsEl = endCue.querySelector("#cue-points");
+      if (pointsEl) {
+        if (developerRun || !window.Wallet) {
+          pointsEl.classList.add("hidden");
+        } else {
+          pointsEl.classList.remove("hidden");
+          pointsEl.innerHTML = "本局积分 +<b>" + jumps + "</b>";
+        }
+      }
       endCue.querySelector(".cue-sub").textContent =
         score >= 10 ? "小蛙跳得又稳又远，这一局真棒！"
           : score >= 4 ? "小蛙跟着你的专注往前跳了好几步。"
@@ -1576,6 +1609,11 @@
       state.over = true;
       state.saving = true;
       if (state.es) state.es.close();
+      // 本局积分：每成功跳一次记 1 分，整局一次性入账；开发者调试入口不计
+      if (!state.pointsSettled && !developerRun && window.Wallet) {
+        state.pointsSettled = true;
+        Wallet.settleRound(state.actions.jumps.length);
+      }
       $("btn-retry").classList.add("hidden");
       $("game-error").classList.add("hidden");
       $("warn").textContent = "正在保存本局结果…";
@@ -1593,11 +1631,19 @@
         });
         state.session = null;
         // 完整玩完一局 → 计入「专注小达人」时长与当天打卡（试玩/演示不计入）
+        let fresh = [];
         if (!developerRun && !state.achievementsRecorded) {
           state.achievementsRecorded = true;
-          Achievements.recordSession({ playedSec: playedSec });
+          fresh = Achievements.recordSession({ playedSec: playedSec });
         }
         await ending;   // 至少让结束动画完整播完，再进报告页
+        // 本局解锁了新成就：收起结算卡片，先播成就解锁动画，再拉起专注报告
+        if (fresh.length && window.AchievementCinematic) {
+          hideEndCue();
+          try {
+            await AchievementCinematic.play(fresh);
+          } catch (_) { /* 动画异常不挡着出报告 */ }
+        }
         if (!state.leaving) location.href = "report.html?id=" + sessionId;
       } catch (e) {
         hideEndCue();
@@ -1611,6 +1657,7 @@
     window.addEventListener("pagehide", () => {
       state.leaving = true;
       state.es?.close();
+      AchievementCinematic?.stop?.();
       if (state.session && !state.saving) API.endAbandonedSession(state.session.id);
     });
     window.addEventListener("pageshow", event => {
