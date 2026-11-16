@@ -23,6 +23,8 @@
   var JUMP_ARC = 66;          // 跳跃抛物线高度
   var START_DELAY = 0.9;      // 首跳前停顿
   var TURN_PAUSE = 0.45;      // 每次落地稳定后的停顿
+  var FISH_TURN_DUR = 0.46;   // 小鱼原地转身时长（秒）
+  var FISH_TURN_SLOW = 0.14;  // 转身期间游速衰减，保证“原地”
 
   var pads = padEls.map(function (el, i) {
     return {
@@ -47,6 +49,7 @@
   var lastTs = 0;
 
   var fishes = fishEls.map(function (el) {
+    var ph = parseFloat(el.getAttribute("data-phase")) || 0;
     return {
       el: el,
       cx: parseFloat(el.getAttribute("data-cx")) || 0,
@@ -55,7 +58,12 @@
       ay: parseFloat(el.getAttribute("data-ay")) || 0,
       sp: parseFloat(el.getAttribute("data-sp")) || 0.25,
       s: parseFloat(el.getAttribute("data-scale")) || 1,
-      ph: parseFloat(el.getAttribute("data-phase")) || 0,
+      ph: ph,
+      a: 0,                                    // 累积相位：转身时会慢下来
+      dir: Math.cos(ph) >= 0 ? 1 : -1,         // 当前朝向
+      turning: false,
+      turnT: 0,
+      turnFrom: 1,
     };
   });
 
@@ -110,20 +118,63 @@
     frog.setAttribute("transform", "translate(" + x.toFixed(2) + " " + y.toFixed(2) + ")");
   }
 
-  // 小鱼沿平缓的正弦轨迹在水下游动，掉头时水平翻转
-  function setFish(t) {
+  // 小鱼沿平缓的正弦轨迹在水下游动；到达轨迹端点换向时，
+  // 不再瞬间镜像翻转，而是原地做一个“绕纵轴”的转身：
+  // 身体横向压扁到接近正对镜头，再朝新方向展开，同时微微侧倾、上浮。
+  function setFish(dt) {
     for (var i = 0; i < fishes.length; i++) {
       var f = fishes[i];
-      var a = t * f.sp + f.ph;
+
+      // 转身时几乎停在原地，转身结束后恢复正常游速
+      f.a += dt * f.sp * (f.turning ? FISH_TURN_SLOW : 1);
+
+      var a = f.a + f.ph;
+      var turning = f.turning;
+      var p = 0;
+      if (turning) {
+        f.turnT += dt;
+        p = Math.min(f.turnT / FISH_TURN_DUR, 1);
+        if (p >= 1) {                 // 转身完成：朝向彻底翻转
+          f.dir = -f.turnFrom;
+          f.turning = false;
+          turning = false;
+          p = 0;
+        }
+      }
+
       var x = f.cx + Math.sin(a) * f.ax;
       var y = f.cy + Math.sin(a * 1.6 + f.ph) * f.ay;
-      var flip = Math.cos(a) >= 0 ? 1 : -1;
+      var sx, sy, tilt = 0;
       var wob = Math.sin(a * 5.5 + i * 0.9) * 3.2;
+
+      if (turning) {
+        var arc = Math.sin(p * Math.PI);       // 转身中段最大
+        var sweep = Math.cos(p * Math.PI);     // +1 → -1：身体绕纵轴转过半圈
+        sx = f.s * f.turnFrom * sweep;
+        sy = f.s * (1 + 0.1 * arc);            // 侧身时略微“立”起来
+        tilt = -f.turnFrom * 5 * arc;          // 抬头顶水，转身更灵动
+        y -= arc * 1.6;                        // 原地轻轻上浮
+        wob += Math.sin(p * Math.PI * 4) * 1.8 * f.turnFrom;
+      } else {
+        sx = f.s * f.dir;
+        sy = f.s;
+      }
+
       f.el.setAttribute(
         "transform",
         "translate(" + x.toFixed(2) + " " + y.toFixed(2) + ") rotate(" +
-          wob.toFixed(2) + ") scale(" + (f.s * flip).toFixed(3) + " " + f.s.toFixed(3) + ")"
+          (wob + tilt).toFixed(2) + ") scale(" + sx.toFixed(3) + " " + sy.toFixed(4) + ")"
       );
+
+      // 轨迹走到端点（cos 变号）时触发原地转身
+      if (!f.turning) {
+        var desired = Math.cos(a) >= 0 ? 1 : -1;
+        if (desired !== f.dir) {
+          f.turning = true;
+          f.turnT = 0;
+          f.turnFrom = f.dir;
+        }
+      }
     }
   }
 
@@ -206,7 +257,7 @@
 
     for (var i = 0; i < pads.length; i++) setPad(pads[i], i, t, dt);
     setFrog(t);
-    setFish(t);
+    setFish(dt);
   }
 
   function tick(ts) {
@@ -233,7 +284,7 @@
   var startT = performance.now() / 1000;
   for (var i = 0; i < pads.length; i++) setPad(pads[i], i, startT, 0.016);
   setFrog(startT);
-  setFish(startT);
+  setFish(0);
 
   if ("IntersectionObserver" in window) {
     new IntersectionObserver(([entry]) => {
