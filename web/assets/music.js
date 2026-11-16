@@ -95,6 +95,8 @@
     let playing = false;
     let busy = false;
     let status = "";
+    let videoHold = false;    // 放松视频占着声音时，音乐临时让位，视频结束再接着放
+    let gestureArmed = false; // 自动播放被浏览器拦截时，等一次用户手势再起播
     let errRetry = 0;
     const urlCache = new Map();
 
@@ -247,9 +249,49 @@
     }
 
     // ---------- 播放控制 ----------
+    // 页面上正在播放的视频（目前是校准页的放松视频）
+    function playingVideo() {
+      const vids = document.querySelectorAll("video");
+      for (let i = 0; i < vids.length; i++) {
+        const v = vids[i];
+        if (!v.paused && !v.ended && v.readyState >= 2) return v;
+      }
+      return null;
+    }
+
+    // 视频开始播放：音乐让位，但记住"结束后要接着放"
+    function holdForVideo() {
+      if (videoHold) return;
+      if (!playing) return;  // 用户本来没开音乐，就不产生自动恢复的意图
+      videoHold = true;
+      audio.pause();
+      playing = false;
+      status = "";
+      syncUI();
+      refreshMeta();
+      saveState();
+    }
+
+    // 视频暂停/播完：如果之前是音乐在播，接着放
+    async function releaseVideoHold() {
+      if (!videoHold) return;
+      videoHold = false;
+      if (localStorage.getItem(ON_KEY) === "0") return;  // 用户期间主动关过音乐
+      if (playingVideo()) return;                        // 还有别的视频在播
+      await start();
+    }
+
     // 唱臂落下 / 点击唱片：播放；若当前曲目已装载则从暂停处继续
     async function start() {
       if (busy) return;
+      // 放松视频播放中：先不抢声音，等视频结束自动接着放
+      if (playingVideo()) {
+        videoHold = true;
+        localStorage.setItem(ON_KEY, "1");
+        flashStatus("放松视频播放中，结束后自动继续");
+        syncUI();
+        return;
+      }
       busy = true;
       status = "";
       syncUI();
@@ -279,6 +321,7 @@
     function pause() {
       audio.pause();
       playing = false;
+      videoHold = false;  // 用户主动暂停，视频结束后不再自动恢复
       localStorage.setItem(ON_KEY, "0");
       status = "";
       syncUI();
@@ -344,6 +387,47 @@
         syncUI();
         refreshMeta();
       }
+    }
+
+    // ---------- 与放松视频联动 ----------
+    // 媒体事件不冒泡，用捕获阶段监听页面上的 <video>：
+    // 视频播放 → 音乐自动停止；视频暂停或播完 → 音乐从原位置继续。
+    document.addEventListener("play", e => {
+      const t = e.target;
+      if (!t || t.tagName !== "VIDEO") return;
+      if (!t.paused) holdForVideo();
+    }, true);
+
+    document.addEventListener("pause", e => {
+      const t = e.target;
+      if (!t || t.tagName !== "VIDEO") return;
+      releaseVideoHold();
+    }, true);
+
+    document.addEventListener("ended", e => {
+      const t = e.target;
+      if (!t || t.tagName !== "VIDEO") return;
+      releaseVideoHold();
+    }, true);
+
+    // 自动播放被浏览器拦截时：等用户的第一次点击/按键，把音乐接上
+    function armGestureStart() {
+      if (gestureArmed) return;
+      gestureArmed = true;
+      const kick = () => {
+        gestureArmed = false;
+        document.removeEventListener("pointerdown", kick, true);
+        document.removeEventListener("keydown", kick, true);
+        // 让按钮自身的 click 先处理，避免点“下一首”被当成了播放
+        setTimeout(() => {
+          if (playing || busy || videoHold) return;
+          if (localStorage.getItem(ON_KEY) === "0") return;
+          if (playingVideo()) return;
+          start();
+        }, 0);
+      };
+      document.addEventListener("pointerdown", kick, true);
+      document.addEventListener("keydown", kick, true);
     }
 
     // ---------- 事件 ----------
@@ -414,7 +498,7 @@
     syncUI();
     refreshMeta();
 
-    // 页面空闲时静默预取；若有上次的播放位置，装载好等用户落针继续
+    // 页面空闲时静默预取；音乐默认开启：没有明确关闭过就自动起播
     setTimeout(async () => {
       try {
         await ensureTracks();
@@ -428,22 +512,42 @@
         prefetch(index);
         prefetch(index + 1);
 
-        if (st && Number(st.t) > 1) {
-          await loadTrack(index, Number(st.t));
+        const seek = st && Number(st.t) > 1 ? Number(st.t) : null;
+        if (seek) await loadTrack(index, seek);
+        else if (loadedIndex !== index || !audio.src) await loadTrack(index);
+        else refreshMeta();
+
+        // 首页默认开启；其它页面只延续用户上次的开/关状态
+        const onState = localStorage.getItem(ON_KEY);
+        const pathname = (typeof location !== "undefined" && location.pathname) || "/";
+        const isHome = /(^\/$)|(\/index\.html$)/.test(pathname);
+        if (!(onState === "1" || (onState === null && isHome))) {
           refreshMeta();
-          if (st.p === 1) {
-            // 浏览器可能拦截无手势的自动播放，失败就保持抬起唱臂状态
-            try {
-              await audio.play();
-              playing = true;
-              saveState();
-            } catch (_) {
-              playing = false;
-            }
-            syncUI();
-            refreshMeta();
-          }
+          syncUI();
+          return;
         }
+
+        // 放松视频正在播：音乐先让位，结束后自动接着放
+        if (playingVideo()) {
+          videoHold = true;
+          refreshMeta();
+          syncUI();
+          return;
+        }
+
+        // 默认开启：进入页面就尝试播放；被浏览器拦截时等首次手势
+        try {
+          await audio.play();
+          playing = true;
+          localStorage.setItem(ON_KEY, "1");
+          saveState();
+        } catch (_) {
+          playing = false;
+          armGestureStart();
+          flashStatus("点击页面任意处开始播放音乐", 4800);
+        }
+        syncUI();
+        refreshMeta();
       } catch (e) {
         // 首次自动预取失败不打扰用户，点击时再重试并展示原因
         console.info("[music] 预取歌单失败：", e.message);
@@ -453,9 +557,11 @@
     // 供其它脚本查询状态（可选）
     window.vinylPlayer = {
       toggle,
+      start,
+      pause,
       next: () => step(1),
       prev: () => step(-1),
-      debugTime: () => ({ t: Math.round((audio.currentTime || 0) * 100) / 100, playing }),
+      debugTime: () => ({ t: Math.round((audio.currentTime || 0) * 100) / 100, playing, videoHold }),
     };
   }
 
