@@ -24,6 +24,21 @@
       border: 0; background: transparent; cursor: crosshair;
     }
     .pond-touch:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
+    .pond-speaker {
+      display: grid; place-items: center; flex: none; width: 36px; height: 36px;
+      border: 1px solid var(--card-border); border-radius: 50%;
+      background: var(--card); color: var(--ink); cursor: pointer;
+    }
+    .pond-speaker:hover { color: var(--accent-dark); }
+    .pond-speaker svg { width: 18px; height: 18px; }
+    .pond-speaker[aria-pressed="true"] .speaker-muted,
+    .pond-speaker[aria-pressed="false"] .speaker-waves { display: none; }
+    .pond-frog-touch {
+      position: absolute; z-index: 1; width: 8.5%; height: 27%;
+      transform: translate(-50%, -46%); border: 0; border-radius: 50%;
+      background: transparent; cursor: pointer;
+    }
+    .pond-frog-touch:focus-visible { outline: 2px solid white; outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { .pond-touch { display: none; } }
     .hero-card { position: relative; overflow: hidden; padding: 0; }
     .hero-top { display: flex; align-items: center; gap: 14px; padding: 24px 30px 6px; }
@@ -162,6 +177,14 @@
             <div style="font-weight:800;font-size:18px">梦境池塘</div>
             <div class="hint" style="font-size:13.5px">让专注变成前进的动力</div>
           </div>
+          <button class="pond-speaker hidden" type="button" data-pond-audio aria-label="池塘音效">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 9h4l5-4v14l-5-4H4z"/>
+              <path class="speaker-waves" d="M16 9a4.5 4.5 0 0 1 0 6m2-8a7.5 7.5 0 0 1 0 10"/>
+              <path class="speaker-muted" d="m17 10 4 4m0-4-4 4"/>
+            </svg>
+          </button>
         </div>
         <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
           <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式">
@@ -386,6 +409,7 @@
           <g id="heroDroplets"></g>
         </svg>
         <button id="pond-touch" class="pond-touch hidden" type="button" aria-label="在池塘里激起水纹"></button>
+        <button id="pond-frog-touch" class="pond-frog-touch hidden" type="button" aria-label="听小蛙叫一声" title="听小蛙叫一声"></button>
       </div>
       <div style="padding:14px 30px 26px;text-align:center">
         <div class="btn-row">
@@ -641,6 +665,7 @@
     }
   </script>
   <script src="assets/pond-effects.js"></script>
+  <script src="assets/pond-audio.js"></script>
   <script src="assets/wallet.js"></script>
   <script src="assets/hero-water.js"></script>
   <script src="assets/hero-pond.js"></script>

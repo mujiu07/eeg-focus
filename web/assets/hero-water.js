@@ -197,7 +197,10 @@ const HeroWater = (() => {
   });
   button.addEventListener("click", event => {
     const point = event.detail ? scenePoint(event) : { x: 440, y: 204 };
-    if (point) disturb(point.x, Math.max(waterline + 9, Math.min(242, point.y)), 3.25);
+    if (point) {
+      disturb(point.x, Math.max(waterline + 9, Math.min(242, point.y)), 3.25);
+      PondAudio.play("tap");
+    }
   });
   document.addEventListener("skychange", event => {
     const time = performance.now() / 1000;

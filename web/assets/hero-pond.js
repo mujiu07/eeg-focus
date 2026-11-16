@@ -7,6 +7,7 @@
   "use strict";
 
   var frog = document.getElementById("heroFrog");
+  var frogTouch = document.getElementById("pond-frog-touch");
   var frogArtwork = document.getElementById("pondFrogArtwork");
   var splashLayer = document.getElementById("heroSplashes");
   var dropletLayer = document.getElementById("heroDroplets");
@@ -116,6 +117,11 @@
       y = p.y + p.dip - FROG_OFFSET + Math.sin(t * 2.2) * 2;
     }
     frog.setAttribute("transform", "translate(" + x.toFixed(2) + " " + y.toFixed(2) + ")");
+    if (frogTouch) {
+      const { width, height } = frog.ownerSVGElement.viewBox.baseVal;
+      frogTouch.style.left = (x / width * 100) + "%";
+      frogTouch.style.top = (y / height * 100) + "%";
+    }
   }
 
   // 小鱼沿平缓的正弦轨迹在水下游动；到达轨迹端点换向时，
@@ -223,6 +229,7 @@
     dipLily(pads[cur], 170);   // 蹬水起跳：起跳荷叶轻微下沉
     jumping = { t: 0, from: cur, to: next };
     mode = "jumping";
+    PondAudio.play("jump");
   }
 
   function land() {
@@ -233,6 +240,7 @@
     dipLily(p, PondEffects.landingImpulse);            // 落地：目标荷叶被压下
     spawnSplash(p.x, p.y + 6);  // 落水水花
     HeroWater?.disturb(p.x, p.y + 7, 2.8);
+    PondAudio.play("land");
   }
 
   function step(dt, t) {
@@ -285,6 +293,10 @@
   for (var i = 0; i < pads.length; i++) setPad(pads[i], i, startT, 0.016);
   setFrog(startT);
   setFish(0);
+  if (frogTouch && PondAudio.supported) {
+    frogTouch.classList.remove("hidden");
+    frogTouch.addEventListener("click", () => PondAudio.play("croak"));
+  }
 
   if ("IntersectionObserver" in window) {
     new IntersectionObserver(([entry]) => {

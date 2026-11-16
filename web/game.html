@@ -389,6 +389,7 @@
           <span class="icon" id="hr-icon">♥</span><span id="hr-bpm" style="min-width:2.5ch;text-align:center">--</span><span style="font-size:13px;opacity:.6;font-weight:700">BPM</span>
         </span>
         <span class="hud-item"><span>得分</span><span id="score" style="color:#ffda86;min-width:2ch;text-align:center">0</span></span>
+        <button class="btn btn-sm btn-ghost hidden" type="button" data-pond-audio>音效</button>
       </div>
     </div>
 
@@ -487,6 +488,7 @@
   <script src="assets/achievements.js"></script>
   <script src="assets/achievement-cinematic.js"></script>
   <script src="assets/pond-effects.js"></script>
+  <script src="assets/pond-audio.js"></script>
   <script src="assets/wallet.js"></script>
   <script src="assets/dressup.js"></script>
   <script>
@@ -792,7 +794,7 @@
       if (e.target.closest?.("button, input, select, textarea, a[href]")) return;
       if (e.code === "Space" || e.code === "Enter") {
         e.preventDefault();
-        tryJumpTap();
+        if (!e.repeat) tryJumpTap();
       }
     });
 
@@ -897,6 +899,7 @@
           // 落地：新荷叶被压得下沉一截，四周溅起水花，随后回弹上浮
           dipLily(landing, PondEffects.landingImpulse);
           spawnLandingSplash(landing.x, landing.y + 6);
+          PondAudio.play("land");
           // 先等特效结束、上浮稳定，再平移（见 pendingSettle 分支）
           state.pendingSettle = true;
         }
@@ -958,12 +961,13 @@
       state.jumpWindow = { lo, hi: Math.min(92, lo + 14) };
     }
 
-    function tryJumpTap() {
+    function tryJumpTap(event) {
+      if (event?.type === "pointerdown" && event.button !== 0) return;
       if (state.over || state.stale || state.tutorialOpen || state.introOpen) return;
-      if (state.jumping.active || state.settling || state.pendingSettle) return;
       const w = state.jumpWindow;
-      if (!w) return;
-      if (state.energy >= w.lo && state.energy <= w.hi) startJump(true);
+      const canJump = !state.jumping.active && !state.settling && !state.pendingSettle;
+      if (canJump && w && state.energy >= w.lo && state.energy <= w.hi) startJump(true);
+      else PondAudio.play("tap");
     }
 
     function startJump(perfect = false) {
@@ -971,6 +975,7 @@
       if (!from || !to) return;
       ensureNextLily();   // 新荷叶现在就从水下往上浮，落到目标荷叶时它已经在水面上了
       state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x };
+      PondAudio.play("jump");
       state.actions[perfect ? "timed_jumps" : "automatic_jumps"] += 1;
       const time = state.signalTime + (performance.now() - state.lastFrameTs) / 1000;
       state.actions.jumps.push({ t: Math.round(time * 100) / 100, timed: perfect });
