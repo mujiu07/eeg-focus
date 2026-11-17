@@ -460,11 +460,13 @@
       id: "face-black", cat: "face", name: "学霸黑框镜", from: "单局专注满 5 分钟", ach: "focus-3", price: 6,
       shapes: {
         front: [
-          R(-25, -20, 21, 16, 4, "rgba(255,255,255,.12)", { stroke: "#2b2b2b", w: 2.4 }),
-          R(4, -20, 21, 16, 4, "rgba(255,255,255,.12)", { stroke: "#2b2b2b", w: 2.4 }),
-          R(-4.5, -14, 9, 3, 1.5, "#2b2b2b"),
-          L(-25, -16, -28, -18, "#2b2b2b", 2.2),
-          L(25, -16, 28, -18, "#2b2b2b", 2.2),
+          // 方形镜框：边长 23（眼睛外径 20×22），四周完整包住眼球，
+          // 圆角只留 1.8，保证一眼是“方框”而不是圆框
+          R(-25.5, -23.5, 23, 23, 1.8, "rgba(255,255,255,.12)", { stroke: "#2b2b2b", w: 2.4 }),
+          R(2.5, -23.5, 23, 23, 1.8, "rgba(255,255,255,.12)", { stroke: "#2b2b2b", w: 2.4 }),
+          R(-2.5, -13.6, 5, 3, 1.2, "#2b2b2b"),
+          L(-25.5, -14, -28.5, -16.5, "#2b2b2b", 2.2),
+          L(25.5, -14, 28.5, -16.5, "#2b2b2b", 2.2),
         ],
       },
     },
@@ -1118,6 +1120,35 @@
       `<path d="M ${mouth.start.join(" ")} Q ${mouth.curve.join(" ")}" fill="none" stroke="${mouth.color}" stroke-width="${mouth.width}"/>`;
   }
 
+  // 光效道具在静态预览（商店卡片 / 图鉴 / 试戴）里的流光层：
+  // 拖尾光带 + 漂浮光点，动画定义在 dressup.css 的 .fx-* 里
+  function auraFxSvg(item) {
+    if (!item) return "";
+    if (item.id === "aura-trail") {
+      const tone = (tonePalette(item) || ["#ffd166"])[0];
+      return `<g class="fx-trail" style="color:${tone}">` +
+        // 三颗静态星星各自拖一条向后甩出的尾巴
+        `<path class="fx-trail__tail fx-trail__tail--a" d="M20.5 -18.5 L26 -26" fill="none"/>` +
+        `<path class="fx-trail__tail fx-trail__tail--b" d="M25.4 -7.6 L32 -16" fill="none"/>` +
+        `<path class="fx-trail__tail fx-trail__tail--c" d="M14.6 -27.8 L20 -34" fill="none"/>` +
+        `<circle class="fx-trail__spark fx-trail__spark--a" cx="22" cy="-15" r="1.7"/>` +
+        `<circle class="fx-trail__spark fx-trail__spark--b" cx="27" cy="-4" r="1.3"/>` +
+        `<circle class="fx-trail__spark fx-trail__spark--c" cx="16" cy="-24" r="1.1"/>` +
+        `</g>`;
+    }
+    if (item.id === "aura-divine") {
+      return `<g class="fx-divine">` +
+        `<ellipse class="fx-divine__ring" cx="0" cy="31" rx="26" ry="7.2" fill="none"/>` +
+        // 光焰贴着身体两侧外缘往上卷
+        `<path class="fx-divine__flame fx-divine__flame--l" d="M-27 28 Q-37 10 -26 -10" fill="none"/>` +
+        `<path class="fx-divine__flame fx-divine__flame--r" d="M27 28 Q37 10 26 -10" fill="none"/>` +
+        `<circle class="fx-divine__dot fx-divine__dot--a" cx="-26" cy="6" r="1.9"/>` +
+        `<circle class="fx-divine__dot fx-divine__dot--b" cx="26" cy="-2" r="1.5"/>` +
+        `</g>`;
+    }
+    return "";
+  }
+
   // 预览用小蛙：outfit 形如 { hat: "hat-crown" }
   function frogSvg(outfit) {
     const set = outfit || wearing;
@@ -1129,8 +1160,10 @@
       shapesFor(item, "back").forEach(sh => back.push(svgShape(sh, item)));
       shapesFor(item, "front").forEach(sh => front.push(svgShape(sh, item)));
     });
+    // 流光层画在最前面：贴在身体外缘，绕开五官
+    const fx = auraFxSvg(BY_ID[set.aura]);
     return `<svg class="dress-frog" viewBox="-44 -50 88 92" aria-hidden="true" focusable="false">` +
-      back.join("") + frogBodySvg(set) + front.join("") + `</svg>`;
+      back.join("") + frogBodySvg(set) + front.join("") + fx + `</svg>`;
   }
 
   // ---------- 渲染：Canvas（游戏页） ----------
@@ -1206,6 +1239,7 @@
   // outfit 可选：传入 { hat: "hat-crown" } 可直接预览任意搭配，默认用当前穿搭
   function drawCanvas(ctx, layer, t, outfit) {
     const set = outfit || wearing;
+    if (set.aura !== "aura-divine" && flameParticles.length) flameParticles.length = 0;
     CATS.forEach(cat => {
       const item = BY_ID[set[cat.id]];
       if (!item) return;
@@ -1221,52 +1255,317 @@
         return;
       }
       shapes.forEach(sh => paintShape(ctx, sh, item));
+      // 守护神光焰：固定光圈之上再叠一层动态火焰拖尾
+      if (item.id === "aura-divine" && layer === "back") drawDivineFlame(ctx, t);
     });
   }
 
   // ---------- 跳跃尾迹（世界坐标，游戏页调用） ----------
+  // 每颗星星都会拖出一段沿运动方向的光带：跳得越快尾迹越长，
+  // 落地后剩下的星屑继续上浮散开，而不是原地消失。
   let trailParticles = [];
-  let trailClock = 0;
+  let trailSpawn = 0;
+  let trailPrev = null;
+  let trailLast = 0;
+
+  function rgbaOf(color, a) {
+    const hex = String(color || "");
+    if (hex.charAt(0) === "#" && (hex.length === 7 || hex.length === 4)) {
+      const body = hex.length === 4
+        ? hex.slice(1).split("").map(ch => ch + ch).join("")
+        : hex.slice(1);
+      const n = parseInt(body, 16);
+      return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+    }
+    return hex;
+  }
 
   function drawTrail(ctx, t, x, y, jumping) {
     const item = BY_ID[wearing.aura];
     if (!item || item.id !== "aura-trail") {
       if (trailParticles.length) trailParticles.length = 0;
+      trailPrev = null;
       return;
     }
     const palette = tonePalette(item) || ["#ffd93d"];
-    if (jumping && t - trailClock > 0.045) {
-      trailClock = t;
-      trailParticles.push({
-        x: x + (Math.random() - 0.5) * 12,
-        y: y + (Math.random() - 0.5) * 10,
-        born: t,
-        life: 0.85,
-        size: 2.2 + Math.random() * 2.4,
-        rot: Math.random() * Math.PI,
-        color: palette[Math.floor(Math.random() * palette.length)],
-      });
-      if (trailParticles.length > 80) trailParticles.shift();
+
+    // 用位移估青蛙速度：星星反向继承一部分速度，才会被甩在身后
+    let vx = 0, vy = 0;
+    if (trailPrev && t > trailPrev.t) {
+      const gapT = Math.min(0.08, t - trailPrev.t);
+      vx = (x - trailPrev.x) / gapT;
+      vy = (y - trailPrev.y) / gapT;
     }
-    if (!trailParticles.length) return;
+    trailPrev = { x, y, t };
+    const speed = Math.hypot(vx, vy);
+
+    if (jumping && t - trailSpawn > (speed > 240 ? 0.022 : 0.034)) {
+      trailSpawn = t;
+      const count = speed > 300 ? 2 : 1;
+      for (let i = 0; i < count; i++) {
+        trailParticles.push({
+          x: x + (Math.random() - 0.5) * 10,
+          y: y + (Math.random() - 0.5) * 10,
+          vx: -vx * 0.14 + (Math.random() - 0.5) * 20,
+          vy: -vy * 0.14 + (Math.random() - 0.5) * 12 - 14,
+          born: t,
+          life: 0.8 + Math.random() * 0.55,
+          size: 2.1 + Math.random() * 2.5,
+          rot: Math.random() * TAU,
+          spin: (Math.random() - 0.5) * 3.2,
+          color: palette[Math.floor(Math.random() * palette.length)],
+          tail: [],
+        });
+      }
+      if (trailParticles.length > 68) trailParticles.splice(0, trailParticles.length - 68);
+    }
+
+    const dt = Math.min(0.05, Math.max(0, t - trailLast));
+    trailLast = t;
     trailParticles = trailParticles.filter(p => t - p.born < p.life);
-    trailParticles.forEach(p => {
-      const k = Math.max(0, (t - p.born) / p.life);
+    if (!trailParticles.length) return;
+
+    ctx.save();
+    ctx.filter = "none";
+    // 池塘是浅色水面，用彩色半透明叠加才看得出颜色；
+    // lighter 会把暖色叠成一片白
+    ctx.globalCompositeOperation = "source-over";
+    ctx.lineCap = "round";
+
+    // 青蛙身后的速度拖影：跳跃时沿反方向拉出一条锥形光带
+    if (jumping && speed > 50) {
+      const len = Math.min(78, speed * 0.17);
+      const ang = Math.atan2(vy, vx) + Math.PI;
+      const head = palette[0];
+      const tip = palette[2] || palette[1] || head;
+      const sway = Math.sin(t * 22) * 2.5;
+      const grad = ctx.createLinearGradient(0, 0, len, 0);
+      grad.addColorStop(0, rgbaOf(head, 0.5));
+      grad.addColorStop(0.55, rgbaOf(tip, 0.2));
+      grad.addColorStop(1, rgbaOf(head, 0));
       ctx.save();
-      ctx.globalAlpha = 1 - k;
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, -8.5);
+      ctx.quadraticCurveTo(len * 0.55, -5 + sway, len, sway);
+      ctx.quadraticCurveTo(len * 0.55, 5 + sway, 0, 8.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    trailParticles.forEach(p => {
+      if (dt > 0) {
+        p.vx *= 1 - 1.8 * dt;
+        p.vy = p.vy * (1 - 1.2 * dt) - 16 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.rot += p.spin * dt;
+        const head = p.tail[0];
+        if (!head || Math.hypot(p.x - head.x, p.y - head.y) > 1.6) {
+          p.tail.unshift({ x: p.x, y: p.y });
+          if (p.tail.length > 6) p.tail.pop();
+        }
+      }
+      const k = Math.max(0, (t - p.born) / p.life);
+      const fade = 1 - k * k;
+      // 1) 拖尾光带：历史轨迹连成由粗到细、由亮到暗的光线
+      if (p.tail.length > 1) {
+        for (let i = 0; i < p.tail.length - 1; i++) {
+          const seg = 1 - i / (p.tail.length - 1);
+          ctx.globalAlpha = 0.42 * fade * seg;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = p.size * 1.35 * seg * fade;
+          ctx.beginPath();
+          ctx.moveTo(p.tail[i].x, p.tail[i].y);
+          ctx.lineTo(p.tail[i + 1].x, p.tail[i + 1].y);
+          ctx.stroke();
+        }
+      }
+      // 2) 沿速度方向拉长的纺锤光晕
+      const spd = Math.hypot(p.vx, p.vy);
+      const ang = Math.atan2(p.vy, p.vx);
+      const rx = p.size * (2.2 + Math.min(spd * 0.045, 2.6));
+      const ry = p.size * 1.5;
+      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      glow.addColorStop(0, rgbaOf(p.color, 0.55 * fade));
+      glow.addColorStop(0.3, rgbaOf(p.color, 0.24 * fade));
+      glow.addColorStop(1, rgbaOf(p.color, 0));
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(ang);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      // 3) 星星本体 + 十字星芒
+      const s = p.size * (1 - k * 0.45);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = fade;
       ctx.fillStyle = p.color;
-      ctx.translate(p.x, p.y - k * 20);
-      ctx.rotate(p.rot + k * 1.8);
-      ctx.scale(1 - k * 0.45, 1 - k * 0.45);
       try {
-        ctx.fill(new Path2D(starPath(0, 0, p.size)));
+        ctx.fill(new Path2D(starPath(0, 0, s)));
       } catch (_) {
         ctx.beginPath();
-        ctx.arc(0, 0, p.size, 0, TAU);
+        ctx.arc(0, 0, s, 0, TAU);
         ctx.fill();
       }
+      ctx.globalAlpha = fade * 0.55;
+      ctx.strokeStyle = rgbaOf(p.color, 0.9);
+      ctx.lineWidth = 0.9;
+      const ray = s * 3.1;
+      ctx.beginPath();
+      ctx.moveTo(-ray, 0); ctx.lineTo(ray, 0);
+      ctx.moveTo(0, -ray); ctx.lineTo(0, ray);
+      ctx.stroke();
       ctx.restore();
     });
+    ctx.restore();
+  }
+
+  // ---------- 守护神光焰：身侧升腾的火焰拖尾（本地坐标） ----------
+  let flameParticles = [];
+  let flameSpawn = 0;
+  let flameLast = 0;
+
+  // 一条贴身体侧边上卷的光焰：底光常亮 + 几段向上流动的高光
+  function divineRibbon(ctx, t, side) {
+    const N = 18;
+    const pt = u => [
+      side * (28 + Math.sin(u * Math.PI) * 7 - u * 3),
+      28 - u * 62
+    ];
+    ctx.save();
+    ctx.lineCap = "round";
+    // 底光：整条淡金飘带
+    for (let i = 0; i < N; i++) {
+      const u0 = i / N, u1 = (i + 1) / N;
+      const a = pt(u0), b = pt(u1);
+      const mid = 1 - Math.abs(u0 - 0.5) * 1.1;
+      ctx.globalAlpha = 0.46 * mid;
+      ctx.strokeStyle = "#ff9a3c";
+      ctx.lineWidth = 6.4 * (1 - u0 * 0.4);
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+    }
+    // 流动高光：三段沿曲线向上跑
+    for (let k = 0; k < 3; k++) {
+      const c = (t * 0.5 + k / 3) % 1;
+      for (let i = 0; i < 4; i++) {
+        const u0 = c + i * 0.032;
+        if (u0 >= 1) break;
+        const a = pt(u0), b = pt(Math.min(1, u0 + 0.032));
+        ctx.globalAlpha = 0.9 * (1 - u0) * (1 - u0 * 0.3);
+        ctx.strokeStyle = i < 2 ? "#fff6d6" : "#ffd166";
+        ctx.lineWidth = 3.4 * (1 - u0 * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawDivineFlame(ctx, t) {
+    // 图鉴 / 卡片里的静态调用（t = 0）只画固定形状，不生成火苗
+    if (!(t > 0)) {
+      if (flameParticles.length) flameParticles.length = 0;
+      return;
+    }
+    const gap = t - flameLast;
+    if (gap > 0.6) flameParticles.length = 0;   // 刚切回这个光效时不留旧火苗
+    const dt = Math.min(0.05, Math.max(0, gap));
+    flameLast = t;
+
+    if (t - flameSpawn > 0.024) {
+      flameSpawn = t;
+      for (let i = 0; i < 2; i++) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        flameParticles.push({
+          // 从身体两侧燃起，往上拉成两条升腾的光焰
+          x: side * (20 + Math.random() * 12),
+          y: 12 + Math.random() * 18,
+          vx: side * (0.6 + Math.random() * 3.5),
+          vy: -52 - Math.random() * 30,
+          born: t,
+          life: 1 + Math.random() * 0.65,
+          size: 2.1 + Math.random() * 2.6,
+          phase: Math.random() * TAU,
+          tail: [],
+        });
+      }
+      if (flameParticles.length > 64) flameParticles.splice(0, flameParticles.length - 64);
+    }
+    flameParticles = flameParticles.filter(p => t - p.born < p.life);
+    if (!flameParticles.length) return;
+
+    ctx.save();
+    ctx.filter = "none";
+    ctx.globalCompositeOperation = "source-over";
+    ctx.lineCap = "round";
+    // 先铺两条贴身上卷的光焰飘带，再撒火苗颗粒
+    divineRibbon(ctx, t, -1);
+    divineRibbon(ctx, t, 1);
+    flameParticles.forEach(p => {
+      if (dt > 0) {
+        p.vx *= 1 - 2.1 * dt;
+        p.vy = p.vy * (1 - 0.9 * dt) - 10 * dt;
+        p.x += p.vx * dt + Math.sin(t * 7 + p.phase) * 12 * dt;
+        p.y += p.vy * dt;
+        const head = p.tail[0];
+        if (!head || Math.hypot(p.x - head.x, p.y - head.y) > 0.9) {
+          p.tail.unshift({ x: p.x, y: p.y });
+          if (p.tail.length > 9) p.tail.pop();
+        }
+      }
+      const k = Math.max(0, (t - p.born) / p.life);
+      const fade = (1 - k) * (1 - k);
+      // 外焰：向上流动的暖色光带（底部粗、往上收尖）
+      if (p.tail.length > 1) {
+        for (let i = 0; i < p.tail.length - 1; i++) {
+          const seg = 1 - i / (p.tail.length - 1);
+          const taper = 0.3 + 0.7 * (i / Math.max(1, p.tail.length - 2));
+          ctx.globalAlpha = 0.6 * fade * seg;
+          ctx.strokeStyle = i < 2 ? "#fff0c8" : (i < 6 ? "#ffb04a" : "#ff8a2b");
+          ctx.lineWidth = p.size * 1.8 * taper * fade;
+          ctx.beginPath();
+          ctx.moveTo(p.tail[i].x, p.tail[i].y);
+          ctx.lineTo(p.tail[i + 1].x, p.tail[i + 1].y);
+          ctx.stroke();
+        }
+      }
+      // 火苗本体：竖向拉长的光斑（芯白、边橙）
+      const rx = p.size * 0.85;
+      const ry = p.size * (2.3 - k * 0.8);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, ry);
+      g.addColorStop(0, "rgba(255,250,228,.95)");
+      g.addColorStop(0.32, "rgba(255,178,76,.6)");
+      g.addColorStop(1, "rgba(255,120,40,0)");
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, TAU);
+      ctx.fill();
+      // 焰心：让火苗有个实在的亮点
+      ctx.globalAlpha = fade * 0.85;
+      ctx.fillStyle = "#fffbe8";
+      ctx.beginPath();
+      ctx.arc(0, -ry * 0.2, rx * 0.45, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore();
   }
 
   // ---------- 首页：把配饰挂到池塘小蛙身上 ----------
@@ -1296,7 +1595,8 @@
         shapesFor(item, "front").forEach(sh => frontParts.push(svgShape(sh, item)));
       });
       if (back) back.innerHTML = backParts.join("");
-      if (front) front.innerHTML = frontParts.join("");
+      // 光效的流光层挂在最前面，首页小蛙也能看到拖尾
+      if (front) front.innerHTML = frontParts.join("") + auraFxSvg(BY_ID[wearing.aura]);
     }
     applyHeroSkin();
   }
