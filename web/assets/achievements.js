@@ -455,6 +455,8 @@
       const state = read();
       return {
         unlocked: Object.keys(state.unlocked),
+        // 每枚徽章的解锁时间戳，装扮图鉴用来展示获得时间
+        unlockedAt: Object.assign({}, state.unlocked),
         playedSec: state.playedSec,
         bestSec: state.bestSec,
         bestStreak: streakStats(state.days).best,

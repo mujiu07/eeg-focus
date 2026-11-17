@@ -229,7 +229,7 @@
     dipLily(pads[cur], 170);   // 蹬水起跳：起跳荷叶轻微下沉
     jumping = { t: 0, from: cur, to: next };
     mode = "jumping";
-    PondAudio.play("jump");
+    PondAudio.play("jump", 2);   // 首页起跳音效为原来的 2 倍音量
   }
 
   function land() {
@@ -240,7 +240,7 @@
     dipLily(p, PondEffects.landingImpulse);            // 落地：目标荷叶被压下
     spawnSplash(p.x, p.y + 6);  // 落水水花
     HeroWater?.disturb(p.x, p.y + 7, 2.8);
-    PondAudio.play("land");
+    PondAudio.play("land", 2);   // 首页落地水声为原来的 2 倍音量
   }
 
   function step(dt, t) {

@@ -871,11 +871,13 @@
       const isManual = source.name === "manual";
       developerReport = r.demo || isReplay || isManual;
       if (developerReport) {
-        retryHref = DeveloperTools.canTest
-          ? r.demo ? "game.html?demo=1&sec=60" : "game.html?test=" + (isReplay ? "replay" : "manual") + "&sec=60"
+        const canRetry = DeveloperTools.canTest;
+        retryHref = canRetry
+          ? r.demo ? "game.html?demo=1&sec=60"
+            : "game.html?test=" + (isReplay ? "replay" : "manual") + "&sec=60"
           : "dev.html";
         $("btn-again").textContent = "再试一次";
-        $("btn-again").classList.toggle("hidden", !DeveloperTools.canTest);
+        $("btn-again").classList.toggle("hidden", !canRetry);
         $("btn-home").textContent = "返回开发者模式";
         $("btn-home").href = "dev.html";
       }

@@ -13,6 +13,7 @@
   const IDX_KEY = "bf-music-index";
   const ON_KEY = "bf-music-on";
   const STATE_KEY = "bf-music-state";   // { i: 曲目序号, t: 秒, p: 是否在播放 }
+  const VOL_KEY = "bf-music-volume";    // 0~1 的记忆音量
   const URL_LIMIT = 12;                // 连续取直链失败的最大跳曲次数
 
   // ---------- 注入样式与结构 ----------
@@ -59,7 +60,12 @@
       '  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>',
       "</button>",
       '<div class="vinyl-meta">',
-      '  <div class="vinyl-title" id="music-title">专注歌单</div>',
+      '  <div class="vinyl-vol">',
+      '    <span class="vinyl-vol-label">音量</span>',
+      '    <input class="vinyl-vol-range" id="music-volume" type="range"',
+      '           min="0" max="100" step="1" value="35" aria-label="音乐音量" title="调节音乐音量">',
+      '    <span class="vinyl-vol-val" id="music-volume-val">35%</span>',
+      "  </div>",
       '  <div class="vinyl-sub" id="music-sub">放下唱臂播放</div>',
       "</div>",
       "</div>",
@@ -68,6 +74,8 @@
     expand.addEventListener("click", () => {
       const open = expand.getAttribute("aria-expanded") === "true";
       expand.setAttribute("aria-expanded", String(!open));
+      // 展开/收起后可见宽度变了，通知播放器重新判断歌名是否需要滚动
+      box.dispatchEvent(new CustomEvent("vinyl:resize"));
     });
     document.body.prepend(box);
     return box;
@@ -82,11 +90,33 @@
     const prevBtn = document.getElementById("music-prev");
     const nextBtn = document.getElementById("music-next");
     const titleEl = document.getElementById("music-title");
+    const titleTextEl = titleEl ? titleEl.querySelector(".vinyl-marquee") : null;
     const subEl = document.getElementById("music-sub");
+    const volInput = document.getElementById("music-volume");
+    const volVal = document.getElementById("music-volume-val");
 
     const audio = new Audio();
     audio.preload = "auto";
-    audio.volume = 0.35;
+    // 音量记忆：0~1 的小数，缺省 35%
+    const savedVol = parseFloat(localStorage.getItem(VOL_KEY));
+    audio.volume = Number.isFinite(savedVol) ? Math.min(1, Math.max(0, savedVol)) : 0.35;
+
+    // 滑轨和百分比始终跟 audio.volume 对齐；--fill 用于给轨道已填充段着色
+    function syncVolumeUI() {
+      const pct = Math.round((audio.volume || 0) * 100);
+      if (volInput) {
+        volInput.value = String(pct);
+        volInput.style.setProperty("--fill", pct + "%");
+      }
+      if (volVal) volVal.textContent = pct + "%";
+    }
+    if (volInput) {
+      volInput.addEventListener("input", () => {
+        audio.volume = Math.min(1, Math.max(0, Number(volInput.value) / 100));
+        syncVolumeUI();
+        try { localStorage.setItem(VOL_KEY, String(audio.volume)); } catch (_) { /* 存储不可用时忽略 */ }
+      });
+    }
 
     let tracks = null;
     let index = 0;
@@ -152,12 +182,50 @@
 
     function refreshMeta() {
       const t = tracks && tracks[index];
-      setText(titleEl, t ? t.name : "专注歌单");
-      if (titleEl) titleEl.title = t ? t.name + " · " + (t.artists || "") : "";
+      const name = t ? t.name : "专注歌单";
+      // 只有歌名真的变了才重算滚动，避免暂停提示等刷新把动画重置回开头
+      const nameChanged = !titleTextEl || titleTextEl.textContent !== name;
+      setText(titleTextEl, name);
+      // 歌名行已换成音量行，曲名改挂在播放器上做悬停提示，避免信息丢失
+      root.title = t ? t.name + " · " + (t.artists || "") : "";
       if (subEl) {
         setText(subEl, subText(t));
         subEl.classList.toggle("is-error", !!status);
       }
+      if (nameChanged) syncTitleScroll();
+    }
+
+    // 歌名超出白框宽度时改为往返滚动，避免撑开白色框
+    function syncTitleScroll() {
+      if (!titleEl || !titleTextEl) return;
+      titleEl.classList.remove("is-marquee");
+      titleTextEl.style.removeProperty("--shift");
+      titleTextEl.style.removeProperty("--dur");
+      const boxW = titleEl.clientWidth;
+      if (!boxW) return;                       // 折叠隐藏时无法测量，展开后会重算
+      const shift = titleTextEl.scrollWidth - boxW;
+      if (shift <= 2) return;                  // 放得下就居中静态显示
+      const dur = Math.max(6, Math.round(shift / (40 * 0.38)));
+      titleTextEl.style.setProperty("--shift", (-Math.ceil(shift)) + "px");
+      titleTextEl.style.setProperty("--dur", dur + "s");
+      titleEl.classList.add("is-marquee");
+    }
+
+    let scrollTimer = 0;
+    function scheduleTitleScroll() {
+      if (scrollTimer) return;
+      scrollTimer = setTimeout(() => {
+        scrollTimer = 0;
+        syncTitleScroll();
+      }, 0);
+    }
+
+    // 窗口尺寸、字体加载、窄屏展开收起后都重新判断是否需要滚动
+    window.addEventListener("resize", scheduleTitleScroll);
+    window.addEventListener("orientationchange", scheduleTitleScroll);
+    root.addEventListener("vinyl:resize", scheduleTitleScroll);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(syncTitleScroll).catch(() => {});
     }
 
     function syncUI() {
@@ -495,6 +563,7 @@
     });
 
     // ---------- 启动 ----------
+    syncVolumeUI();
     syncUI();
     refreshMeta();
 

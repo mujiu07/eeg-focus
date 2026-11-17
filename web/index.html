@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="assets/achievements.css">
   <link rel="stylesheet" href="assets/dressup.css">
   <link rel="stylesheet" href="assets/shop.css">
+  <link rel="stylesheet" href="assets/checkin.css">
   <script src="assets/sky.js"></script>
   <style>
     .logo-badge--frog {
@@ -24,15 +25,6 @@
       border: 0; background: transparent; cursor: crosshair;
     }
     .pond-touch:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
-    .pond-speaker {
-      display: grid; place-items: center; flex: none; width: 36px; height: 36px;
-      border: 1px solid var(--card-border); border-radius: 50%;
-      background: var(--card); color: var(--ink); cursor: pointer;
-    }
-    .pond-speaker:hover { color: var(--accent-dark); }
-    .pond-speaker svg { width: 18px; height: 18px; }
-    .pond-speaker[aria-pressed="true"] .speaker-muted,
-    .pond-speaker[aria-pressed="false"] .speaker-waves { display: none; }
     .pond-frog-touch {
       position: absolute; z-index: 1; width: 8.5%; height: 27%;
       transform: translate(-50%, -46%); border: 0; border-radius: 50%;
@@ -160,8 +152,9 @@
           <div class="slogan">小青蛙陪你蹦蹦跳，专注力嗖嗖涨！</div>
         </div>
       </div>
-      <!-- 右侧入口：成就居左，商城居中，装扮占最右侧（成就原来的位置） -->
+      <!-- 右侧入口：签到居左，成就其次，商城居中，装扮占最右侧 -->
       <div class="hero-entries">
+        <div id="checkin-entry" class="checkin-entry"></div>
         <div id="achievement-entry" class="ach-entry"></div>
         <div id="shop-entry" class="shop-entry"></div>
         <div id="dressup-entry" class="dress-entry"></div>
@@ -177,14 +170,6 @@
             <div style="font-weight:800;font-size:18px">梦境池塘</div>
             <div class="hint" style="font-size:13.5px">让专注变成前进的动力</div>
           </div>
-          <button class="pond-speaker hidden" type="button" data-pond-audio aria-label="池塘音效">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M4 9h4l5-4v14l-5-4H4z"/>
-              <path class="speaker-waves" d="M16 9a4.5 4.5 0 0 1 0 6m2-8a7.5 7.5 0 0 1 0 10"/>
-              <path class="speaker-muted" d="m17 10 4 4m0-4-4 4"/>
-            </svg>
-          </button>
         </div>
         <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
           <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式">
@@ -497,6 +482,7 @@
       DeveloperTools.disable();
       renderCalibStatus();
     });
+
     const btnStart = document.getElementById("btn-start");
 
     // 校准只在 1 小时内有效：过期需重新校准，页面上的提示实时刷新
@@ -667,6 +653,7 @@
   <script src="assets/pond-effects.js"></script>
   <script src="assets/pond-audio.js"></script>
   <script src="assets/wallet.js"></script>
+  <script src="assets/checkin.js"></script>
   <script src="assets/hero-water.js"></script>
   <script src="assets/hero-pond.js"></script>
   <script src="assets/dressup.js"></script>

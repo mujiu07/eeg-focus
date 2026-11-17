@@ -64,20 +64,21 @@ const PondAudio = (() => {
     });
   }
 
-  function tone(at, duration, from, to, level) {
+  // scale: 音量倍数，默认 1；调用方可以只放大某一次音效。
+  function tone(at, duration, from, to, level, scale) {
     const oscillator = audio.createOscillator();
     const envelope = audio.createGain();
     oscillator.frequency.setValueAtTime(from, at);
     oscillator.frequency.exponentialRampToValueAtTime(to, at + duration * .75);
     envelope.gain.setValueAtTime(.0001, at);
-    envelope.gain.exponentialRampToValueAtTime(level, at + .009);
+    envelope.gain.exponentialRampToValueAtTime(level * (scale || 1), at + .009);
     envelope.gain.exponentialRampToValueAtTime(.0001, at + duration);
     oscillator.connect(envelope).connect(output);
     oscillator.start(at);
     oscillator.stop(at + duration + .01);
   }
 
-  function splash(at) {
+  function splash(at, scale) {
     if (!water) {
       water = audio.createBuffer(1, Math.ceil(audio.sampleRate * .12), audio.sampleRate);
       const samples = water.getChannelData(0);
@@ -91,7 +92,7 @@ const PondAudio = (() => {
     filter.frequency.setValueAtTime(1550, at);
     filter.frequency.exponentialRampToValueAtTime(460, at + .10);
     gain.gain.setValueAtTime(.0001, at);
-    gain.gain.exponentialRampToValueAtTime(.1, at + .01);
+    gain.gain.exponentialRampToValueAtTime(.1 * (scale || 1), at + .01);
     gain.gain.exponentialRampToValueAtTime(.0001, at + .12);
     source.connect(filter).connect(gain).connect(output);
     source.start(at);
@@ -119,12 +120,12 @@ const PondAudio = (() => {
     croakBusy = false;
   }
 
-  function play(kind) {
+  function play(kind, scale) {
     if (!enabled || !output || document.hidden) return;
     if (audio.state !== "running") {
       const requestedAt = performance.now();
       lastResume?.then(() => {
-        if (audio.state === "running" && performance.now() - requestedAt < 180) play(kind);
+        if (audio.state === "running" && performance.now() - requestedAt < 180) play(kind, scale);
       });
       return;
     }
@@ -132,13 +133,13 @@ const PondAudio = (() => {
     if (kind === "tap") {
       if (now - lastTap < .16) return;
       lastTap = now;
-      tone(now, .095, 680, 400, .097);
+      tone(now, .095, 680, 400, .097, scale);
     } else if (kind === "jump") {
-      tone(now, .13, 260, 550, .21);
-      tone(now + .018, .11, 420, 780, .055);
+      tone(now, .13, 260, 550, .21, scale);
+      tone(now + .018, .11, 420, 780, .055, scale);
     } else if (kind === "land") {
-      tone(now, .14, 235, 125, .23);
-      splash(now + .008);
+      tone(now, .14, 235, 125, .23, scale);
+      splash(now + .008, scale);
     } else if (kind === "croak") {
       croak();
     }

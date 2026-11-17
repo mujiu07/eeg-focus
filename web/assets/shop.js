@@ -2,9 +2,9 @@
    专注小蛙 · 积分商城
    ------------------------------------------------------------
    · 入口排在成就与装扮之间
-   · 积分 = 跳跃次数，局末结算；右上角显示余额
+   · 积分 = 本局得分，局末结算；右上角显示余额
    · 成就专属（小红花 / 单片眼镜 / 学士帽 / 守护神系列）不在售
-   · 其余装扮都能用积分买，5-15 分一件
+   · 其余装扮都能用积分买，5-18 分一件（肤色 ×1.5、背饰/头饰 ×1.2、手持 ×1.1，向上取整）
    ============================================================ */
 (function () {
   "use strict";
@@ -79,7 +79,7 @@
           <div class="shop-head__icon">${coinSvg()}</div>
           <div class="shop-head__text">
             <h2 id="shop-title">积分商城</h2>
-            <p>每跳一次得 1 积分，整局结束后结算到账</p>
+            <p>每局积分与本局得分相同，整局结束后结算到账</p>
           </div>
           <div class="shop-balance" title="积分余额">
             <span class="shop-balance__label">积分余额</span>
@@ -205,7 +205,7 @@
     }
     if (item.price > walletPoints()) {
       const lack = item.price - walletPoints();
-      toast("还差 " + lack + " 积分 · 再跳 " + lack + " 次就能买下");
+      toast("还差 " + lack + " 积分 · 再攒一攒就能买下");
       return;
     }
     if (pendingId === id) {

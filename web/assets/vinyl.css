@@ -6,6 +6,8 @@
 
 .vinyl-player {
   position: fixed; top: 16px; right: 18px; z-index: 45;
+  /* 固定宽度：切歌时白色框尺寸保持不变（长歌名改为滚动展示） */
+  width: 250px;
   padding: 12px 14px 10px;
   border-radius: 22px;
   background: rgba(255, 255, 255, .78);
@@ -92,7 +94,7 @@
   z-index: 2;
 }
 
-/* ---- 唱臂：抬起 = 暂停，落下 = 播放 ---- */
+/* ---- 唱臂：抬起 = 暂停（针头停在唱片外），落下 = 播放（针头压向内圈） ---- */
 .vinyl-arm {
   position: absolute; right: -7px; top: 1px;
   width: 42px; height: 14px;
@@ -100,32 +102,40 @@
   background: transparent;
   cursor: pointer;
   z-index: 6;
-  transform-origin: 92% 50%;
-  transform: rotate(-34deg);           /* 默认抬起 */
+  /* 针头到支点的距离：抬起时收短，视觉上更像"收臂"而不是把杆横在唱片上 */
+  --arm-len: 17px;
+  /* 旋转轴精确落在支点圆心：盒内 (37.5px, 3.5px) */
+  transform-origin: 37.5px 3.5px;
+  transform: rotate(45deg);
   transition: transform .58s cubic-bezier(.3, .8, .3, 1.1);
 }
-/* 臂杆 */
+/* 臂杆：从针头右侧一直伸到支点 */
 .vinyl-arm::before {
   content: "";
-  position: absolute; right: 5px; top: 50%;
-  width: 32px; height: 5px; margin-top: -2.5px;
+  position: absolute; right: 3px; top: 3.5px;
+  left: calc(37.5px - var(--arm-len) + 3px);
+  height: 5px; margin-top: -2.5px;
   border-radius: 3px;
   background: linear-gradient(270deg, #e6eef0, #a3b4b9);
   box-shadow: 0 2px 5px rgba(27, 37, 41, .28);
+  transition: left .58s cubic-bezier(.3, .8, .3, 1.1);
 }
-/* 针头 */
+/* 针头：始终贴在杆的左端 */
 .vinyl-arm::after {
   content: "";
-  position: absolute; left: 1px; top: 50%;
+  position: absolute; top: 3.5px;
+  left: calc(37.5px - var(--arm-len) - 4.5px);
   width: 9px; height: 9px; margin-top: -4.5px;
   border-radius: 50%;
   background: #47585e;
   box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .45);
+  transition: left .58s cubic-bezier(.3, .8, .3, 1.1);
 }
 .vinyl-arm:hover { filter: brightness(1.08); }
 .vinyl-arm:active { filter: brightness(.94); }
 .vinyl-arm:focus-visible { outline: 3px solid rgba(58, 167, 160, .4); outline-offset: 3px; border-radius: 8px; }
-.vinyl-player.is-playing .vinyl-arm { transform: rotate(8deg); }   /* 落针 */
+/* 落针：杆转过唱片内圈，长度伸出，针头落到离唱片中心约 18px 的位置 */
+.vinyl-player.is-playing .vinyl-arm { transform: rotate(-36deg); --arm-len: 29px; }
 
 /* 唱臂支点 */
 .vinyl-pivot {
@@ -134,7 +144,7 @@
   background: radial-gradient(circle at 35% 30%, #f7fbfc, #adbcc0);
   box-shadow: 0 2px 4px rgba(27, 37, 41, .25), inset 0 0 0 1px rgba(255, 255, 255, .7);
   pointer-events: none;
-  z-index: 5;
+  z-index: 7;
 }
 
 .vinyl-notes {
@@ -178,14 +188,29 @@
 
 .vinyl-meta {
   grid-column: 1 / -1;
-  width: 100%; max-width: 216px;
+  width: 100%;
+  min-width: 0;                /* 允许长歌名收缩，由内层滚动而不是撑开白框 */
   margin-top: 1px;
   text-align: center;
   line-height: 1.25;
 }
 .vinyl-title {
+  position: relative;
+  overflow: hidden;
   font-size: 13px; font-weight: 800; color: var(--ink, #23464f);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* 歌名内层：宽度由文字决定，溢出时由 .is-marquee 触发左右往返滚动 */
+.vinyl-marquee {
+  display: inline-block;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.vinyl-title.is-marquee { text-align: left; }
+.vinyl-title.is-marquee .vinyl-marquee {
+  animation: vinyl-marquee var(--dur, 12s) ease-in-out infinite;
+  will-change: transform;
 }
 .vinyl-sub {
   margin-top: 2px;
@@ -194,7 +219,68 @@
 }
 .vinyl-sub.is-error { color: #c0392b; }
 
+/* ---- 音量行：标签 + 滑轨 + 百分比 ---- */
+.vinyl-vol {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.vinyl-vol-label {
+  font-size: 11.5px; font-weight: 700;
+  color: var(--ink-mid, #385461);
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.vinyl-vol-val {
+  min-width: 32px; text-align: right;
+  font-size: 11px; font-weight: 700;
+  color: var(--ink-mute, #809695);
+  font-variant-numeric: tabular-nums;
+}
+/* 用 .vinyl-player 前缀提高优先级，覆盖 style.css 里全局的 input[type=range] 样式 */
+.vinyl-player .vinyl-vol-range {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 14px; margin: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  /* 输入框与滑块同为 14px 高（偶数，避免半像素取整），轨道线用居中背景绘制 */
+  background: linear-gradient(to right,
+    #64a77f 0 var(--fill, 35%), #e5efeb var(--fill, 35%) 100%) center / 100% 4px no-repeat;
+  cursor: pointer;
+}
+.vinyl-player .vinyl-vol-range::-webkit-slider-runnable-track {
+  height: 14px; border-radius: 999px; background: transparent;
+}
+.vinyl-player .vinyl-vol-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  box-sizing: border-box;
+  width: 14px; height: 14px;
+  margin-top: 0;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #64a77f;
+  box-shadow: 0 1px 3px rgba(27, 37, 41, .22);
+}
+.vinyl-player .vinyl-vol-range::-moz-range-track {
+  height: 4px; border-radius: 999px; background: transparent;
+}
+.vinyl-player .vinyl-vol-range::-moz-range-thumb {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #fff; border: 2px solid #64a77f;
+  box-shadow: 0 1px 3px rgba(27, 37, 41, .22);
+}
+.vinyl-vol-range:focus-visible { outline: 3px solid rgba(58, 167, 160, .35); outline-offset: 3px; }
+.vinyl-vol-range:hover { filter: brightness(1.04); }
+
 @keyframes vinyl-spin { to { transform: rotate(360deg); } }
+/* 长歌名往返滚动：先停留，再左移展示结尾，然后回到开头 */
+@keyframes vinyl-marquee {
+  0%, 8%    { transform: translateX(0); }
+  46%, 54%  { transform: translateX(var(--shift, 0px)); }
+  92%, 100% { transform: translateX(0); }
+}
 @keyframes note-float {
   0%   { opacity: 0; transform: translate(0, 0) scale(.7); }
   12%  { opacity: .95; }
@@ -202,9 +288,14 @@
   100% { opacity: 0; transform: translate(26px, -40px) scale(1.2) rotate(14deg); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .vinyl-title.is-marquee .vinyl-marquee { animation: none; }
+}
+
 .vinyl-controls {
   display: grid;
-  grid-template-columns: auto auto auto;
+  /* minmax(0, auto)：轨道可以收缩到比歌名 min-content 更窄，避免长歌名把白框撑开 */
+  grid-template-columns: minmax(0, auto) minmax(0, auto) minmax(0, auto);
   align-items: center;
   justify-items: center;
   gap: 6px 10px;
@@ -238,5 +329,6 @@
   }
   .vinyl-expand:focus-visible { outline: 2px solid currentColor; }
   .vinyl-expand[aria-expanded="false"] + .vinyl-controls { display: none; }
-  .vinyl-controls { padding: 4px 14px 10px; }
+  /* 展开后同样固定宽度，切换歌曲不会改变白框大小 */
+  .vinyl-controls { width: 220px; padding: 4px 14px 10px; }
 }

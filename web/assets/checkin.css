@@ -1,0 +1,286 @@
+﻿/* ============================================================
+   专注小蛙 · 每日签到
+   ------------------------------------------------------------
+   · 入口放在首页右侧最左边（成就的左侧）
+   · 每天 0 点刷新，签到一次得 2 积分
+   · 和成就 / 商城 / 装扮同一套奶油白胶囊视觉
+   ============================================================ */
+
+/* ---------- 入口 ---------- */
+.checkin-entry { display: flex; align-items: center; flex: none; }
+
+.checkin-chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 7px 17px 7px 8px;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1.5px solid rgba(240, 169, 78, .4);
+  background: linear-gradient(140deg, rgba(255, 255, 255, .97), rgba(255, 245, 228, .93));
+  box-shadow: 0 6px 18px rgba(214, 148, 66, .18), inset 0 1px 0 rgba(255, 255, 255, .95);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.checkin-chip:hover {
+  transform: translateY(-2px);
+  border-color: rgba(240, 169, 78, .68);
+  box-shadow: 0 10px 24px rgba(214, 148, 66, .26), inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+.checkin-chip:active { transform: translateY(0) scale(.98); }
+.checkin-chip:focus-visible { outline: 3px solid rgba(240, 169, 78, .55); outline-offset: 3px; }
+
+.checkin-chip__badge {
+  width: 46px; height: 46px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, #fff8e2, #ffdfa9 58%, #f7c077);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .95), 0 4px 10px rgba(214, 148, 66, .28);
+  transition: background .25s ease, box-shadow .25s ease;
+}
+.checkin-chip__badge svg { display: block; width: 30px; height: 30px; }
+.checkin-chip.is-ready .checkin-chip__badge svg { animation: checkinGiftNudge 3.4s ease-in-out infinite; }
+@keyframes checkinGiftNudge {
+  0%, 62%, 100% { transform: rotate(0) scale(1); }
+  68% { transform: rotate(-7deg) scale(1.06); }
+  74% { transform: rotate(6deg) scale(1.06); }
+  80% { transform: rotate(-3deg) scale(1.02); }
+}
+
+.checkin-chip__meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
+.checkin-chip__title {
+  font-size: 15.5px; font-weight: 900; letter-spacing: 1.5px;
+  color: #8a5417;
+  transition: color .25s ease;
+}
+.checkin-chip__count {
+  display: inline-block;
+  font-size: 12.5px; font-weight: 800; letter-spacing: .3px;
+  color: #bd7116;
+  transition: color .25s ease;
+}
+/* 未签到时让“今日 +2 积分”这行字自己呼吸，提示要显眼 */
+.checkin-chip.is-ready .checkin-chip__count { animation: checkinPromptPulse 2.2s ease-in-out infinite; }
+@keyframes checkinPromptPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .55; }
+}
+
+/* 未签到：外圈扩散提醒 */
+.checkin-chip.is-ready::before {
+  content: "";
+  position: absolute; inset: -3px;
+  border-radius: 999px;
+  border: 2px solid rgba(240, 169, 78, .6);
+  pointer-events: none;
+  animation: checkinRing 2.6s ease-out infinite;
+}
+@keyframes checkinRing {
+  0%   { opacity: .85; transform: scale(.97); }
+  70%  { opacity: 0;   transform: scale(1.07); }
+  100% { opacity: 0;   transform: scale(1.07); }
+}
+
+/* 点击后的回弹（已签到再点时给个反馈） */
+.checkin-chip.is-pop { animation: checkinPop .42s cubic-bezier(.2, .9, .3, 1.4); }
+@keyframes checkinPop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(.955); }
+  70%  { transform: scale(1.025); }
+  100% { transform: scale(1); }
+}
+
+/* 未签到：右上角“可领 2 分”小红点标签 */
+.checkin-chip__dot {
+  position: absolute; top: -6px; right: -4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 900; letter-spacing: .4px;
+  color: #fff;
+  background: linear-gradient(135deg, #ff9a4d, #ef6f3c);
+  box-shadow: 0 4px 10px rgba(239, 111, 60, .38), 0 0 0 2.5px #fff;
+  white-space: nowrap;
+  animation: checkinDotBob 2s ease-in-out infinite;
+}
+.checkin-chip__dot[hidden] { display: none; }
+@keyframes checkinDotBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+/* 已签到：换成薄荷绿，安静下来 */.checkin-chip.is-done {
+  border-color: rgba(58, 167, 160, .3);
+  background: linear-gradient(140deg, rgba(255, 255, 255, .96), rgba(238, 250, 246, .94));
+  box-shadow: 0 6px 18px rgba(47, 110, 128, .12), inset 0 1px 0 #fff;
+}
+.checkin-chip.is-done .checkin-chip__badge {
+  background: radial-gradient(circle at 34% 26%, #f4fffb, #cfeee6 58%, #a6ded1);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .95), 0 4px 10px rgba(47, 110, 128, .2);
+}
+.checkin-chip.is-done .checkin-chip__title { color: #1f6f68; }
+.checkin-chip.is-done .checkin-chip__count { color: #3b847d; }
+
+/* ---------- 签到成功：大号文字提示 ---------- */
+.checkin-toast {
+  position: fixed; bottom: 30px; left: 0; right: 0; z-index: 96;
+  margin-inline: auto;
+  width: fit-content; max-width: calc(100vw - 40px);
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 30px 14px 16px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #fffdf4, #ffe6b5 62%, #ffd48c);
+  border: 2px solid rgba(240, 169, 78, .62);
+  box-shadow: 0 20px 50px rgba(214, 148, 66, .36), inset 0 1px 0 rgba(255, 255, 255, .95);
+  opacity: 0; pointer-events: none;
+  transform: translateY(20px) scale(.96);
+  transition: opacity .2s ease, transform .3s cubic-bezier(.2, .9, .3, 1.3);
+}
+.checkin-toast.is-show { opacity: 1; transform: translateY(0) scale(1); }
+
+.checkin-toast__icon {
+  width: 54px; height: 54px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 26px; line-height: 1;
+  background: radial-gradient(circle at 34% 26%, #fffaf0, #ffe1a8 60%, #f5bd6d);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .95), 0 6px 14px rgba(214, 148, 66, .3);
+}
+.checkin-toast__main { display: flex; flex-direction: column; align-items: flex-start; }
+.checkin-toast__main strong {
+  font-size: 22px; font-weight: 900; letter-spacing: .8px;
+  color: #7d4a10;
+  line-height: 1.25;
+}
+.checkin-toast__main strong b {
+  font-size: 25px;
+  color: #e07a12;
+  margin: 0 2px;
+}
+.checkin-toast__main span {
+  margin-top: 2px;
+  font-size: 13px; font-weight: 700; letter-spacing: .3px;
+  color: #8b5f12;
+}
+
+/* 已签到又要签到时的小提醒（复用同一个提示条，去掉金光感） */
+.checkin-toast.is-muted {
+  background: linear-gradient(135deg, #ffffff, #eef7f4);
+  border-color: rgba(58, 167, 160, .34);
+  box-shadow: 0 16px 40px rgba(47, 110, 128, .22), inset 0 1px 0 #fff;
+}
+.checkin-toast.is-muted .checkin-toast__main strong { color: #1f6f68; font-size: 18px; }
+.checkin-toast.is-muted .checkin-toast__main span { color: #3b847d; }
+
+/* ---------- 点击时飞出的 +2 ---------- */
+.checkin-float {
+  position: fixed; z-index: 97;
+  font-size: 22px; font-weight: 900; letter-spacing: .5px;
+  color: #e0801a;
+  text-shadow: 0 2px 0 #fff, 0 6px 14px rgba(214, 148, 66, .35);
+  pointer-events: none;
+  animation: checkinFloatUp 1.15s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+@keyframes checkinFloatUp {
+  0%   { opacity: 0; transform: translate(-50%, 4px) scale(.6); }
+  18%  { opacity: 1; transform: translate(-50%, -6px) scale(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -76px) scale(1); }
+}
+
+/* 撒出的小金币 */
+.checkin-coin {
+  position: fixed; z-index: 97;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #fff3cf, #f7c96b 62%, #dd9c33);
+  box-shadow: 0 2px 6px rgba(214, 148, 66, .4);
+  pointer-events: none;
+  animation: checkinCoinBurst .95s ease-out forwards;
+}
+@keyframes checkinCoinBurst {
+  0%   { opacity: 0; transform: translate(0, 0) scale(.5); }
+  20%  { opacity: 1; }
+  100% { opacity: 0;
+         transform: translate(var(--dx, 0), var(--dy, -60px)) scale(.85) rotate(220deg); }
+}
+
+/* ---------- 桌面端：四个入口紧凑一档，和品牌保持同一行 ----------
+   卡片 max-width 936px，品牌约 344px。加进第 4 个入口后
+   原尺寸会换行（sky.css 里 hero-top 允许 wrap），这里统一收一档。 */
+@media (min-width: 561px) {
+  .hero-entries { gap: 8px; }
+
+  .hero-entries .ach-chip,
+  .hero-entries .shop-chip,
+  .hero-entries .dress-chip,
+  .hero-entries .checkin-chip {
+    gap: 8px;
+    padding: 6px 12px 6px 7px;
+  }
+
+  .hero-entries .ach-chip__badge,
+  .hero-entries .shop-chip__badge,
+  .hero-entries .dress-chip__badge,
+  .hero-entries .checkin-chip__badge {
+    width: 40px; height: 40px;
+  }
+
+  .hero-entries .ach-chip__badge svg,
+  .hero-entries .shop-chip__badge svg,
+  .hero-entries .dress-chip__badge svg,
+  .hero-entries .checkin-chip__badge svg {
+    width: 26px; height: 26px;
+  }
+
+  .hero-entries .ach-chip__title,
+  .hero-entries .shop-chip__title,
+  .hero-entries .dress-chip__title,
+  .hero-entries .checkin-chip__title {
+    font-size: 14.5px;
+  }
+
+  .hero-entries .ach-chip__count,
+  .hero-entries .shop-chip__count,
+  .hero-entries .dress-chip__count,
+  .hero-entries .checkin-chip__count {
+    font-size: 12px;
+  }
+}
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 640px) {
+  .checkin-chip { padding: 6px 14px 6px 6px; gap: 8px; }
+  .checkin-chip__badge { width: 40px; height: 40px; }
+  .checkin-chip__badge svg { width: 26px; height: 26px; }
+  .checkin-chip__title { font-size: 14.5px; }
+  .checkin-chip__dot { font-size: 10px; padding: 2px 7px; }
+  .checkin-toast { bottom: 16px; padding: 12px 22px 12px 14px; gap: 11px; }
+  .checkin-toast__main strong { font-size: 18px; }
+  .checkin-toast__main strong b { font-size: 21px; }
+  .checkin-toast__main span { font-size: 12px; }
+  .checkin-toast__icon { width: 46px; height: 46px; font-size: 22px; }
+}
+
+/* 窄屏：入口独占一行，横向铺满大白卡（与成就 / 装扮一致） */
+@media (max-width: 560px) {
+  .checkin-entry { width: 100%; margin-left: 0; }
+  .checkin-chip { width: 100%; justify-content: flex-start; border-radius: 18px; padding: 8px 16px 8px 8px; }
+  .checkin-chip::after {
+    content: "签到领积分 ›";
+    margin-left: auto;
+    font-size: 12.5px; font-weight: 700;
+    color: #bd7116;
+    letter-spacing: .5px;
+  }
+  .checkin-chip.is-done::after { content: "明天再来 ›"; color: #4c938c; }
+  .checkin-chip__title { font-size: 15.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkin-chip, .checkin-chip__badge, .checkin-chip__title, .checkin-chip__count { transition: none; }
+  .checkin-chip.is-ready .checkin-chip__badge svg,
+  .checkin-chip.is-ready .checkin-chip__count,
+  .checkin-chip.is-ready::before,
+  .checkin-chip__dot { animation: none; }
+  .checkin-toast { transition: opacity .15s ease; }
+  .checkin-float, .checkin-coin { animation-duration: .3s; }
+}

@@ -1,7 +1,7 @@
 /* ============================================================
    专注小蛙 · 积分钱包
    ------------------------------------------------------------
-   · 积分 = 跳跃次数：游戏里每成功跳一次记 1 分
+   · 积分 = 本局得分：一局结束后按本局得分一次性记入
    · 以「局」为单位累计：局内不实时入账，本局结束时一次结算
    · 余额只保存在本机 localStorage（bf-wallet），不上传、不联网
    ============================================================ */
@@ -43,13 +43,13 @@
     } catch (_) { /* 老浏览器忽略 */ }
   }
 
-  // 一局结束：把本局跳跃次数一次性记成积分
-  function settleRound(jumps) {
-    const n = Math.max(0, Math.floor(Number(jumps) || 0));
+  // 一局结束：把本局得分一次性记成积分
+  function settleRound(score) {
+    const n = Math.max(0, Math.floor(Number(score) || 0));
     state.rounds += 1;
     if (n) {
       state.points += n;
-      state.jumps += n;
+      state.jumps += n;   // 沿用旧字段名，记录累计入账分值
     }
     save();
     emit();
@@ -91,7 +91,7 @@
 
   window.Wallet = {
     key: KEY,
-    points: function () { return state.points; },
+    points: function () { return stats().points; },
     stats: stats,
     settleRound: settleRound,
     add: add,

@@ -13,6 +13,66 @@ const PondEffects = {
   frogMouth: { start: [-8, 5], curve: [0, 10, 8, 5], color: "#346951", width: 2 },
   landingImpulse: 250,
 
+  // 荷叶的形状与配色：画布（游戏池塘）和转场卡片共用同一份数据，
+  // 保证开局倒数里的青蛙、荷叶与游戏里长得一模一样。
+  lily: {
+    rx: 47,
+    ry: 26,
+    gradient: [[0, "#c6f3c8"], [0.65, "#74d484"], [1, "#46b463"]],
+    highlight: { color: "rgba(255,255,255,.5)", width: 2.5, radius: 34, cy: 2, from: -2.2, to: -1.1 },
+    vein: {
+      color: "rgba(30, 96, 56, .4)", width: 1.6,
+      lines: [[-34, 0, 34, 0], [0, -19, 0, 19], [-18, -11, 18, 11], [-18, 11, 18, -11]],
+    },
+    shadow: { color: "#1d6f86", alpha: 0.2, rx: 24, ry: 9, dy: -24 },
+  },
+
+  // 在已 translate / scale 到荷叶中心的上下文里画一片完整荷叶
+  paintLily(ctx) {
+    const style = PondEffects.lily;
+    const g = ctx.createRadialGradient(6, -8, 4, 0, 0, 48);
+    style.gradient.forEach(([stop, color]) => g.addColorStop(stop, color));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, style.rx, style.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const hl = style.highlight;
+    ctx.strokeStyle = hl.color;
+    ctx.lineWidth = hl.width;
+    ctx.beginPath();
+    ctx.arc(0, hl.cy, hl.radius, hl.from, hl.to);
+    ctx.stroke();
+
+    const vein = style.vein;
+    ctx.strokeStyle = vein.color;
+    ctx.lineWidth = vein.width;
+    ctx.beginPath();
+    vein.lines.forEach(([x1, y1, x2, y2]) => {
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+    });
+    ctx.stroke();
+  },
+
+  // 在已 translate 到青蛙中心的上下文里画青蛙本体（不含装扮配饰）
+  paintFrog(ctx, shapes, mouth) {
+    const ellipses = shapes || PondEffects.frogEllipses;
+    const smile = mouth || PondEffects.frogMouth;
+    ellipses.forEach(([x, y, rx, ry, color]) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.strokeStyle = smile.color;
+    ctx.lineWidth = smile.width;
+    ctx.beginPath();
+    ctx.moveTo(...smile.start);
+    ctx.quadraticCurveTo(...smile.curve);
+    ctx.stroke();
+  },
+
   advancePad(pad, dt) {
     pad.dipVel += (-150 * pad.dip - 9 * pad.dipVel) * dt;
     pad.dip += pad.dipVel * dt;

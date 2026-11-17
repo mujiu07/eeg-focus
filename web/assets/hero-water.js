@@ -199,7 +199,7 @@ const HeroWater = (() => {
     const point = event.detail ? scenePoint(event) : { x: 440, y: 204 };
     if (point) {
       disturb(point.x, Math.max(waterline + 9, Math.min(242, point.y)), 3.25);
-      PondAudio.play("tap");
+      PondAudio.play("tap", 2);   // 首页点击水面音效为原来的 2 倍音量
     }
   });
   document.addEventListener("skychange", event => {

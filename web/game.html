@@ -142,41 +142,40 @@
     }
     .cue.show .cue-card { transform: none; }
 
-    /* 荷叶 + 青蛙：与画布里的落点同构，只是换成首页那只 emoji 小蛙 */
-    .cue-pad { position: relative; width: 108px; height: 78px; margin: 0 auto 2px; }
+    /* 荷叶 + 青蛙：直接复用游戏画布的同一套绘制（PondEffects.paintLily / paintFrog），
+       尺寸、配色、叶脉、阴影都和池塘里当前踩着的荷叶完全一致。 */
+    .cue-pad { position: relative; width: 132px; height: 104px; margin: 0 auto 2px; }
     .cue-ripple {
-      position: absolute; left: 50%; bottom: 9px;
-      width: 76px; height: 25px; border-radius: 50%;
+      position: absolute; left: 50%; bottom: 21px;
+      width: 88px; height: 37px; border-radius: 50%;
       border: 2px solid rgba(88, 194, 112, .4);
-      transform: translate(-50%, 0) scale(.5);
+      transform: translate(-50%, 0) scale(.85);
       opacity: 0;
     }
     .cue.show .cue-ripple { animation: cueRipple 2.8s ease-out infinite; }
     .cue.show .cue-ripple:nth-child(2) { animation-delay: 1.4s; }
     @keyframes cueRipple {
-      0%   { transform: translate(-50%, 0) scale(.5); opacity: .8; }
+      0%   { transform: translate(-50%, 0) scale(.85); opacity: .8; }
       70%  { opacity: .22; }
       100% { transform: translate(-50%, 0) scale(1.9); opacity: 0; }
     }
-    .cue-leaf {
-      position: absolute; left: 50%; bottom: 14px;
-      width: 86px; height: 30px; border-radius: 50%;
+    .cue-leaf, .cue-frog {
+      position: absolute; left: 50%; display: block;
       transform: translateX(-50%);
-      background: radial-gradient(62% 82% at 40% 26%, #d3f8d5, #7edb8c 58%, #46b463);
-      box-shadow: inset 0 -5px 9px rgba(30, 96, 56, .18), 0 10px 18px rgba(47, 110, 128, .16);
+      /* 覆盖 style.css 里全局 canvas 的圆角与阴影，否则会在小蛙周围多出一个灰框 */
+      border-radius: 0; background: none; box-shadow: none;
+    }
+    .cue-leaf {
+      bottom: 6px; width: 116px; height: 68px;
       animation: cueBob 3.4s ease-in-out infinite;
+    }
+    .cue-frog {
+      bottom: 39px; width: 70px; height: 58px;
+      animation: cueFrogBob 3.4s ease-in-out infinite;
     }
     @keyframes cueBob {
       0%, 100% { transform: translateX(-50%) translateY(1px) rotate(-.6deg); }
       50%      { transform: translateX(-50%) translateY(-3px) rotate(.6deg); }
-    }
-    .cue-frog {
-      position: absolute; left: 50%; top: -33px;
-      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "PingFang SC", sans-serif;
-      font-size: 36px; line-height: 1;
-      transform: translateX(-50%);
-      filter: drop-shadow(0 7px 9px rgba(47, 110, 128, .28));
-      animation: cueFrogBob 3.4s ease-in-out infinite;
     }
     @keyframes cueFrogBob {
       0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
@@ -200,10 +199,10 @@
       100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
     }
     .cue-splash {
-      position: absolute; left: 50%; bottom: 8px;
-      width: 80px; height: 26px; border-radius: 50%;
+      position: absolute; left: 50%; bottom: 21px;
+      width: 88px; height: 34px; border-radius: 50%;
       border: 2px solid rgba(255, 255, 255, .9);
-      transform: translate(-50%, 0) scale(.4);
+      transform: translate(-50%, 0) scale(.55);
       opacity: 0;
     }
     .cue--end .cue-splash { animation: cueSplash .85s .5s ease-out both; }
@@ -338,7 +337,7 @@
       /* 手机上的池塘只有两三百像素高，转场改为覆盖整屏才放得下 */
       .cue { position: fixed; border-radius: 0; }
       .cue-card { width: min(88%, 360px); padding: 18px 20px 16px; }
-      .cue-pad { height: 70px; }
+      .cue-pad { height: 100px; }
       .cue-count-wrap { height: 86px; }
       .cue-count { font-size: 72px; }
       .cue-count.go { font-size: 48px; }
@@ -420,7 +419,8 @@
           <div class="cue-pad" aria-hidden="true">
             <span class="cue-ripple"></span>
             <span class="cue-ripple"></span>
-            <div class="cue-leaf"><span class="cue-frog">🐸</span></div>
+            <canvas class="cue-leaf" width="116" height="68"></canvas>
+            <canvas class="cue-frog" width="70" height="58"></canvas>
           </div>
           <p class="cue-kicker">专注小蛙</p>
           <div class="cue-count-wrap">
@@ -439,7 +439,8 @@
             <span class="cue-ripple"></span>
             <span class="cue-ripple"></span>
             <span class="cue-splash"></span>
-            <div class="cue-leaf"><span class="cue-frog">🐸</span></div>
+            <canvas class="cue-leaf" width="116" height="68"></canvas>
+            <canvas class="cue-frog" width="70" height="58"></canvas>
           </div>
           <span class="cue-spark" style="left:13%;top:16%" aria-hidden="true"></span>
           <span class="cue-spark" style="right:14%;top:11%;animation-delay:.75s" aria-hidden="true"></span>
@@ -1303,29 +1304,8 @@
           : (dry.trim() || "none");
         ctx.translate(l.x, y);
         ctx.scale(s * (1 + squash * 0.5), s * (1 - squash));
-        const g = ctx.createRadialGradient(6, -8, 4, 0, 0, 48);
-        g.addColorStop(0, "#c6f3c8");
-        g.addColorStop(0.65, "#74d484");
-        g.addColorStop(1, "#46b463");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 47, 26, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // 高光弧
-        ctx.strokeStyle = "rgba(255,255,255,.5)";
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(0, 2, 34, -2.2, -1.1);
-        ctx.stroke();
-        // 叶脉
-        ctx.strokeStyle = "rgba(30, 96, 56, .4)";
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.moveTo(-34, 0); ctx.lineTo(34, 0);
-        ctx.moveTo(0, -19); ctx.lineTo(0, 19);
-        ctx.moveTo(-18, -11); ctx.lineTo(18, 11);
-        ctx.moveTo(-18, 11); ctx.lineTo(18, -11);
-        ctx.stroke();
+        // 荷叶主体、高光弧与叶脉：与转场卡片共用同一套绘制（PondEffects.paintLily）
+        PondEffects.paintLily(ctx);
         // 还没出水：整片叶子再罩一层水色，让它真的有"隔着水"的感觉
         if (under > 0.02) {
           ctx.globalAlpha = 0.5 * under;
@@ -1376,14 +1356,12 @@
       ctx.filter = p.frog;
       // 背饰画在身体后面（披风、翅膀、背包），正饰画在身体前面
       if (window.DressUp) DressUp.drawCanvas(ctx, "back", t);
-      PondEffects.frogEllipses.forEach(shape => paintEllipse(...shape));
-      const mouth = PondEffects.frogMouth;
-      ctx.strokeStyle = mouth.color;
-      ctx.lineWidth = mouth.width;
-      ctx.beginPath();
-      ctx.moveTo(...mouth.start);
-      ctx.quadraticCurveTo(...mouth.curve);
-      ctx.stroke();
+      // 青蛙本体跟随装扮里选中的肤色；与转场卡片共用 PondEffects.paintFrog
+      const frogShapes = window.DressUp && DressUp.skinEllipses
+        ? DressUp.skinEllipses(null, PondEffects.frogEllipses)
+        : PondEffects.frogEllipses;
+      const mouth = window.DressUp && DressUp.skinMouth ? DressUp.skinMouth() : PondEffects.frogMouth;
+      PondEffects.paintFrog(ctx, frogShapes, mouth);
       if (window.DressUp) DressUp.drawCanvas(ctx, "front", t);
       ctx.restore();
     }
@@ -1491,6 +1469,67 @@
       el.classList.add(cls);
     }
 
+    // ---- 转场卡片上的青蛙 / 荷叶 ----
+    // 直接调用游戏画布的同一套绘制（PondEffects.paintLily / paintFrog）：
+    // 荷叶取当前所在荷叶的 1.15 倍大小，青蛙不缩放、底部落在叶心，
+    // 皮肤与配饰跟随当前装扮，明度滤镜跟随当前天空模式，
+    // 因此转场里的青蛙和荷叶与池塘里的一模一样，不会再出现 emoji/CSS 版本。
+    const CUE_LEAF = { w: 116, h: 68, cx: 58, cy: 34, scale: 1.15 };
+    const CUE_FROG = { w: 70, h: 58, cx: 35, cy: 29, lift: 28 };
+
+    function cueContext(canvas, w, h) {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      const c = canvas.getContext("2d");
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, w, h);
+      return c;
+    }
+
+    function paintCueArt() {
+      if (!window.PondEffects || !PondEffects.paintLily) return;
+      const p = theme();
+      const flora = p.flora && p.flora !== "none" ? p.flora : "none";
+      const frogFilter = p.frog && p.frog !== "none" ? p.frog : "none";
+      const shapes = window.DressUp && DressUp.skinEllipses
+        ? DressUp.skinEllipses(null, PondEffects.frogEllipses)
+        : PondEffects.frogEllipses;
+      const mouth = window.DressUp && DressUp.skinMouth
+        ? DressUp.skinMouth()
+        : PondEffects.frogMouth;
+
+      [startCue, endCue].forEach(cue => {
+        if (!cue) return;
+        const leaf = cue.querySelector("canvas.cue-leaf");
+        const frog = cue.querySelector("canvas.cue-frog");
+        if (leaf) {
+          const c = cueContext(leaf, CUE_LEAF.w, CUE_LEAF.h);
+          c.filter = flora;
+          c.translate(CUE_LEAF.cx, CUE_LEAF.cy);
+          c.scale(CUE_LEAF.scale, CUE_LEAF.scale);
+          PondEffects.paintLily(c);
+        }
+        if (frog) {
+          const c = cueContext(frog, CUE_FROG.w, CUE_FROG.h);
+          c.translate(CUE_FROG.cx, CUE_FROG.cy);
+          // 与 drawFrog 相同的贴叶阴影：相对青蛙中心下移 4（阴影中心在荷叶中心上方 24）
+          const shadow = PondEffects.lily.shadow;
+          c.save();
+          c.globalAlpha = shadow.alpha;
+          c.fillStyle = shadow.color;
+          c.beginPath();
+          c.ellipse(0, shadow.dy + CUE_FROG.lift, shadow.rx, shadow.ry, 0, 0, Math.PI * 2);
+          c.fill();
+          c.restore();
+          c.filter = frogFilter;
+          if (window.DressUp) DressUp.drawCanvas(c, "back", 0);
+          PondEffects.paintFrog(c, shapes, mouth);
+          if (window.DressUp) DressUp.drawCanvas(c, "front", 0);
+        }
+      });
+    }
+
     function cueCount(cue, text, go = false) {
       if (!cue) return;
       const num = cue.querySelector(".cue-count");
@@ -1511,6 +1550,7 @@
       const dots = Array.from(startCue.querySelectorAll(".cue-dots i"));
       $("lamp-text").textContent = "准备中";
       $("warn").classList.remove("show");   // 倒数期间不显示“正在等待信号”
+      paintCueArt();                        // 按当前装扮 / 天空模式重画卡片上的小蛙与荷叶
       startCue.classList.remove("leaving");
       startCue.classList.add("show");
       startCue.setAttribute("aria-hidden", "false");
@@ -1566,7 +1606,7 @@
           pointsEl.classList.add("hidden");
         } else {
           pointsEl.classList.remove("hidden");
-          pointsEl.innerHTML = "本局积分 +<b>" + jumps + "</b>";
+          pointsEl.innerHTML = "本局积分 +<b>" + score + "</b>";
         }
       }
       endCue.querySelector(".cue-sub").textContent =
@@ -1575,6 +1615,7 @@
           : score > 0 ? "小蛙出发啦，下次再陪它走远一点。"
           : "这次小蛙还没出发，慢慢来，我们再来一次。";
       endCue.classList.remove("leaving");
+      paintCueArt();   // 结算卡片同样用池塘里的青蛙与荷叶
       endCue.classList.add("show");
       endCue.setAttribute("aria-hidden", "false");
       // 结算至少展示 1.8 秒；保存请求与动画并行，报告页不会突兀地跳出来
@@ -1614,10 +1655,10 @@
       state.over = true;
       state.saving = true;
       if (state.es) state.es.close();
-      // 本局积分：每成功跳一次记 1 分，整局一次性入账；开发者调试入口不计
+      // 本局积分：与本局得分相同，整局一次性入账；开发者调试入口不计
       if (!state.pointsSettled && !developerRun && window.Wallet) {
         state.pointsSettled = true;
-        Wallet.settleRound(state.actions.jumps.length);
+        Wallet.settleRound(state.score);
       }
       $("btn-retry").classList.add("hidden");
       $("game-error").classList.add("hidden");
@@ -1692,9 +1733,10 @@
 
     // 分辨率适配：首帧绘制前先算一次，窗口尺寸或缩放变化时重算
     fitCanvas();
-    window.addEventListener("resize", fitCanvas);
-    window.addEventListener("orientationchange", fitCanvas);
-    window.addEventListener("pageshow", fitCanvas);
+    paintCueArt();   // 先把转场卡片的青蛙 / 荷叶画好，倒数时不会闪一下空白
+    window.addEventListener("resize", () => { fitCanvas(); paintCueArt(); });
+    window.addEventListener("orientationchange", () => { fitCanvas(); paintCueArt(); });
+    window.addEventListener("pageshow", () => { fitCanvas(); paintCueArt(); });
     // 容器宽度变化（窗口缩放以外的情形）同样要重新适配，否则画布会被再次拉伸
     if (window.ResizeObserver) new ResizeObserver(fitCanvas).observe(canvas);
 

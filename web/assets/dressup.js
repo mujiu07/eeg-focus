@@ -2,8 +2,9 @@
    专注小蛙 · 装扮系统
    ------------------------------------------------------------
    · 图鉴：展示全部装扮的外观、名称、获取途径；未获得灰显
-   · 装扮：自由搭配，同一类别同时只能穿戴一件
-   · 批量：图鉴支持多选后批量穿戴 / 批量卸下
+   · 装扮：自由搭配，同一类别同时只能穿戴一件（打开面板默认停在这一页）
+   · 肤色：只替换青蛙本体的配色，不叠加形状，眼睛与瞳孔保持原样
+   · 图鉴只用于查看：点击装扮放大展示外观与获得时间，换装请到「装扮」页
    · 配饰与青蛙使用同一套几何坐标，首页 SVG 与游戏 Canvas 共用
      ITEMS 里的形状描述，保证两处画风一致
    · 穿搭只保存在本机 localStorage（bf-outfit），不上传、不联网
@@ -13,9 +14,11 @@
 
   const STORE_KEY = "bf-outfit";
   const OWNED_KEY = "bf-owned";
+  const OWNED_AT_KEY = "bf-owned-at";
   const TAU = Math.PI * 2;
 
   const CATS = [
+    { id: "skin", name: "肤色", hint: "换一换小蛙身上的颜色" },
     { id: "hat", name: "头饰", hint: "戴在头顶的小帽子" },
     { id: "face", name: "面饰", hint: "架在眼睛和嘴巴附近" },
     { id: "chest", name: "胸饰", hint: "别在左胸的小徽章" },
@@ -71,6 +74,34 @@
   // ---------- 装扮数据 ----------
   // 每件装扮的 shapes.front 画在青蛙前面，shapes.back 画在青蛙后面
   const ITEMS = [
+    // ===== 肤色 =====
+    // 肤色不带形状，只替换青蛙本体的三层配色（深色底 / 体色 / 肚皮），
+    // 眼睛的高光与瞳孔保持原样，换色后依然是一只干净的小蛙。
+    {
+      id: "skin-moss", cat: "skin", name: "苔绿小蛙", from: "初始拥有", ach: null,
+      skin: { deep: "#346951", body: "#609b68", belly: "#b9cf94" },
+    },
+    {
+      id: "skin-sakura", cat: "skin", name: "樱花小蛙", from: "初始拥有", ach: null,
+      skin: { deep: "#a84a66", body: "#ef9db4", belly: "#ffe9f0" },
+    },
+    {
+      id: "skin-sky", cat: "skin", name: "天空小蛙", from: "累计专注满 30 分钟", ach: "doctor-1", price: 6,
+      skin: { deep: "#31638f", body: "#6fb2e0", belly: "#cfe8f8" },
+    },
+    {
+      id: "skin-lemon", cat: "skin", name: "柠檬小蛙", from: "连续打卡 3 天", ach: "spirit-1", price: 8,
+      skin: { deep: "#92801f", body: "#ddc257", belly: "#f5edc2" },
+    },
+    {
+      id: "skin-grape", cat: "skin", name: "葡萄小蛙", from: "单局专注满 5 分钟", ach: "focus-3", price: 10,
+      skin: { deep: "#503f78", body: "#9481c6", belly: "#e0d8f4" },
+    },
+    {
+      id: "skin-dusk", cat: "skin", name: "晚霞小蛙", from: "累计专注满 600 分钟", ach: "doctor-5", price: 12,
+      skin: { deep: "#9c4a22", body: "#e59362", belly: "#f8dcc4" },
+    },
+
     // ===== 头饰 =====
     {
       id: "hat-lily", cat: "hat", name: "睡莲小帽", from: "初始拥有", ach: null,
@@ -475,7 +506,7 @@
       },
     },
 
-    // ===== 胸饰（新类别） =====
+    // ===== 胸饰 =====
     {
       id: "chest-flower", cat: "chest", name: "小红花", from: "池塘小卫士 · 第一次校准成功",
       ach: "guardian-first", shop: false, exclusive: "池塘小卫士",
@@ -490,6 +521,74 @@
           C(12, 12.6, 2.3, "#ffd166"),
           C(11.2, 11.8, 0.8, "#fff3c4"),
           E(6.4, 8.2, 2.6, 1.2, "#4fae67", { rot: -0.7 }),
+        ],
+      },
+    },
+    // 上架胸饰：都别在左胸同一位置（约 x 13.5 / y 11.5），大小控制在圆徽章
+    // 5–6 半径内，既压得住肚皮又不遮嘴；价格 5–12 分，比背饰 / 光效轻一档
+    {
+      id: "chest-lotus", cat: "chest", name: "荷叶胸针", from: "单局专注满 1 分钟", ach: "focus-1", price: 5,
+      shapes: {
+        front: [
+          P("M19.01 10.53 A5.6 5.6 0 1 0 19.01 12.47 L13.5 11.5 Z",
+            "#4fae67", { stroke: "#2f8a4d", w: 1.5 }),
+          P("M17.83 10.74 A4.4 4.4 0 1 0 17.83 12.26 L13.5 11.5 Z", "#a9d49a"),
+          L(13.5, 11.5, 13.5, 7.5, "#2f8a4d", 1.05, { alpha: 0.6 }),
+          L(13.5, 11.5, 10.4, 8.4, "#2f8a4d", 1.05, { alpha: 0.55 }),
+          L(13.5, 11.5, 9.8, 13.8, "#2f8a4d", 1.05, { alpha: 0.55 }),
+          L(13.5, 11.5, 13.5, 15.4, "#2f8a4d", 1.05, { alpha: 0.6 }),
+          L(13.5, 11.5, 16.4, 14.4, "#2f8a4d", 1.05, { alpha: 0.5 }),
+          C(11.4, 9.5, 1.2, "#eaf9ff", { stroke: "#4fa9c4", w: 0.8 }),
+          C(11.05, 9.15, 0.44, "#ffffff"),
+          R(12.1, 4.8, 2.8, 1.4, 0.7, "#e6eef0", { stroke: "#b9cbd2", w: 0.7 }),
+          K("M10 8.4 Q13.5 6 17 8.4", "#ffffff", 1.3, { alpha: 0.55 }),
+        ],
+      },
+    },
+    {
+      id: "chest-dew", cat: "chest", name: "露珠胸针", from: "单局专注满 3 分钟", ach: "focus-2", price: 7,
+      shapes: {
+        front: [
+          C(13.5, 5.6, 1.25, "none", { stroke: "#e0a34a", w: 1.5 }),
+          P("M13.5 6.6 C13.5 6.6 18.2 11.4 18.2 14 C18.2 16.7 16.1 18.6 13.5 18.6 " +
+            "C10.9 18.6 8.8 16.7 8.8 14 C8.8 11.4 13.5 6.6 13.5 6.6 Z",
+            "#8fd8ea", { stroke: "#4fa9c4", w: 1.4 }),
+          E(13.5, 14.6, 3.1, 2.9, "rgba(255,255,255,.38)"),
+          K("M10.9 12.6 Q11.3 10.5 13.1 9.5", "#ffffff", 1.4, { alpha: 0.85 }),
+          E(13.5, 16.4, 1.7, 0.75, "#ffffff", { alpha: 0.5 }),
+          L(13.5, 18.7, 13.5, 19.7, "#e0a34a", 1.2),
+          C(13.5, 19.9, 0.85, "#f0c46a", { stroke: "#d9a441", w: 0.6 }),
+        ],
+      },
+    },
+    {
+      id: "chest-star", cat: "chest", name: "专注星章", from: "单局专注满 10 分钟", ach: "focus-4", price: 10,
+      shapes: {
+        front: [
+          P("M11.6 16.4 L9.9 20.2 L11.6 19.3 L12.8 20.4 Z", "#58b6d4"),
+          P("M15.4 16.4 L17.1 20.2 L15.4 19.3 L14.2 20.4 Z", "#4fa9c4"),
+          P(starPath(13.5, 11.8, 6.4), "#f0c46a", { stroke: "#b8860b", w: 1.4 }),
+          C(13.5, 11.8, 4.4, "#fff3c4", { stroke: "#d9a441", w: 1.2 }),
+          P(starPath(13.5, 11.8, 3.3), "#f0a94e"),
+          P(starPath(13.5, 11.8, 1.5), "#fff6d6", { alpha: 0.85 }),
+          P(starPath(6.3, 6.6, 1.3), "#ffd166"),
+          P(starPath(20.7, 6.6, 1.3), "#ffd166"),
+        ],
+      },
+    },
+    {
+      id: "chest-ripple", cat: "chest", name: "池塘守护徽章", from: "池塘守护神 I · 连续打卡 3 天", ach: "spirit-1", shop: false, exclusive: "池塘守护神 I",
+      shapes: {
+        front: [
+          C(13.5, 11.6, 5.8, "#3f8fa8", { stroke: "#2f7285", w: 1.5 }),
+          C(13.5, 11.6, 4.8, "#8fd8ea"),
+          K("M9.4 10.2 Q10.8 8.9 12.2 10.2 Q13.6 11.5 15 10.2 Q16.4 8.9 17.6 10.2",
+            "#2f7285", 1.15, { alpha: 0.5 }),
+          K("M9.4 13 Q10.8 11.7 12.2 13 Q13.6 14.3 15 13 Q16.4 11.7 17.6 13",
+            "#4fa9c4", 1.05, { alpha: 0.55 }),
+          E(13.5, 15.5, 2.5, 1.2, "#4fae67", { stroke: "#3da45c", w: 0.8 }),
+          K("M13.5 15.5 L13.5 14.7", "#3da45c", 1, { alpha: 0.85 }),
+          K("M9.9 8.7 Q13.5 6.1 17.1 8.7", "#ffffff", 1.2, { alpha: 0.6 }),
         ],
       },
     },
@@ -630,10 +729,10 @@
       },
     },
     {
-      id: "aura-halo", cat: "aura", name: "头顶光环", from: "池塘守护神 II · 连续打卡 5 天",
+      id: "aura-halo", cat: "hat", name: "头顶光环", from: "池塘守护神 II · 连续打卡 5 天",
       ach: "spirit-2", shop: false, exclusive: "池塘守护神",
       shapes: {
-        back: [
+        front: [
           E(0, -44, 16, 4.6, "rgba(255,233,168,.16)"),
           E(0, -44, 15, 4.2, "none", { stroke: "#ffe9a8", w: 2.6, alpha: .95 }),
           E(0, -44, 11, 2.8, "none", { stroke: "#fff6d6", w: 1.2, alpha: .85 }),
@@ -666,6 +765,35 @@
 
   const BY_ID = {};
   ITEMS.forEach(item => { BY_ID[item.id] = item; });
+
+  // ---------- 肤色 ----------
+  // 原始青蛙的三层配色；没有穿肤色时就用它
+  const BASE_SKIN = { deep: "#346951", body: "#609b68", belly: "#b9cf94" };
+  // 几何里各层原本的颜色 → 对应肤色的哪一层，替换时按这个映射走
+  const SKIN_SLOTS = { "#346951": "deep", "#609b68": "body", "#b9cf94": "belly" };
+
+  function skinOf(set) {
+    const source = set || wearing;
+    // 单项预览（例如只看一顶帽子）没有皮肤字段时，沿用当前穿戴的肤色
+    const id = Object.prototype.hasOwnProperty.call(source, "skin") ? source.skin : wearing.skin;
+    const item = BY_ID[id];
+    return (item && item.skin) ? item.skin : BASE_SKIN;
+  }
+
+  // 用当前（或指定搭配的）肤色重绘青蛙本体的椭圆；source 默认取共享几何
+  function skinEllipses(set, source) {
+    const skin = skinOf(set);
+    return (source || frogEllipses()).map(([cx, cy, rx, ry, fill]) => {
+      const slot = SKIN_SLOTS[String(fill).toLowerCase()];
+      return [cx, cy, rx, ry, slot ? skin[slot] : fill];
+    });
+  }
+
+  function skinMouth(set) {
+    const mouth = frogMouth();
+    return Object.assign({}, mouth, { color: skinOf(set).deep });
+  }
+
 
   // ---------- 青蛙本体：与 PondEffects 共用同一份几何 ----------
   const FROG_FALLBACK = [
@@ -701,17 +829,33 @@
   let auraColors = { glow: "gold", trail: "orange" };
   // 在商城买下的装扮（与成就解锁相互独立，成就重置不会没收已购装扮）
   let ownedShop = new Set();
+  // 记录每件装扮的获得时间（毫秒时间戳），成就解锁的时间从 Achievements 读取
+  let ownedAt = {};
 
   function readOwned() {
     let raw = null;
     try { raw = JSON.parse(localStorage.getItem(OWNED_KEY)); } catch (_) { raw = null; }
     const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.ids) ? raw.ids : []);
     ownedShop = new Set(list.filter(id => typeof id === "string" && BY_ID[id]));
+
+    let times = null;
+    try { times = JSON.parse(localStorage.getItem(OWNED_AT_KEY)); } catch (_) { times = null; }
+    ownedAt = {};
+    if (times && typeof times === "object" && !Array.isArray(times)) {
+      Object.keys(times).forEach(id => {
+        const ts = Number(times[id]);
+        // 只接受合理的时间戳，避免旧数据里的布尔标记被当成时间
+        if (BY_ID[id] && ts >= 1e12) ownedAt[id] = ts;
+      });
+    }
   }
 
   function saveOwned() {
     try {
       localStorage.setItem(OWNED_KEY, JSON.stringify([...ownedShop]));
+    } catch (_) { /* 隐私模式忽略 */ }
+    try {
+      localStorage.setItem(OWNED_AT_KEY, JSON.stringify(ownedAt));
     } catch (_) { /* 隐私模式忽略 */ }
   }
 
@@ -782,12 +926,59 @@
     return unlocked.has(item.ach);             // 成就解锁
   }
 
+  // ---------- 获得时间 ----------
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  function formatStamp(ts) {
+    const d = new Date(Number(ts));
+    if (!d || isNaN(d.getTime())) return "";
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) +
+      " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+
+  // 优先用商城购买时记录的时间；成就解锁的装扮用成就解锁时间
+  function acquiredAt(item) {
+    if (!item) return 0;
+    if (ownedAt[item.id]) return ownedAt[item.id];
+    if (!item.ach) return 0;
+    try {
+      const status = window.Achievements && typeof window.Achievements.status === "function"
+        ? window.Achievements.status()
+        : null;
+      const ts = status && status.unlockedAt ? Number(status.unlockedAt[item.ach]) : 0;
+      if (ts >= 1e12) return ts;
+    } catch (_) { /* 忽略 */ }
+    return 0;
+  }
+
+  function acquiredText(item) {
+    if (!isOwned(item)) return "尚未获得";
+    if (!item.ach && !ownedAt[item.id]) return "初始拥有";
+    const ts = acquiredAt(item);
+    return ts ? formatStamp(ts) : "未记录（获得时间记录上线前取得）";
+  }
+
   // ---------- 商城 ----------
   // 只有「成就专属」不可购买；其余（含成就可免费解锁的）都能用积分买
+  // 定价倍率：肤色 ×1.5，背饰 / 头饰 ×1.2，手持 ×1.1，其余分类按原价。
+  // 实际售价 = 原价 × 倍率 后向上取整；乘完先按 6 位小数归整，
+  // 避免浮点误差把 10 × 1.2 = 12.000000000000002 误进成 13 分。
+  const PRICE_MULT = {
+    skin: 1.5,
+    back: 1.2,
+    hat: 1.2,
+    hand: 1.1,
+  };
+
   function priceOf(item) {
     const data = typeof item === "string" ? BY_ID[item] : item;
     if (!data || data.shop === false) return 0;
-    return Math.max(0, Math.round(Number(data.price) || 0));
+    const base = Math.max(0, Number(data.price) || 0);
+    if (!base) return 0;
+    const mult = PRICE_MULT[data.cat] || 1;
+    if (mult === 1) return Math.round(base);
+    const scaled = Number((base * mult).toFixed(6));
+    return Math.max(0, Math.ceil(scaled));
   }
 
   function shopItems() {
@@ -830,6 +1021,7 @@
       return { ok: false, reason: "poor", price: price, points: window.Wallet.points(), name: item.name };
     }
     ownedShop.add(item.id);
+    ownedAt[item.id] = Date.now();
     saveOwned();
     if (mask && !mask.classList.contains("hidden")) {
       if (tab === "book") renderBook();
@@ -875,7 +1067,7 @@
 
   // 统一取某一层的形状：学士帽把等级装饰追加进来
   function shapesFor(item, layer) {
-    const list = (item.shapes[layer] || []).slice();
+    const list = ((item.shapes && item.shapes[layer]) || []).slice();
     if (item.id === "hat-grad" && layer === "front") {
       const tier = Math.max(1, doctorTier());
       gradExtra(tier).forEach(sh => list.push(sh));
@@ -884,7 +1076,8 @@
   }
 
   function equippedCount() {
-    return CATS.reduce((n, cat) => n + (wearing[cat.id] ? 1 : 0), 0);
+    // 肤色是底色不算配饰件数，避免"默认肤色 / 已换色"时数字跳动
+    return CATS.reduce((n, cat) => n + (cat.id !== "skin" && wearing[cat.id] ? 1 : 0), 0);
   }
 
   function ownedCount() {
@@ -916,11 +1109,11 @@
     }
   }
 
-  function frogBodySvg() {
-    const ellipses = frogEllipses().map(([cx, cy, rx, ry, fill]) =>
+  function frogBodySvg(set) {
+    const ellipses = skinEllipses(set).map(([cx, cy, rx, ry, fill]) =>
       `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`
     ).join("");
-    const mouth = frogMouth();
+    const mouth = skinMouth(set);
     return ellipses +
       `<path d="M ${mouth.start.join(" ")} Q ${mouth.curve.join(" ")}" fill="none" stroke="${mouth.color}" stroke-width="${mouth.width}"/>`;
   }
@@ -937,7 +1130,7 @@
       shapesFor(item, "front").forEach(sh => front.push(svgShape(sh, item)));
     });
     return `<svg class="dress-frog" viewBox="-44 -50 88 92" aria-hidden="true" focusable="false">` +
-      back.join("") + frogBodySvg() + front.join("") + `</svg>`;
+      back.join("") + frogBodySvg(set) + front.join("") + `</svg>`;
   }
 
   // ---------- 渲染：Canvas（游戏页） ----------
@@ -1077,20 +1270,35 @@
   }
 
   // ---------- 首页：把配饰挂到池塘小蛙身上 ----------
+  // 青蛙本体的配色也跟着肤色走，和装扮预览保持一致
+  function applyHeroSkin() {
+    const art = document.getElementById("pondFrogArtwork");
+    if (!art) return;
+    const parts = skinEllipses().map(([cx, cy, rx, ry, fill]) =>
+      `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`
+    );
+    const mouth = skinMouth();
+    parts.push(`<path d="M ${mouth.start.join(" ")} Q ${mouth.curve.join(" ")}" ` +
+      `fill="none" stroke="${mouth.color}" stroke-width="${mouth.width}"/>`);
+    art.innerHTML = parts.join("");
+  }
+
   function applyHeroOutfit() {
     const back = document.getElementById("pondFrogOutfitBack");
     const front = document.getElementById("pondFrogOutfit");
-    if (!back && !front) return;
-    const backParts = [];
-    const frontParts = [];
-    CATS.forEach(cat => {
-      const item = BY_ID[wearing[cat.id]];
-      if (!item) return;
-      shapesFor(item, "back").forEach(sh => backParts.push(svgShape(sh, item)));
-      shapesFor(item, "front").forEach(sh => frontParts.push(svgShape(sh, item)));
-    });
-    if (back) back.innerHTML = backParts.join("");
-    if (front) front.innerHTML = frontParts.join("");
+    if (back || front) {
+      const backParts = [];
+      const frontParts = [];
+      CATS.forEach(cat => {
+        const item = BY_ID[wearing[cat.id]];
+        if (!item) return;
+        shapesFor(item, "back").forEach(sh => backParts.push(svgShape(sh, item)));
+        shapesFor(item, "front").forEach(sh => frontParts.push(svgShape(sh, item)));
+      });
+      if (back) back.innerHTML = backParts.join("");
+      if (front) front.innerHTML = frontParts.join("");
+    }
+    applyHeroSkin();
   }
 
   // ---------- 入口 chip ----------
@@ -1134,10 +1342,9 @@
   // ---------- 面板 ----------
   let mask = null;
   let card = null;
-  let tab = "book";
-  let batchMode = false;
-  let selected = new Set();
+  let tab = "wear";
   let lastFocus = null;
+  let bookDetailBack = null;
   let toastTimer = 0;
 
   function buildPanel() {
@@ -1157,18 +1364,17 @@
           </div>
         </div>
         <div class="dress-tabs" role="tablist" aria-label="装扮面板">
-          <button type="button" class="dress-tab is-active" role="tab" data-tab="book" aria-selected="true">图鉴</button>
-          <button type="button" class="dress-tab" role="tab" data-tab="wear" aria-selected="false">装扮</button>
+          <button type="button" class="dress-tab is-active" role="tab" data-tab="wear" aria-selected="true">装扮</button>
+          <button type="button" class="dress-tab" role="tab" data-tab="book" aria-selected="false">图鉴</button>
         </div>
         <div class="dress-body">
-          <section class="dress-panel" data-panel="book">
+          <section class="dress-panel hidden" data-panel="book">
             <div class="book-bar">
-              <p class="book-bar__hint">未获得的装扮会保持灰色，达成条件后自动上色。</p>
-              <button type="button" class="book-batch" id="book-batch">批量管理</button>
+              <p class="book-bar__hint">点击任意装扮可放大查看外观与获得时间；换装请切到「装扮」页。</p>
             </div>
             <div id="book-grid"></div>
           </section>
-          <section class="dress-panel hidden" data-panel="wear">
+          <section class="dress-panel" data-panel="wear">
             <div class="wear-layout">
               <div class="wear-stage">
                 <span class="wear-stage__cloud wear-stage__cloud--a"></span>
@@ -1186,11 +1392,29 @@
             </div>
           </section>
         </div>
-        <div class="batch-bar hidden" id="batch-bar">
-          <span class="batch-bar__count" id="batch-count">已选 0 件</span>
-          <button type="button" class="batch-btn batch-btn--ghost" id="batch-all">全选已获得</button>
-          <button type="button" class="batch-btn batch-btn--off" id="batch-off" disabled>批量卸下</button>
-          <button type="button" class="batch-btn batch-btn--on" id="batch-on" disabled>批量穿戴</button>
+        <div class="book-detail hidden" id="book-detail" role="dialog" aria-modal="true" aria-labelledby="book-detail-name">
+          <button type="button" class="book-detail__close" id="book-detail-close" aria-label="关闭装扮详情">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="book-detail__inner">
+            <div class="book-detail__stage">
+              <span class="book-detail__glow" aria-hidden="true"></span>
+              <div class="book-detail__art" id="book-detail-art"></div>
+            </div>
+            <div class="book-detail__info">
+              <span class="book-detail__cat" id="book-detail-cat"></span>
+              <h3 class="book-detail__name" id="book-detail-name"></h3>
+              <p class="book-detail__from" id="book-detail-from"></p>
+              <dl class="book-detail__meta">
+                <div class="book-detail__row">
+                  <dt>获得时间</dt>
+                  <dd id="book-detail-time"></dd>
+                </div>
+              </dl>
+              <p class="book-detail__status" id="book-detail-status"></p>
+              <p class="book-detail__note">图鉴只用来查看外观，想换装请到「装扮」页。</p>
+            </div>
+          </div>
         </div>
         <p class="dress-foot" id="dress-foot">装扮只保存在这台设备上；穿戴后会立刻出现在首页池塘和游戏里的小蛙身上。</p>
         <div class="dress-toast" id="dress-toast" role="status" aria-live="polite"></div>
@@ -1199,9 +1423,17 @@
     card = mask.querySelector(".dress-card");
 
     mask.querySelector("#dress-close").addEventListener("click", closePanel);
-    mask.addEventListener("click", event => { if (event.target === mask) closePanel(); });
+    mask.addEventListener("click", event => {
+      if (event.target === mask) {
+        if (isBookDetailOpen()) closeBookDetail();
+        else closePanel();
+      }
+    });
     document.addEventListener("keydown", event => {
-      if (event.key === "Escape" && mask && !mask.classList.contains("hidden")) closePanel();
+      if (event.key !== "Escape" || !mask || mask.classList.contains("hidden")) return;
+      // Esc 先关详情，再关面板
+      if (isBookDetailOpen()) closeBookDetail();
+      else closePanel();
     });
 
     mask.querySelectorAll(".dress-tab").forEach(btn => {
@@ -1209,16 +1441,14 @@
     });
 
     mask.querySelector("#book-grid").addEventListener("click", onBookClick);
-    mask.querySelector("#book-batch").addEventListener("click", toggleBatch);
-    mask.querySelector("#batch-all").addEventListener("click", selectAllOwned);
-    mask.querySelector("#batch-on").addEventListener("click", batchWear);
-    mask.querySelector("#batch-off").addEventListener("click", batchRemove);
+    mask.querySelector("#book-detail-close").addEventListener("click", closeBookDetail);
     mask.querySelector("#wear-slots").addEventListener("click", onWearClick);
     mask.querySelector("#wear-clear").addEventListener("click", clearAll);
   }
 
   function setTab(next) {
     tab = next;
+    closeBookDetail();
     mask.querySelectorAll(".dress-tab").forEach(btn => {
       const active = btn.dataset.tab === next;
       btn.classList.toggle("is-active", active);
@@ -1227,11 +1457,10 @@
     mask.querySelectorAll(".dress-panel").forEach(panel => {
       panel.classList.toggle("hidden", panel.dataset.panel !== next);
     });
-    // 批量条只服务图鉴
-    syncBatchBar();
     if (next === "book") renderBook();
     else renderWear();
     if (card) card.querySelector(".dress-body").scrollTop = 0;
+    updateSub();
   }
 
   function toast(text) {
@@ -1250,34 +1479,62 @@
   }
 
   function onBookClick(event) {
-    const item = event.target.closest(".book-item");
-    if (!item) return;
-    const id = item.dataset.id;
-    const data = BY_ID[id];
+    // 图鉴只看外观：点击放大查看详情，不在这里换装
+    const el = event.target.closest(".book-item");
+    if (!el) return;
+    const data = BY_ID[el.dataset.id];
     if (!data) return;
+    openBookDetail(data);
+  }
 
-    if (batchMode) {
-      if (!isOwned(data)) {
-        toast(lockedHint(data));
-        return;
-      }
-      if (selected.has(id)) selected.delete(id);
-      else selected.add(id);
-      syncBookSelection();
-      syncBatchBar();
-      return;
-    }
+  function isBookDetailOpen() {
+    const detail = mask && mask.querySelector("#book-detail");
+    return !!detail && !detail.classList.contains("hidden");
+  }
 
-    if (!isOwned(data)) {
-      toast(lockedHint(data));
-      return;
+  function openBookDetail(data) {
+    const detail = mask && mask.querySelector("#book-detail");
+    if (!detail) return;
+    const wasOpen = isBookDetailOpen();
+    if (!wasOpen) bookDetailBack = document.activeElement;
+
+    const owned = isOwned(data);
+    const cat = CATS.find(c => c.id === data.cat);
+    const price = owned ? 0 : priceOf(data);
+
+    mask.querySelector("#book-detail-art").innerHTML = frogSvg({ [data.cat]: data.id });
+    mask.querySelector("#book-detail-cat").textContent = cat ? cat.name : "";
+    mask.querySelector("#book-detail-name").textContent = data.name;
+    mask.querySelector("#book-detail-from").textContent =
+      (owned ? "获取途径 · " : "获得条件 · ") + data.from;
+    mask.querySelector("#book-detail-time").textContent = acquiredText(data);
+
+    let status;
+    if (!owned) {
+      status = price
+        ? "未获得 · 可去商城花 " + price + " 积分购买"
+        : "未获得 · 成就专属，商城不出售";
+    } else if (wearing[data.cat] === data.id) {
+      status = "已获得 · 正在穿戴";
+    } else {
+      status = "已获得 · 未穿戴";
     }
-    // 同一类别只保留一件：穿上新的一件会替换同类旧的一件
-    const before = wearing[data.cat];
-    wearing[data.cat] = before === id ? null : id;
-    commitWear(before === id
-      ? "已取下「" + data.name + "」"
-      : "已穿上「" + data.name + "」" + (before ? "（替换了同类装扮）" : ""));
+    mask.querySelector("#book-detail-status").textContent = status;
+
+    detail.querySelector(".book-detail__stage").classList.toggle("is-locked", !owned);
+    detail.classList.remove("hidden");
+    const closeBtn = mask.querySelector("#book-detail-close");
+    if (closeBtn) closeBtn.focus({ preventScroll: true });
+  }
+
+  function closeBookDetail() {
+    const detail = mask && mask.querySelector("#book-detail");
+    if (!detail || detail.classList.contains("hidden")) return;
+    detail.classList.add("hidden");
+    if (bookDetailBack && typeof bookDetailBack.focus === "function") {
+      bookDetailBack.focus({ preventScroll: true });
+    }
+    bookDetailBack = null;
   }
 
   function onWearClick(event) {
@@ -1310,6 +1567,7 @@
     refreshChip();
     if (tab === "book") renderBook();
     if (tab === "wear") renderWear();
+    updateSub();
     if (message) toast(message);
   }
 
@@ -1332,12 +1590,17 @@
   }
 
   // ---------- 图鉴 ----------
+  function updateSub() {
+    const el = mask && mask.querySelector("#dress-sub");
+    if (!el) return;
+    el.textContent = "已收集 " + ownedCount() + " / " + ITEMS.length +
+      " 件装扮 · 已穿戴 " + equippedCount() + " 件";
+  }
+
   function renderBook() {
     const grid = mask.querySelector("#book-grid");
     if (!grid) return;
-    const got = ownedCount();
-    mask.querySelector("#dress-sub").textContent =
-      "已收集 " + got + " / " + ITEMS.length + " 件装扮 · 已穿戴 " + equippedCount() + " 件";
+    updateSub();
 
     grid.innerHTML = CATS.map(cat => {
       const items = ITEMS.filter(item => item.cat === cat.id);
@@ -1354,8 +1617,6 @@
           </div>
         </section>`;
     }).join("");
-    syncBookSelection();
-    syncBatchBar();
   }
 
   function bookItemHtml(item) {
@@ -1364,115 +1625,15 @@
     const price = owned ? 0 : priceOf(item);
     return `
       <button type="button" class="book-item${owned ? "" : " is-locked"}${on ? " is-worn" : ""}"
-              data-id="${item.id}" aria-pressed="${on ? "true" : "false"}"
-              aria-label="${item.name}${owned ? "，已获得" : "，未获得"}${price ? "，商城 " + price + " 积分" : ""}">
-        <span class="book-item__check" aria-hidden="true">
-          <svg viewBox="0 0 16 16"><path d="M3.2 8.4l3.1 3.1 6.5-6.6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
+              data-id="${item.id}"
+              aria-haspopup="dialog"
+              aria-label="${item.name}${owned ? "，已获得" : "，未获得"}${price ? "，商城 " + price + " 积分" : ""}，点击查看详情">
         ${price ? `<span class="book-item__price">${price} 分</span>` : ""}
         <span class="book-item__art">${frogSvg({ [item.cat]: item.id })}</span>
         <span class="book-item__name">${item.name}</span>
         <span class="book-item__from">${item.from}</span>
         <span class="book-item__tag">${on ? "已穿戴" : owned ? "已获得" : "未获得"}</span>
       </button>`;
-  }
-
-  function syncBookSelection() {
-    if (!mask) return;
-    mask.querySelectorAll(".book-item").forEach(el => {
-      const id = el.dataset.id;
-      el.classList.toggle("is-selected", batchMode && selected.has(id));
-    });
-    mask.querySelector(".dress-card").classList.toggle("is-batching", batchMode);
-    const btn = mask.querySelector("#book-batch");
-    if (btn) {
-      btn.textContent = batchMode ? "退出批量" : "批量管理";
-      btn.classList.toggle("is-active", batchMode);
-    }
-  }
-
-  function syncBatchBar() {
-    if (!mask) return;
-    const bar = mask.querySelector("#batch-bar");
-    if (!bar) return;
-    const show = tab === "book" && batchMode;
-    bar.classList.toggle("hidden", !show);
-    if (!show) return;
-    const count = selected.size;
-    mask.querySelector("#batch-count").textContent = "已选 " + count + " 件";
-    const ownedSelected = [...selected].filter(id => isOwned(BY_ID[id])).length;
-    mask.querySelector("#batch-on").disabled = ownedSelected === 0;
-    mask.querySelector("#batch-off").disabled = count === 0;
-    const allOwned = ITEMS.filter(isOwned);
-    const allOn = allOwned.length > 0 && allOwned.every(item => selected.has(item.id));
-    mask.querySelector("#batch-all").textContent = allOn ? "取消全选" : "全选已获得";
-  }
-
-  function toggleBatch() {
-    batchMode = !batchMode;
-    if (!batchMode) selected.clear();
-    syncBookSelection();
-    syncBatchBar();
-    toast(batchMode ? "勾选多件装扮后可以批量穿戴或卸下" : "已退出批量管理");
-  }
-
-  function selectAllOwned() {
-    const allOwned = ITEMS.filter(isOwned);
-    const allOn = allOwned.length > 0 && allOwned.every(item => selected.has(item.id));
-    if (allOn) selected.clear();
-    else allOwned.forEach(item => selected.add(item.id));
-    syncBookSelection();
-    syncBatchBar();
-  }
-
-  function batchWear() {
-    const picked = [...selected].map(id => BY_ID[id]).filter(item => item && isOwned(item));
-    if (!picked.length) return;
-    const perCat = {};
-    const conflicts = [];
-    picked.forEach(item => {
-      if (perCat[item.cat]) conflicts.push(item);
-      perCat[item.cat] = item;
-    });
-    let changed = 0;
-    CATS.forEach(cat => {
-      const item = perCat[cat.id];
-      if (item && wearing[cat.id] !== item.id) {
-        wearing[cat.id] = item.id;
-        changed++;
-      }
-    });
-    saveWear();
-    applyHeroOutfit();
-    refreshChip();
-    renderBook();
-    if (conflicts.length) {
-      toast("同类只保留一件，已按选择顺序穿上 " + changed + " 件（" + conflicts.length + " 件同类被替换）");
-    } else {
-      toast("已批量穿上 " + changed + " 件装扮");
-    }
-    selected.clear();
-    syncBookSelection();
-    syncBatchBar();
-  }
-
-  function batchRemove() {
-    let removed = 0;
-    [...selected].forEach(id => {
-      const item = BY_ID[id];
-      if (!item) return;
-      if (wearing[item.cat] === id) {
-        wearing[item.cat] = null;
-        removed++;
-      }
-    });
-    if (!removed) {
-      toast("选中的装扮都没有在穿戴中");
-      return;
-    }
-    commitWear("已批量卸下 " + removed + " 件装扮");
-    selected.clear();
-    renderBook();
   }
 
   // ---------- 装扮页 ----------
@@ -1491,14 +1652,16 @@
         <div class="wear-row">
           <div class="wear-row__head">
             <span class="wear-row__name">${cat.name}</span>
-            <span class="wear-row__count">${wearing[cat.id] ? "已穿戴" : "未穿戴"}</span>
+            <span class="wear-row__count">${cat.id === "skin"
+              ? (wearing.skin ? "已换色" : "默认肤色")
+              : (wearing[cat.id] ? "已穿戴" : "未穿戴")}</span>
           </div>
           <div class="wear-row__opts">
-            <button type="button" class="wear-opt wear-opt--none${wearing[cat.id] ? "" : " is-active"}"
+            ${cat.id === "skin" ? "" : `<button type="button" class="wear-opt wear-opt--none${wearing[cat.id] ? "" : " is-active"}"
                     data-cat="${cat.id}" data-id="" aria-pressed="${wearing[cat.id] ? "false" : "true"}">
               <span class="wear-opt__none" aria-hidden="true">∅</span>
               <span class="wear-opt__name">无</span>
-            </button>
+            </button>`}
             ${items.map(item => wearOptHtml(item)).join("")}
           </div>
           ${swatchHtml(cat)}
@@ -1508,7 +1671,10 @@
 
   function wearOptHtml(item) {
     const owned = isOwned(item);
-    const active = wearing[item.cat] === item.id;
+    // 肤色总有一款在用：没选过的时候苔绿就是默认状态
+    const active = item.cat === "skin"
+      ? (wearing.skin || "skin-moss") === item.id
+      : wearing[item.cat] === item.id;
     return `
       <button type="button" class="wear-opt${owned ? "" : " is-locked"}${active ? " is-active" : ""}"
               data-cat="${item.cat}" data-id="${item.id}" aria-pressed="${active ? "true" : "false"}"
@@ -1548,7 +1714,7 @@
     refreshUnlocked();
     refreshChip();
     mask.classList.remove("hidden");
-    setTab(targetTab === "wear" ? "wear" : "book");
+    setTab(targetTab === "book" ? "book" : "wear");
     const closeBtn = mask.querySelector("#dress-close");
     if (closeBtn) closeBtn.focus({ preventScroll: true });
     document.addEventListener("keydown", trapFocus);
@@ -1556,9 +1722,10 @@
 
   function closePanel() {
     if (!mask) return;
+    const detail = mask.querySelector("#book-detail");
+    if (detail) detail.classList.add("hidden");
+    bookDetailBack = null;
     mask.classList.add("hidden");
-    batchMode = false;
-    selected.clear();
     document.removeEventListener("keydown", trapFocus);
     if (lastFocus && typeof lastFocus.focus === "function") {
       lastFocus.focus({ preventScroll: true });
@@ -1567,9 +1734,12 @@
 
   function trapFocus(event) {
     if (event.key !== "Tab" || !card) return;
-    const focusables = card.querySelectorAll(
+    // 详情打开时，焦点只在详情内循环
+    const scope = isBookDetailOpen() ? card.querySelector("#book-detail") : card;
+    if (!scope) return;
+    const focusables = [...scope.querySelectorAll(
       "button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
-    );
+    )].filter(el => el.getClientRects().length > 0);
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
@@ -1616,6 +1786,9 @@
     colors: function () { return Object.assign({}, auraColors); },
     setColor: setColor,
     palettes: function () { return AURA_PALETTES; },
+    skin: function () { return Object.assign({}, skinOf()); },
+    skinEllipses: skinEllipses,
+    skinMouth: skinMouth,
     frogSvg: frogSvg,
     drawCanvas: drawCanvas,
     drawTrail: drawTrail,
