@@ -1,91 +1,140 @@
-# 专注小蛙 MVP - 技术设计（简明版）
+# 专注小蛙 · 梦境池塘 — 架构设计
 
-## 架构总览
+> 版本：v1.4.15（2026-11-17）
+> 适用代码：`eeg-focus/`（`app/` + `web/`）
+> 定位：本地运行的脑电专注游戏 MVP，教学演示用途，不构成注意力评估或医疗诊断。
+
+## 1. 架构总览
 
 ```
-┌────────────────────────────────────────────┐
-│  web/（浏览器）                             │
-│  首页 · 校准页 · 游戏页(Canvas) · 报告页 · 开发者页 │
-│  原生 HTML/CSS/JS，SSE 接收专注指数，rAF 渲染 │
-└───────────────┬────────────────────────────┘
-                │ REST / SSE
-┌───────────────┴────────────────────────────┐
-│  app/（FastAPI 后端）                       │
-│  sources.py   信号源抽象（replay/manual/hardware）│
-│  xmuse_osc.py Xmuse OSC/UDP 多端口接收       │
-│  focus_engine.py  模型推理 / 频段回退 + EMA  │
-│  music.py     网易云歌单代理（可选背景音乐）  │
-│  server.py    会话管理/校准/报告/音乐/静态托管│
-└───────────────┬────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ web/（浏览器，零构建：原生 HTML/CSS/JS + Canvas）              │
+│  index.html      首页：池塘、天空、签到/成就/商城/装扮入口       │
+│  calibrate.html  校准：信号源、心率辅助、安静期 + 心算期          │
+│  game.html       游戏：3D 感池塘、蓄力→起跳、积分结算            │
+│  report.html     报告：曲线回放、给家长的话、PDF/Excel/Word 导出 │
+│  dev.html        开发者：无设备试玩、EDF 回放验证、OSC 监视      │
+│  assets/  api.js · sky.js/css · music.js + vinyl.css            │
+│           hero-pond/hero-water/pond-effects/pond-audio           │
+│           achievements(+-cinematic) · dressup · shop · checkin   │
+│           wallet · style.css                                     │
+└───────────────┬──────────────────────────────────────────────┘
+                │ REST / SSE（仅 127.0.0.1 回环）
+┌───────────────┴──────────────────────────────────────────────┐
+│ app/（FastAPI 后端）                                          │
+│  server.py      会话 / 校准 / 报告 / 导出 / 音乐 / 静态托管      │
+│  sources.py     信号源：replay · manual · hardware · heart       │
+│  xmuse_osc.py   Xmuse OSC/UDP 多端口接收（2 s 出窗）            │
+│  focus_engine.py 231 维模型推理 + 4/6 通道频段回退 + EMA        │
+│  heart.py       心率信号源（hrd/mock/csv）与 EEG 融合            │
+│  export.py      报告导出：PDF / Excel / Word / CSV / JSON        │
+│  music.py       网易云歌单代理（可选背景音乐）                   │
+└───────────────┬──────────────────────────────────────────────┘
                 │ 读取
-┌───────────────┴────────────────────────────┐
-│  outputs/models/LogisticRegression.joblib  │
-│  ← scripts/train.py ← scripts/preprocess.py│
-│  ← data/eegmat/（PhysioNet EEGMAT 真实脑电）│
-└────────────────────────────────────────────┘
+┌───────────────┴──────────────────────────────────────────────┐
+│ outputs/models/LogisticRegression.joblib                     │
+│   ← scripts/preprocess.py ← scripts/train.py                  │
+│   ← data/eegmat/（PhysioNet EEGMAT，36 名被试真实脑电）         │
+│ outputs/sessions/*.json（每局报告，本地落盘）                   │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-## 数据流（核心：专注 → 行动 → 即时反馈）
+## 2. 数据流（专注 → 行动 → 即时反馈）
 
 ```
-EDF 信号窗口 (2s × 21通道)
-  → 带通滤波 0.5-45Hz（与训练一致）
-  → 频段特征 (11 维/通道)
+EDF 回放窗口 (2 s × 21 通道)
+  → 带通 0.5–45 Hz → 每通道 11 特征（5 绝对功率 + 5 相对功率 + θ/β）
   → LogisticRegression.predict_proba → 专注概率 p
-  → EMA 平滑 (α=0.35) → 专注指数 focus
-  → 游戏逻辑: focus ≥ 基线 → 蓄力 +Δ；focus < 基线 → 蓄力 -Δ
-  → 蓄满 100 → 青蛙跳荷叶 +1 分
+  → EMA 平滑 (α=0.35) → focus 0..1
 
-Xmuse 真机窗口 (2s × 4/6通道)
-  → 维度与模型不匹配 → 相对频段功率 beta/(theta+alpha)
+Xmuse 真机窗口 (2 s × 4/6 通道)
+  → 维度与模型不匹配 → 相对频段功率 β/(θ+α)
   → sigmoid 映射 0..1 → 同一套 EMA 平滑与基线逻辑
+
+心率辅助（仅 macOS，可选）
+  → AirPods Pro 3 → hrd → BPM
+  → 以校准静息心率为中点，心率下降 = 专注上升
+  → 按权重（默认 0.15）与 EEG focus 融合；心率失效自动退回纯 EEG
+
+仅心率模式
+  → 无脑电信号，focus 完全由心率分量驱动（静息 = 0.5）
+
+统一出口
+  → 个人基线（校准中位数）比较 → 蓄力 ±Δ
+  → 蓄力满 100 → 自动起跳 +1；金色区间主动起跳 +2
+  → 前端 rAF 渲染；SSE 0.5 s/帧；结束后报告落盘
 ```
 
-## 校准（P0）
+## 3. 前端本地状态（不上传、不联网）
 
-- 采样时长：20 秒（演示可调 3-60s）
-- 基线 = 采样期专注指数中位数（P50），另记 P10/P90
-- 校准期专注指数曲线与基线可视化呈现给用户/家长
+除校准基线与会话外，v1.4.x 的成长系统全部保存在浏览器 `localStorage`，没有服务端账号体系：
 
-## API 一览
+| 键 | 内容 | 写入方 |
+|---|---|---|
+| `bf-calib` | 校准基线（含时间戳，1 小时有效） | calibrate |
+| `bf-sky-mode` | 天空模式（黎明/白天/傍晚/黑夜/跟随系统） | sky.js |
+| `bf-music-*` | 播放状态、曲目、音量 | music.js |
+| `bf-wallet` | 积分余额、局数、累计入账、消费 | wallet.js |
+| `bf-checkin` | 每日签到日期（每天 +2 积分，0 点刷新） | checkin.js |
+| `bf-achievements` | 15 枚成就的进度与解锁时间 | achievements.js |
+| `bf-owned` / `bf-owned-at` / `bf-outfit` | 已拥有装扮、获得时间、当前穿戴 | dressup/shop |
+| `bf-heart*` | 心率开关、静息心率、融合权重 | calibrate/game |
+
+## 4. 校准（P0）
+
+- 默认 40 秒：前 20 秒安静放松，后 20 秒心算任务（可跟随 60 秒引导视频，最长 600 秒）
+- 基线 = 校准期专注指数中位数（P50），同时记录 P10/P90 与有效帧数
+- 基线只写浏览器 `localStorage`，1 小时内有效；过期后进入游戏会引导重新校准
+- 校准失败（无有效帧 / 信号中断）会给出明确提示，不会写入伪基线
+
+## 5. API 一览（v1.4.15）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/health` | 健康检查 + 模型名 |
+| GET | `/api/env` | 平台能力（心率是否可用及原因） |
+| GET | `/api/heart/status` | 心率采集状态 |
+| POST | `/api/heart/start` | 启动心率（`mock` / `hrd` / `csv`） |
+| POST | `/api/heart/stop` | 停止心率采集 |
+| GET | `/api/player/replay` | 本机配对 EDF 回放列表（无设备试玩） |
+| GET | `/api/player/recent` | 最近一局的可回放报告摘要 |
 | GET | `/api/dev/info` | 引擎信息、训练报告、EDF 文件列表、会话 |
 | GET | `/api/dev/current` | 当前信号源配置与最近会话 |
 | POST | `/api/dev/source` | 切换全局默认信号源（含 OSC 参数） |
-| POST | `/api/session` | 创建会话 `{mode, file, baseline, osc_*}` |
-| GET | `/api/session/{id}/stream` | SSE 推流（hello/frame/end） |
+| POST | `/api/session` | 创建会话 `{mode, file, baseline, osc_*, heart_*}` |
+| GET | `/api/session/{id}/stream` | SSE 推流（hello / frame / end） |
 | POST | `/api/session/{id}/manual` | 手动模式设置专注度 |
 | POST | `/api/session/{id}/calibrate` | 采样并建立基线 |
 | POST | `/api/session/{id}/finish` | 结束会话，生成报告 |
 | GET | `/api/report/{id}` | 读取报告（内存/磁盘） |
+| GET/POST | `/api/report/{id}/export/{fmt}` | 导出 `pdf` / `xlsx` / `docx` / `csv` / `json` |
 | GET | `/api/music/playlist` | 背景音乐歌单（网易云代理） |
 | GET | `/api/music/url/{track_id}` | 单曲播放直链（服务端缓存） |
 
-## 会话与并发模型
+## 6. 会话与并发模型
 
-- `_sessions: dict` 全局会话表；每会话独立信号源 + 专注引擎实例（引擎状态重置避免跨被试污染）
-- 后台 asyncio 任务按 0.5s 步长推进信号源 → 计算 focus → 写入队列（容量 1，丢弃旧帧）+ 历史列表
+- `_sessions: dict` 全局会话表；每会话独立信号源 + 专注引擎实例（引擎状态重置，避免跨被试污染）
+- 后台 asyncio 任务按 0.5 s 步长推进信号源 → 计算 focus → 写入队列（容量 1，丢弃旧帧）+ 历史列表
 - SSE 端点从队列取帧；校准端点按时间窗口从历史列表聚合
-- 报告落盘 `outputs/sessions/{id}.json`
+- 报告落盘 `outputs/sessions/{id}.json`，同时保留逐帧 `focus`、`focus_fused`、`score` 与起跳事件
+- 硬件/仅心率会话互斥：新建硬件会话会自动结束旧的未完成硬件会话，避免 UDP 端口争抢；会话结束释放端口与采集进程
 
-## 关键权衡（MVP 演示定位）
+## 7. 关键权衡（MVP 演示定位）
 
-1. **真实数据回放 + 真机双通道**：无硬件时可回放 EDF 复现端到端"校准→游戏→报告"；hardware 源已通过 Xmuse OSC/UDP 真机接入
-2. **单被试基线**：模型对陌生被试仍有区分度（LOSO 验证），但演示时建议校准/游戏用同一被试文件
-3. **数据隐私**：脑电全程本地，无账号、无上传（儿童敏感数据合规，符合 PRD）；仅可选背景音乐访问网易云
-4. **前端零构建**：无需 Node/npm，静态托管即可；性能满足桌面浏览器 <3s 加载
+1. **真实数据回放 + 真机双通道**：无硬件时可回放本机配对 EDF 复现端到端"校准→游戏→报告"；hardware 源已通过 Xmuse OSC/UDP 真机接入
+2. **单被试基线**：模型对陌生被试仍有区分度（LOSO 验证），但演示时建议校准/游戏用同一被试
+3. **数据隐私**：脑电全程本地，无账号、无上传（儿童敏感数据合规）；成长系统也只用 localStorage；仅可选背景音乐访问网易云
+4. **前端零构建**：无需 Node/npm，静态托管即可；5 个页面共用一套 `assets/`
+5. **成长系统本地化**：积分、签到、商城、装扮、成就都不依赖服务端，断网也能完整使用；清缓存会重置成长进度，需在隐私说明中明示
 
-## 扩展路径
+## 8. 扩展路径
 
-- 真机接入：已实现 `HardwareSource` → `XmuseOSCSource`（OSC/UDP）；后续可补 LSL 与 4 通道模型
+- 真机接入：已实现 `HardwareSource` → `XmuseOSCSource`（OSC/UDP）；后续可补 LSL 与 4 通道专属模型
 - 多孩子账号：基线/进度按 profile 分文件保存
 - 家长周报：跨会话聚合专注曲线与基线变化趋势
 - 试验设计：不同被试/场景下校准-游戏基线的稳定性评估
 
-## 画面动效约定（避免闪烁）
+## 9. 画面动效约定（避免闪烁）
 
 儿童专注场景对闪烁非常敏感，背景元素的任何抖动都会被看成"画面坏了"。以下约定对首页 SVG 与游戏画布同时生效，后续改动必须遵守：
 
@@ -94,6 +143,17 @@ Xmuse 真机窗口 (2s × 4/6通道)
 3. **亚像素位置要吸附到设备像素**：缓慢移动的大块半透明元素（云、光晕）绘制前把坐标对齐到设备像素网格（`Math.round(v * view.x) / view.x`），只允许整像素移动。
 4. **动画时钟用平滑累加值**：不要直接用 `requestAnimationFrame` 的时间戳或 `performance.now()` 驱动位移与明暗；用 `state.clock += clamp(dt)`，避免切后台、掉帧后动画时间跳变。
 5. **循环回绕要完全出画**：元素移出屏幕后再从另一侧进入，判定用元素自身的包围盒，不能用固定留白。
-6. **天空渐变的颜色过渡交给 `SkyTheme`**：canvas 页面每帧读 `SkyTheme.palette()`，不要在页面里另写一套渐变逻辑；黑夜云朵由 `mixCloud()` 把 alpha 平滑降到 0，不能直接 `if (night) return` 硬切。
+6. **天空渐变的颜色过渡交给 `SkyTheme`**：canvas 页面每帧读 `SkyTheme.palette()`，不要在页面里另写一套渐变逻辑；黑夜云朵由 `mixCloud()` 把 alpha 平滑降到 0，不能直接 `if (night) return` 硬切；模式切换走 1.2 s 颜色渐变（`--sky-fade`），不做瞬切。
 
 自测方法：在 100% / 125% / 150% 系统缩放下各看 30 秒游戏画面，白云边缘不应有任何亮度跳变或"沙沙"抖动；切换天空模式时云应连续淡入淡出，而不是突然出现或消失。
+
+## 10. 版本记录要点（与 CHANGELOG 对齐）
+
+| 版本 | 架构层变化 |
+|---|---|
+| v1.3.x | 天空主题、黑胶唱片机、家长报告、首页与游戏共用环境色 |
+| v1.4.0–1.4.1 | 心率辅助闭环（`heart.py`）、一键启动脚本、心率默认关闭 |
+| v1.4.2–1.4.4 | 专注判定放宽、走神提示下移、首次上手教学、蓄力节奏调整 |
+| v1.4.5–1.4.6 | 本机配对 EDF 无设备试玩、会话隔离与 SSE 自愈 |
+| v1.4.7–1.4.13 | 报告导出（`export.py`）、积分钱包、成就、商城、每日签到、装扮与肤色 |
+| v1.4.14–1.4.15 | 成就专属装扮、图鉴与获得时间、商城定价改为 5–18 积分、得分即积分 |

@@ -1,28 +1,32 @@
-# 梦境池塘 技术栈
+# 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 日期：2026-11-12
-> 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`
+> 版本：v1.4.15（2026-11-17）
+> 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
 
 ## 1. 总览
 
-| 层 | 技术 | 版本 | 职责 |
+| 层 | 技术 | 声明版本（`requirements.txt`） | 职责 |
 |---|---|---|---|
-| 前端 | HTML + CSS + 原生 JavaScript（零构建） | — | 5 个页面 + `assets/` 公共层 |
-| 服务 | FastAPI | 0.128.8 | REST 接口 + 静态托管 |
-| 服务 | uvicorn | 0.39.0 | ASGI 服务器（`127.0.0.1:8000`） |
-| 实时通道 | sse-starlette（SSE 事件流） | 3.3.0 | 会话实时数据推送（`EventSourceResponse`） |
-| 算法 | numpy | 2.0.2 | 数值/窗口/功率谱计算 |
-| 算法 | scipy | 1.13.1 | 滤波（butter/bandpass）、Welch PSD |
-| 算法 | scikit-learn | ≥1.6,<1.7 | 模型（`LogisticRegression`） |
-| 算法 | joblib | 1.5.3 | 模型序列化（`*.joblib`） |
-| 数据 | pyedflib / edfio | 0.1.42 / — | EDF 脑电文件读取（回放源；3.13+ 自动用 edfio） |
-| 数据 | pandas | 2.3.3 | 训练数据表格处理 |
-| 硬件接入 | python-osc | ≥1.8,<2.0 | Xmuse OSC/UDP 多端口接收（`app/xmuse_osc.py`） |
+| 前端 | HTML + CSS + 原生 JavaScript（零构建） | — | 5 个页面 + `assets/` 公共层与成长系统 |
+| 服务 | FastAPI | `>=0.115,<1.0` | REST 接口 + 静态托管 |
+| 服务 | uvicorn | `>=0.30,<1.0` | ASGI 服务器（`127.0.0.1:8000`） |
+| 实时通道 | sse-starlette | `>=2.1,<4.0` | 会话实时数据推送（`EventSourceResponse`） |
+| 算法 | numpy | `>=2.0` | 数值/窗口/功率谱计算 |
+| 算法 | scipy | `>=1.13` | 滤波（butter/bandpass）、Welch PSD |
+| 算法 | scikit-learn | `>=1.6,<1.7` | 模型（`LogisticRegression`） |
+| 算法 | joblib | `>=1.4` | 模型序列化（`*.joblib`） |
+| 数据 | pandas | `>=2.2` | 训练数据表格处理 |
+| 数据 | pyedflib / edfio | `>=0.1.42`（<3.13） / `>=0.4`（≥3.13） | EDF 脑电文件读取 |
+| 硬件接入 | python-osc | `>=1.8,<2.0` | Xmuse OSC/UDP 多端口接收（`app/xmuse_osc.py`） |
+| 报告导出 | reportlab / openpyxl / python-docx | `>=4.2` / `>=3.1` / `>=1.1` | PDF / Excel / Word 导出（`app/export.py`） |
 | 音乐（可选） | urllib（标准库） | — | 网易云歌单/直链代理（`app/music.py`） |
+| 心率（可选） | subprocess + 标准库 | — | `hrd` 读取 AirPods Pro 3 心率（`app/heart.py`，仅 macOS） |
 | 运行 | Python | 3.10+ | 解释器（`.venv/`、`.venv-win/`） |
+
+> 上表是仓库声明的依赖范围；实际安装版本由 `pip` 解析。若复现模型推理，优先在干净 venv 中按 `requirements.txt` 安装，避免 `scikit-learn` 跨次版本导致的模型兼容问题。
 
 ---
 
@@ -30,34 +34,43 @@
 
 **无 `package.json`、无 npm、无框架、无打包**——这是刻意的产品约束：
 
-- 5 个页面：`index.html`（入口）、`calibrate.html`（校准）、`game.html`（游戏）、`report.html`（报告）、`dev.html`（联调/监视）
-- 公共层：
-  - `assets/api.js`：REST + SSE 封装，含 6s 无数据自愈重连（最多 4 次）与 `onStatus("live"/"reconnecting")`
+- 5 个页面：`index.html`（首页）、`calibrate.html`（校准）、`game.html`（游戏）、`report.html`（报告）、`dev.html`（联调/监视）
+- 视觉与环境层：
   - `assets/style.css`：梦境池塘视觉与通用组件
-  - `assets/sky.css` + `assets/sky.js`：全站天空模式（黎明/白天/傍晚/黑夜/跟随系统时间），按日出日落估算自动切换，`localStorage` 跨页保存；`sky.js` 同时导出 `window.SkyTheme` 色板，首页 SVG 与游戏画布 `game.html` 共用同一套天空 / 水面 / 远山 / 日月星配色
-  - `assets/music.js` + `assets/vinyl.css`：黑胶唱片机播放器，结构由脚本注入，跨页保留曲目与进度
-  - `assets/hero-pond.js`：首页动态池塘（青蛙跳跃、荷叶弹簧、水花、鱼群）
-- 数据通道：浏览器 `EventSource` 消费 SSE
-- 适用人群（儿童）要求低刺激、无安装、秒开 → 原生方案零依赖、零构建开销
+  - `assets/sky.css` + `assets/sky.js`：全站天空模式（黎明/白天/傍晚/黑夜/跟随系统时间），按日出日落估算自动切换，`localStorage` 跨页保存；模式切换走 1.2 s 颜色渐变；`sky.js` 导出 `window.SkyTheme` 色板，首页 SVG 与游戏 Canvas 共用同一套天空 / 水面 / 远山 / 日月星配色
+  - `assets/hero-pond.js`、`hero-water.js`、`pond-effects.js`、`pond-audio.js`：首页动态池塘（青蛙跳跃、荷叶弹簧、水花、鱼群、环境音效），游戏落地水花与转场卡片复用 `PondEffects`
+  - `assets/music.js` + `assets/vinyl.css`：黑胶唱片机，结构由脚本注入，跨页保留曲目与进度
+- 成长系统（全部本地 `localStorage`，无服务端）：
+  - `achievements.js` + `achievements.css` + `achievement-cinematic.js/.css`：15 枚成就、解锁动画与待播队列
+  - `wallet.js`：积分钱包（一局结束按本局得分一次性入账）
+  - `checkin.js` + `checkin.css`：每日签到（+2 积分，0 点刷新）
+  - `shop.js` + `shop.css`：积分商城（装扮 5–18 积分）
+  - `dressup.js` + `dressup.css`：图鉴 / 装扮 / 商城三页，肤色、头饰、面饰、手持等自由搭配，同一类别同时只穿一件
+- 数据通道：浏览器 `EventSource` 消费 SSE；`assets/api.js` 封装 REST + SSE，含 6 s 无数据自愈重连（最多 4 次）与 `onStatus("live"/"reconnecting")`
+
+适用人群（儿童）要求低刺激、无安装、秒开 → 原生方案零依赖、零构建开销。
 
 ---
 
 ## 3. 后端：FastAPI + SSE 事件流
 
-- **REST**：
-  - `POST /api/session`（创建会话，支持基线/OSC 参数）
-  - `POST /api/session/{id}/calibrate`、`POST /api/session/{id}/manual`、`POST /api/session/{id}/finish`
-  - `GET /api/report/{id}`、`GET /api/health`、`GET /api/dev/info`、`GET /api/dev/current`、`POST /api/dev/source`
-  - `GET /api/music/playlist`、`GET /api/music/url/{track_id}`
+- **REST**（完整列表见 `docs/ARCHITECTURE.md` §5）：
+  - 会话：`POST /api/session`、`/manual`、`/calibrate`、`/finish`
+  - 报告：`GET /api/report/{id}`、`GET|POST /api/report/{id}/export/{fmt}`
+  - 平台：`GET /api/health`、`/api/env`、`/api/heart/status`、`POST /api/heart/start|stop`
+  - 回放：`GET /api/player/replay`、`/api/player/recent`
+  - 开发：`GET /api/dev/info`、`/api/dev/current`、`POST /api/dev/source`
+  - 音乐：`GET /api/music/playlist`、`/api/music/url/{track_id}`
 - **实时**：`GET /api/session/{id}/stream` → `EventSourceResponse`，帧结构：
-  - 首帧 `hello`（元信息），随后每 0.5 s 一帧 `frame`（`t`、`focus`、`raw` 等）
+  - 首帧 `hello`（元信息），随后每 0.5 s 一帧 `frame`（`t`、`focus`、`raw`、`focus_fused`、`score` 等）
   - **分隔符为 CRLF `\r\n\r\n`**（uvicorn/sse-starlette 行为，测试脚本必须兼容 `\r?\n\r?\n`）
 - 会话模型：`Session` 内存态（`_sessions` 字典），`start()` 内 EDF 加载走线程池（`run_in_executor`）避免阻塞事件循环
-- 信号源抽象：`EEGSource.start() + next_window() -> (seg, meta) + stop()`，三实现：
-  - `EDFReplaySource`（循环回放）
+- 信号源抽象：`EEGSource.start() + next_window() -> (seg, meta) + stop()`，四实现：
+  - `EDFReplaySource`（循环回放；支持本机配对文件夹）
   - `ManualSource`（滑块）
   - `HardwareSource` → `XmuseOSCSource`（真机 OSC/UDP）
-- **硬件会话互斥**：创建新的 hardware 会话时会自动结束旧的未完成硬件会话，避免 UDP 7000/8000 端口争抢；会话结束调用 `stop()` 释放端口
+  - `HeartSource`（仅心率；无脑电时也能玩）
+- **硬件/心率会话互斥**：创建新的硬件会话会自动结束旧的未完成硬件会话，避免 UDP 7000/8000 端口争抢；会话结束调用 `stop()` 释放端口与采集进程
 - 静态资源：非 `/api/` 响应统一 `Cache-Control: no-cache`，开发时刷新即生效
 
 ---
@@ -72,12 +85,17 @@
 
 - 频带：delta 0.5–4 / theta 4–8 / alpha 8–13 / beta 13–30 / gamma 30–45 Hz
 - 窗口：2 s；EDF 回放源 21 通道 × 11 = **231 维**特征输入
-- 模型：`outputs/models/LogisticRegression.joblib`，训练自 EEGMAT 数据集（PhysioNet）
+- 模型：`outputs/models/LogisticRegression.joblib`，训练自 EEGMAT 数据集（PhysioNet，36 名被试、4338 个 2 s 窗口）
+- 团队自述指标（LOSO 按被试划分）：准确率 0.729 / 平衡准确率 0.640 / ROC-AUC 0.731；逐被试结果波动较大，不能当作临床指标
 - **通道数自适应**（`app/focus_engine.py`）：
   - 输入维度与模型 `n_features_in_` 一致 → 走模型推理
   - 不一致（如 Xmuse 4/6 通道）或推理抛 `ValueError` → 自动回退频段指标
   - 回退公式：相对频段功率比 `beta / (theta + alpha)`，经 `sigmoid(2.5 × (ratio − 0.70))` 映射到 0..1，再做 EMA 平滑
   - `FocusEngine.describe()` 通过 `active_mode`（`model` / `band`）对外暴露当前模式，开发者页可见
+- **心率融合**（`app/heart.py`，仅 macOS）：
+  - 心率为独立 2 s 帧，`hrd` 真实数据 10–20 s 才更新一次，只在数值变化或可用时参与
+  - 以校准静息心率为中点（默认 25 BPM 跨度），心率下降映射为专注上升
+  - 融合权重默认 0.15（`heart_weight` 0–0.5 可调），心率缺失/过期自动退回纯 EEG
 - 语义边界：频段指标只保证游戏内"相对变化"可校准，**不是临床注意力分数**
 
 ---
@@ -89,7 +107,7 @@
 | 传输 | UDP + OSC（`python-osc` 的 `ThreadingOSCUDPServer` + 默认 handler） |
 | 默认端口 | `7000`（Xmuse Direct 默认）、`8000`（官方示例默认），可多端口同时监听 |
 | 地址匹配 | 最后一个路径段为 `eeg` 且不含 `/elements/`，兼容 `/eeg`、`/8000/eeg`、`/muse/eeg` |
-| 窗口 | 2 s 环形缓冲，步长 0.5 s（与 `features.py` 训练口径一致） |
+| 窗口 | 2 s 环形缓冲，步长 0.5 s（与训练口径一致） |
 | 采样率 | OSC 报文不带采样率，默认按 256 Hz（`XMUSE_OSC_FS` 可覆盖） |
 | 通道 | 4/6 通道自动推断，名称 `TP9/AF7/AF8/TP10/AUX1/AUX2`；`XMUSE_OSC_CHANNELS` 可固定 |
 | 元数据 | 同时接收 `/elements/is_good`（质量）、`/batt`（电量），`describe()` 上报 packets/samples/年龄/连接状态 |
@@ -100,7 +118,21 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
 
 ---
 
-## 6. 背景音乐代理（可选，`app/music.py`）
+## 6. 报告导出（`app/export.py`，v1.4.7 起）
+
+| 格式 | 生成 | 内容 |
+|---|---|---|
+| PDF | reportlab | A4 排版 + 概览 + 专注曲线；优先嵌入系统中文字体（Windows 微软雅黑/黑体、macOS PingFang、Linux Noto CJK），兜底 `STSong-Light` |
+| XLSX | openpyxl | 概览表 + 逐点曲线 + 起跳事件 + 折线图 |
+| DOCX | python-docx | 概览表 + 给家长的话 |
+| CSV / JSON | 标准库 | 逐点数据 / 原始报告 |
+
+- 导出完全在本机服务完成，不经过第三方或云端；浏览器直接下载到默认目录，不额外写 `outputs/`
+- 依赖缺失时只有对应格式不可用，报告页其余功能不受影响
+
+---
+
+## 7. 背景音乐代理（可选，`app/music.py`）
 
 - 浏览器无法直接播放网易云歌单（需签名、版权校验与登录态），由服务端代取
 - 曲目列表：登录时 `/api/playlist/track/all` 取全量；未登录回退 `/api/v6/playlist/detail`（前 10 首）
@@ -112,12 +144,13 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
 
 ---
 
-## 7. 数据流
+## 8. 数据流
 
 ```
 [Xmuse 设备] --蓝牙--> [Xmuse Direct] --OSC/UDP 127.0.0.1:7000/8000--> [xmuse_osc.py]
         [EDF 文件] ---------------------------> [EDFReplaySource]
         [滑块输入] ---------------------------> [ManualSource]
+        [AirPods Pro 3] --hrd--> [heart.py] --> 心率分量（仅 macOS）
                             ↓
                 sources.next_window() → (seg, meta)
                             ↓
@@ -125,7 +158,7 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
                             ↓
         Session._run → SSE (EventSourceResponse) → EventSource(前端)
                             ↓
-        dev/game 页面按帧渲染 focus；finish 后报告落盘
+        dev/game 页面按帧渲染 focus；finish 后报告落盘，report 页导出
 
 [浏览器 music.js] --/api/music/*--> [app/music.py] --HTTPS--> music.163.com
         （仅背景音乐走公网，不携带脑电数据）
@@ -133,13 +166,13 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
 
 ---
 
-## 8. 版本与依赖管理
+## 9. 版本与依赖管理
 
-`requirements.txt` 已包含服务运行依赖（fastapi、uvicorn、sse-starlette、joblib、pydantic）与硬件依赖 `python-osc`，新环境可一键安装。
-
+- `requirements.txt` 已包含服务运行依赖与硬件依赖 `python-osc`；报告导出依赖 `reportlab` / `openpyxl` / `python-docx`
 - `scikit-learn` 锁定 `<1.7`，避免模型序列化/推理行为在次版本间漂移
 - EDF 读取：Python 3.13+ 无 pyedflib 预编译轮子，`app/sources.py` 自动回退 `edfio`
 - Windows 使用 `start.ps1` 创建 `.venv-win`；macOS/Linux 使用 `.venv`
+- 启动脚本（`start.command` / `start.bat`）会在首次运行时建环境、装依赖，之后直接启动；已在运行时只打开页面
 
 如需完全可复现的锁定版本，可在目标环境执行：
 
@@ -149,10 +182,11 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
 
 ---
 
-## 9. 选型原则（约束清单）
+## 10. 选型原则（约束清单）
 
 1. **零构建**：前端无 npm/打包，打开即用
 2. **脑电本地**：无外部 AI 服务、脑电数据不出本机；仅可选背景音乐联网
 3. **儿童友好**：低刺激视觉、无账号、数据不出本机
-4. **可复现**：依赖收敛到 venv + requirements
-5. **接入可逆**：`hardware` 源失败时回退 `replay`/`manual`，SSE 帧结构不变；通道不匹配时算法自动回退频段指标
+4. **成长系统可离线**：积分/签到/商城/装扮/成就全部 localStorage，断网可用；清缓存即重置（隐私说明已明示）
+5. **可复现**：依赖收敛到 venv + requirements；模型指标可追溯到 `outputs/train_report.md`
+6. **接入可逆**：`hardware` / `heart` 源失败时回退 `replay` / `manual`，SSE 帧结构与报告格式不变；通道不匹配时算法自动回退频段指标

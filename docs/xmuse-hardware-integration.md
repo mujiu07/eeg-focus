@@ -1,8 +1,8 @@
 # Xmuse 脑电波仪硬件接入方案
 
-> 项目：梦境池塘脑波专注游戏 MVP（`eeg-focus/`）
-> 状态：**已实现（OSC/UDP 多端口接收 + 4 通道频段回退）**
-> 日期：2026-11-12（原方案 2026-10-20）
+> 项目：专注小蛙 · 梦境池塘（`eeg-focus/`）
+> 状态：**已实现（OSC/UDP 多端口接收 + 4/6 通道频段回退）**；当前代码版本 v1.4.15（2026-11-17）
+> 日期：2026-11-17 更新（原方案 2026-10-20，落地记录 2026-11-12）
 > 素材来源：设备商 GitHub 组织 `AI-Xmuse`（厦门北洋瑞恒智慧健康有限公司）公开仓库 + 本机 Xmuse Lab 1.5.8 / Xmuse Direct 1.5.11 安装目录调研
 >
 > **端口默认值：UDP `7000` + `8000`。修改前必读 §2.3.1。**
@@ -11,16 +11,17 @@
 
 ## 1. 背景与目标
 
-当前 MVP 的信号源为三选一（`app/sources.py`）：
+当前 v1.4.15 的信号源（`app/sources.py`）：
 
 | 信号源 | 现状 |
 |---|---|
-| `replay` | EDF 真实数据回放（默认演示） |
+| `replay` | EDF 真实数据回放；支持本机配对文件夹，无设备试玩 |
 | `manual` | 滑块手动模拟专注度 |
 | `hardware` | **已接入**：Xmuse OSC/UDP 实时脑电（`app/xmuse_osc.py`） |
+| `heart` | 仅心率（AirPods Pro 3，仅 macOS；与脑电可选的融合权重默认 0.15） |
 
 本次目标：把 `hardware` 信号源落地为真实的 **Xmuse 便携式脑电波仪** 接入，
-让游戏由真实脑电驱动专注度，替代/补充 EDF 回放演示。
+让游戏由真实脑电驱动专注度，替代/补充 EDF 回放演示。硬件会话与仅心率会话互斥，同一时间只保留一个未完成的非回放会话。
 
 ---
 
@@ -335,3 +336,42 @@ web/
 - `Xmuse-Coding/Pylsl/`：LSL 流发现/信息解析参考
 - `Xmuse-Coding/Xmuse_OSC_For_Plenty_Machine_Recording/`：多端口 OSC 采集参考
 - `Xmuse-Brain-Game/`（Greedy-Snake / Tank / Gomoku 等）：OSC 地址实证
+
+---
+
+## 10. 当前版本状态与后续（v1.4.15，2026-11-17）
+
+### 10.1 已实现并可在游戏中使用的部分
+
+| 能力 | 现状 | 代码位置 |
+|---|---|---|
+| OSC/UDP 多端口接收 | 默认同时监听 UDP 7000/8000，可追加端口；2 s 窗、0.5 s 步长 | `app/xmuse_osc.py` |
+| 4/6 通道自动识别 | 首包后按实际通道数截断/补齐；`XMUSE_OSC_CHANNELS` 可固定 | `app/xmuse_osc.py` |
+| 频段回退 | 维度不匹配时走 `β/(θ+α)` + sigmoid，游戏内可校准 | `app/focus_engine.py` |
+| 质量/电量 | 订阅 `*/elements/is_good`、`*/batt`；断流时给出中文诊断 | `app/xmuse_osc.py` |
+| 会话互斥与端口释放 | 新建硬件会话自动结束旧硬件会话；`stop()` 释放 UDP 端口 | `app/server.py` |
+| 真机联调入口 | 校准页 / 开发者页可选 Xmuse 并填端口 | `web/calibrate.html`、`web/dev.html` |
+| 无设备替代 | 本机配对 EDF 回放（放松段 + 心算段）与手动滑块 | `app/sources.py`、`/api/player/replay` |
+| 心率辅助（可选） | AirPods Pro 3 → `hrd` → BPM，默认权重 0.15，失效自动退回 EEG | `app/heart.py` |
+
+### 10.2 仍未完成
+
+- **4 通道专属模型**：尚未采集 Xmuse 标注数据重训 44 维模型，游戏仍依赖频段指标回退；因此界面分数只表达"相对变化"，不是临床注意力分数
+- **brainwaves OSC 地址**：官方清单提到频段功率，但未确认可直接订阅的 OSC 地址；当前仍自算 PSD
+- **LSL 管道**：保留为后续科研级时间戳的备选，未落地
+- **真实用户验证**：尚无佩戴 Xmuse 的儿童用户数据；当前实测为合成 OSC + 成人试戴
+
+### 10.3 变更守则（沿用）
+
+1. 修改默认端口必须附真机探针日志（`scripts/xmuse_osc_probe.py`），不能只凭单个官方示例
+2. 频段回退的公式、频带边界必须与 `app/features.py` 保持一致；改动需同步更新 `docs/tech-stack.md`
+3. 任何"专注度"对外表述都要保留教学映射/非诊断声明；不新增暗示疗效的文案
+4. 硬件相关改动需同时验证：OSC 探针 → 校准 → 游戏 → 报告四段链路，并确认 SSE 帧结构未变
+
+### 10.4 相关文档
+
+- 技术栈与算法链路：`docs/tech-stack.md`
+- 架构与会话模型：`docs/ARCHITECTURE.md`
+- 使用、隐私与排障：`docs/usage-and-privacy.md`
+- 测试与证据：`docs/EVIDENCE-dream-pond-focus-frog.md`
+
