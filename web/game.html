@@ -31,6 +31,12 @@
     .hud-item .icon { font-size: 22px; }
     /* 心率：图标按实际 BPM 节律跳动，低采样率数据过期时自动停下 */
     #hr-hud .icon { display: inline-block; transform-origin: 50% 60%; }
+    /* 信号质量（去噪/去伪迹后的实时状态） */
+    .sq-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block;
+      background: #bdcfcb; box-shadow: 0 0 6px currentColor; }
+    .sq-dot.good { background: #4ade80; color: #4ade80; }
+    .sq-dot.fair { background: #fbbf24; color: #fbbf24; }
+    .sq-dot.poor { background: #f87171; color: #f87171; }
     #hr-hud.beat .icon { animation: hrBeat 1s ease-in-out infinite; }
     #hr-hud.stale { color: #bdcfcb; }
     @keyframes hrBeat {
@@ -384,6 +390,9 @@
       <div class="hud">
         <span class="hud-item" id="lamp"><span class="lamp-dot"></span><span id="lamp-text">专注中</span></span>
         <span class="hud-item"><span>剩余</span><span id="timer" style="min-width:5.5ch;text-align:center">01:00</span></span>
+        <span class="hud-item" id="quality-hud" style="display:none" title="信号质量（已做去噪与伪迹修复）">
+          <span class="sq-dot" id="quality-dot"></span><span id="quality-text" style="font-size:13.5px">—</span>
+        </span>
         <span class="hud-item" id="hr-hud" title="心率（辅助信号，低采样率）">
           <span class="icon" id="hr-icon">♥</span><span id="hr-bpm" style="min-width:2.5ch;text-align:center">--</span><span style="font-size:13px;opacity:.6;font-weight:700">BPM</span>
         </span>
@@ -756,9 +765,33 @@
       }
       $("manual-card").classList.toggle("hidden", !state.manualMode);
 
+      // 质量指示：没有 artifact 报告（回放/手动/心率模式）时整项隐藏
+      function updateQuality(q) {
+        const hud = $("quality-hud"), dot = $("quality-dot"), txt = $("quality-text");
+        if (!hud) return;
+        if (!q) { hud.style.display = "none"; return; }
+        hud.style.display = "";
+        hud.title = q.hint || "信号质量（已做去噪与伪迹修复）";
+        dot.classList.remove("good", "fair", "poor");
+        dot.classList.add(q.level || "fair");
+        txt.textContent = q.level === "good" ? "信号好"
+          : q.level === "poor" ? "信号差" : "信号一般";
+      }
+
       state.es = API.stream(res.session_id, {
         onFrame(f) {
-          if (!f.valid || f.focus == null) { state.stale = true; return; }
+          // 质量指示必须放在 valid 判断之前：恰恰是伪迹帧，用户才需要看到提示
+          updateQuality(f.artifact || null);
+          if (!f.valid || f.focus == null) {
+            // 伪迹窗（眨眼/电极抖动）不等于断流：保持上一帧分数继续玩，
+            // 只把质量点降级。否则孩子眨一次眼游戏就暂停，体验会碎成渣。
+            // 真正断流由下面 3 s 无帧的看门狗兜底。
+            if (f.reason === "artifact") return;
+            state.stale = true;
+            state.staleReason = f.reason || "signal";
+            return;
+          }
+          state.staleReason = null;
           state.lastFrameTs = performance.now();
           state.signalTime = f.t;
           state.stale = false;

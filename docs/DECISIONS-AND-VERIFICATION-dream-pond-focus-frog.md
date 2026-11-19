@@ -132,6 +132,15 @@
 - **证据**：`docs/README-dream-pond-focus-frog.md`；本次提交。
 - **状态**：已采纳。
 
+### D-016 去噪去伪迹：带通减除眨眼 + 掩码排除坏道，不改特征口径
+
+- **背景**：Xmuse 干电极前额通道上，眨眼幅值常为 β 波的 10 倍以上；原链路只有 0.5–45 Hz 带通，拦不住眨眼，专注分会被眨眼瞬间抬高。
+- **决策**：新增 `app/denoise.py`，在 hardware 源出窗后做「去趋势 → 50 Hz 陷波 → 伪迹检测 → 修复 → 质量评分」。眨眼用 `0.5–8 Hz` 分量迭代 2 次减除；削顶段 ≤0.3 s 才插值；坏道以 `channel_mask` 排除；伪迹过重的窗判 `usable=false`，不出分、不入 history。**不做 0.5–45 Hz 带通**，保持与训练/`prepare_signal` 同一口径。
+- **备选与否决**：段内线性插值（beta −21%）、`0.5–15 Hz` 带通减除（alpha −20%）、坏道置零（拉低 β 相对功率）——均实测不达标。
+- **代价**：眨眼残留约 45%（只影响形态不影响频段功率）；阈值需真机标定；每个窗口增加一次陷波与 2 次滤波开销（2 s 窗口下可忽略）。
+- **证据**：`tests/selfcheck_denoise.py`（10 项）、`tests/e2e_hardware_denoise.py`；`docs/denoise-artifacts.md`。
+- **状态**：已实现；真机阈值标定未做。
+
 ---
 
 ## 2. 验证记录（Verification Log）
@@ -153,10 +162,12 @@
 | V-011 | 2026-11-17 | 基线有效期 | 篡改 `bf-calib` 时间戳 | 通过：1 h 内直接玩，过期引导重校 | `web/assets/api.js`；`calibrate.html` |
 | V-012 | 2026-11-17 | 文档链接与范围 | 脚本扫描 `docs/*.md` 的 `*.md` 引用；`git diff --stat` | 通过：docs 内互链均可解析；仅 `AGENTS.md`（未来根文件）、`research-*.md`（未来研究结果）、`train_report.md`（位于 `outputs/`）为预期外部引用；变更仅限 docs | 本次提交 |
 | V-013 | 2026-11-17 | 心率文档一致性 | 对照 `app/heart.py` 复核文档 | **发现错误**：曾写"25 BPM 跨度/心率下降=专注上升"；实际跨度默认 12、目标为静息 +45% 的倒 U；已修正 tech-stack/ARCHITECTURE | `heart.py` L38/59/171；`tech-stack.md` §4 |
-| V-014 | 2026-11-17 | 版本元数据 | 对比 `app = FastAPI(version=...)` 与 Git tag | **不一致（未修复）**：应用自报 `1.4.11`，标签 `v1.4.15` | `app/server.py` L46 |
+| V-014 | 2026-11-17 | 版本元数据 | 对比 `app = FastAPI(version=...)` 与 Git tag | **不一致**：应用自报 `1.4.11`，标签 `v1.4.15`（V-018 已修复） | `app/server.py` L46 |
 | V-015 | 2026-11-17 | 真实用户测试 | 5–10 个家庭问卷/观察 | **未开始** | `EVIDENCE` §3 |
 | V-016 | 2026-11-17 | 4 通道儿童数据 | Xmuse 佩戴采集与重训 | **未开始** | `REFLECTION` §6 |
 | V-017 | 2026-11-17 | 仅心率模式语义 | mock：向 `HeartRateMonitor` 注入 20 个 70 BPM 样本，再注入 64 BPM 样本，调用 `focus_component(target_delta=0)` | **发现注释不一致**：稳态静息 70 → 0.95，64 → 0.61；与 `server.py` 注释"静息=0.5，降心率才能拉高"不符，实际是倒 U 峰值在静息。已修正 ARCHITECTURE / BRIEF；代码未改 | 本机运行结果；`app/heart.py` L169–188 |
+| V-018 | 2026-11-19 | 去噪单元自检 | `python tests/selfcheck_denoise.py`（合成 4 ch × 256 Hz，逐项注入伪迹） | 通过（10/10）：陷波 20.3 dB；眨眼 196→60.9 µV 且 alpha −5.5%、beta −0.1%；削顶 400→60.7 µV；脱落判 `flatline+bad_channel`；肌电 ratio 0.985；ADC 量级不误伤；跨窗眨眼仍检出；44 维特征全部有限。同时把 `app/server.py` 版本同步为 `1.4.16`（修复 V-014） | `tests/selfcheck_denoise.py`；`docs/denoise-artifacts.md` §6.1 |
+| V-019 | 2026-11-19 | 去噪端到端 | `python tests/e2e_hardware_denoise.py`：合成 OSC（UDP 17000，8 样本/包）→ uvicorn → 会话 → SSE → 校准 → 报告 | 通过：`describe.denoise` 生效；帧带 `artifact`（`usable=true, level=good, flags=["blink"], rail_ratio=0.0`）；`calibration.signal_quality` 与 `report.signal_quality` 均落库（`usable_ratio=1.0`） | `tests/e2e_hardware_denoise.py`；`docs/denoise-artifacts.md` §6.2 |
 
 ### 2.1 失败与不一致（保留，不掩盖）
 

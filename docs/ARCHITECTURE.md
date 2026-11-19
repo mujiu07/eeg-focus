@@ -1,6 +1,6 @@
 # 专注小蛙 · 梦境池塘 — 架构设计
 
-> 版本：v1.4.15（2026-11-17）
+> 版本：v1.4.16（2026-11-19）
 > 适用代码：`eeg-focus/`（`app/` + `web/`）
 > 定位：本地运行的脑电专注游戏 MVP，教学演示用途，不构成注意力评估或医疗诊断。
 
@@ -48,6 +48,8 @@ EDF 回放窗口 (2 s × 21 通道)
   → EMA 平滑 (α=0.35) → focus 0..1
 
 Xmuse 真机窗口 (2 s × 4/6 通道)
+  → 去噪去伪迹（denoise.py：去趋势 → 50 Hz 陷波 → 眨眼/削顶/肌电/坏道 → 质量评分）
+  → 伪迹过重（usable=false）→ 该帧不出分，标 reason="artifact"
   → 维度与模型不匹配 → 相对频段功率 β/(θ+α)
   → sigmoid 映射 0..1 → 同一套 EMA 平滑与基线逻辑
 
@@ -87,7 +89,7 @@ Xmuse 真机窗口 (2 s × 4/6 通道)
 - 基线只写浏览器 `localStorage`，1 小时内有效；过期后进入游戏会引导重新校准
 - 校准失败（无有效帧 / 信号中断）会给出明确提示，不会写入伪基线
 
-## 5. API 一览（v1.4.15）
+## 5. API 一览（v1.4.16）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -110,6 +112,9 @@ Xmuse 真机窗口 (2 s × 4/6 通道)
 | GET/POST | `/api/report/{id}/export/{fmt}` | 导出 `pdf` / `xlsx` / `docx` / `csv` / `json` |
 | GET | `/api/music/playlist` | 背景音乐歌单（网易云代理） |
 | GET | `/api/music/url/{track_id}` | 单曲播放直链（服务端缓存） |
+
+> v1.4.16 起，`hardware` 会话的 SSE `frame` 新增可选字段 `artifact`（信号质量报告，字段见 `docs/denoise-artifacts.md` §5）；
+> `valid=false, reason="artifact"` 表示该窗伪迹过重、不出分且不入 history；`/calibrate` 与 `finish` 的结果新增 `signal_quality`。
 
 ## 6. 会话与并发模型
 
@@ -157,3 +162,4 @@ Xmuse 真机窗口 (2 s × 4/6 通道)
 | v1.4.5–1.4.6 | 本机配对 EDF 无设备试玩、会话隔离与 SSE 自愈 |
 | v1.4.7–1.4.13 | 报告导出（`export.py`）、积分钱包、成就、商城、每日签到、装扮与肤色 |
 | v1.4.14–1.4.15 | 成就专属装扮、图鉴与获得时间、商城定价改为 5–18 积分、得分即积分 |
+| v1.4.16 | Xmuse 去噪与去伪迹（`denoise.py`）：陷波 / 眨眼修复 / 坏道掩码 / 质量门控，校准与游戏共用；帧新增 `artifact`，报告新增 `signal_quality` |

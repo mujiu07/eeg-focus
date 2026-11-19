@@ -1,7 +1,7 @@
 # AGENTS — 专注小蛙 · 梦境池塘 项目指令
 
 > 适用仓库：`mujiu07/eeg-focus`
-> 适用版本：`main` @ `98b5b2a`（基线 v1.4.15）
+> 适用版本：`main` @ `v1.4.16`（2026-11-19）
 > 文件位置：`docs/AGENTS-dream-pond-focus-frog.md`
 > 使用方式：AI 编码助手在本仓库工作前先读本文件；如工具只识别根目录 `AGENTS.md`，可将其内容复制为根 `AGENTS.md`（保持本文件为唯一事实源，改一处同步另一处）。
 
@@ -17,7 +17,7 @@
 | 页面 | `index` / `calibrate` / `game` / `report` / `dev` |
 | 信号源 | `replay`（EDF）/ `manual` / `hardware`（Xmuse OSC）/ `heart`（仅 macOS） |
 | 数据 | 脑电与会话仅本机；成长数据仅 `localStorage`；唯一公网是可选的网易云音乐 |
-| 已知 | FastAPI `version` 仍为 `1.4.11`；`outputs/sessions/` 不入库 |
+| 已知 | `outputs/sessions/` 不入库；FastAPI `version` 已于 v1.4.16 同步为 `1.4.16` |
 
 ## 1. 必读顺序
 
@@ -54,6 +54,7 @@ python -m venv .venv
 ```
 app/      server.py（会话/API/静态）  sources.py（四信号源）  xmuse_osc.py（OSC）
           focus_engine.py（模型+回退+EMA）  features.py（滤波/PSD/特征）
+          denoise.py（去趋势/陷波/眨眼修复/坏道掩码/质量评分，仅 hardware）
           heart.py（心率/融合）  export.py（五种导出）  music.py（网易云代理）
 web/      index/calibrate/game/report/dev.html + assets/*
 scripts/  preprocess.py  train.py  xmuse_osc_probe.py  ncm_login.py  download_data.sh
@@ -71,6 +72,7 @@ outputs/  models/（入库）  sessions/（不入库，隐私）  train_report.m
 6. **数据位置**：新增持久化状态优先 `localStorage`，并在 `usage-and-privacy.md` §6 登记键名
 7. **不伪造证据**：不编造指标、用户量、测试结果、来源；无法验证就写“未验证”
 8. **不动用户数据**：不删除 `outputs/sessions/`、`data/`、`data/music_cookie.txt`；需要清理时先说明并征得同意
+9. **特征口径**：去噪只能加在 `prepare_signal` 之前，不得替代或改变 0.5–45 Hz 带通与 11 特征定义；改去噪常数须同步 `denoise-artifacts.md` §5 与 `BRIEF` §6
 
 ## 5. 修改流程
 
@@ -177,6 +179,7 @@ outputs/  models/（入库）  sessions/（不入库，隐私）  train_report.m
 - 决策与验证：`DECISIONS-AND-VERIFICATION-dream-pond-focus-frog.md`
 - 测试证据：`EVIDENCE-dream-pond-focus-frog.md`
 - 使用/隐私：`usage-and-privacy.md`
+- 去噪与伪迹：`denoise-artifacts.md`
 - 索引：`README-dream-pond-focus-frog.md`
 
 ---

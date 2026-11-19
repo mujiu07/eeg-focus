@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.4.15（2026-11-17）
+> 版本：v1.4.16（2026-11-19）
 > 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
@@ -15,7 +15,7 @@
 | 服务 | uvicorn | `>=0.30,<1.0` | ASGI 服务器（`127.0.0.1:8000`） |
 | 实时通道 | sse-starlette | `>=2.1,<4.0` | 会话实时数据推送（`EventSourceResponse`） |
 | 算法 | numpy | `>=2.0` | 数值/窗口/功率谱计算 |
-| 算法 | scipy | `>=1.13` | 滤波（butter/bandpass）、Welch PSD |
+| 算法 | scipy | `>=1.13` | 滤波（butter/bandpass/iirnotch）、Welch PSD、伪迹修复 |
 | 算法 | scikit-learn | `>=1.6,<1.7` | 模型（`LogisticRegression`） |
 | 算法 | joblib | `>=1.4` | 模型序列化（`*.joblib`） |
 | 数据 | pandas | `>=2.2` | 训练数据表格处理 |
@@ -97,6 +97,14 @@
   - 以校准静息心率为基准，跨度取校准得到的"静息→任务"差值（默认 12 BPM，可设 6–80）；目标为静息之上约 45% 跨度，做高斯倒 U 评分（适度激活得分最高），波动与持续下滑扣分
   - 仅心率模式把目标设为静息本身（`target_delta=0`），不依赖脑电
   - 融合权重默认 0.15（`heart_weight` 0–0.5 可调），心率缺失/过期自动退回纯 EEG
+- **去噪与去伪迹**（`app/denoise.py`，v1.4.16 起，仅 `hardware` 源）：
+  - 每 2 s 窗口：去线性趋势 → 50 Hz 零相位陷波（Q=30）→ 眨眼 / 削顶 / 肌电 / 坏道 / 设备质量检测 → 修复 → 0–1 质量评分
+  - 眨眼：1–8 Hz 定边界 + **原始幅值**确认（默认 80 µV），`0.5–8 Hz` 分量迭代 2 次减除；实测峰值 196→61 µV，alpha −5.5%、beta −0.1%
+  - 削顶：单段 ≤0.3 s 线性插值；坏道：掩码排除（不插值、不置零参与平均）
+  - 跨窗：拼接上一窗尾部 0.5 s，避免压在窗口边界的眨眼被切半漏检
+  - 单位自适应：`median(|x|) > 500` 判为 ADC 计数，绝对阈值改按稳健标准差倍数
+  - **不做 0.5–45 Hz 带通**：带通仍由 `features.prepare_signal` 完成，模型口径不变、无需重训
+  - 阈值全部可用 `EEG_*` 环境变量覆盖，流程与证据见 `docs/denoise-artifacts.md`
 - 语义边界：频段指标只保证游戏内"相对变化"可校准，**不是临床注意力分数**
 
 ---
@@ -154,6 +162,8 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
         [AirPods Pro 3] --hrd--> [heart.py] --> 心率分量（仅 macOS）
                             ↓
                 sources.next_window() → (seg, meta)
+                            ↓
+        [hardware] denoise.clean_window → 清洗信号 + artifact 质量报告
                             ↓
         features.prepare_signal → window_to_features → 模型 / 频段回退
                             ↓

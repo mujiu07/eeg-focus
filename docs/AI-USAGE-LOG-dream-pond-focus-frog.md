@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — AI 使用日志
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 版本：v1.4.15（2026-11-17）
+> 版本：v1.4.16（2026-11-19）
 > 用途：课程 AI Compliance 证据（时间戳、prompt、输出摘要、人工修改、验证、结论）
 > 诚实声明：早期开发对话的**原始 prompt 未逐条留存**。下表把"可核验的提交/测试证据"与"未留存的对话"分开标注，不补写不存在的时间戳或原文。
 
@@ -92,6 +92,18 @@
 | 人工修改 | 核对成就专属装扮不出售；同步商城说明文案 |
 | 验证方式 | 购买扣分与余额；结算分=积分；成就专属不可购买 |
 | 结论 | 采纳（v1.4.14 / v1.4.15） |
+
+### Entry 007 — Xmuse 去噪与去伪迹接入
+
+| 字段 | 内容 |
+|---|---|
+| 日期/时间 | 2026-11-19 |
+| 工具/模型 | DeepWorks（模型 `dth/DeepSeek-V4.1-Flash`）；对话未留存完整原文，本条为会话内记录 |
+| Prompt（可追溯摘要） | 「结合 Xmuse 头戴式脑电设备的参数，写一套去噪去伪迹的处理流程，并接进这个游戏程序里，用于校准和游戏」 |
+| AI 输出摘要 | ① 新增 `app/denoise.py`（去趋势 / 50 Hz 陷波 / 眨眼-削顶-肌电-坏道检测 / 修复 / 质量评分，含跨窗与单位自适应）；② 接入 `sources.py`（`next_window` 内清洗 + `meta["artifact"]`）、`focus_engine.py`（`channel_mask`）、`server.py`（伪迹门控、`signal_quality`、`quality_warning`）；③ 前端校准页质量徽章与游戏 HUD 质量点；④ `docs/denoise-artifacts.md` + 两个测试脚本 + CHANGELOG v1.4.16；⑤ 同步 ARCHITECTURE / tech-stack / BRIEF / DECISIONS / 索引 / 根 README |
+| 人工修改 | 否决"段内插值"与"0.5–15 Hz 带通减除"（实测分别伤 beta / alpha）；伪迹帧改为不暂停游戏只降级提示；坏道改为掩码排除而非置零；把 FastAPI 版本从 `1.4.11` 同步到 `1.4.16` |
+| 验证方式 | `tests/selfcheck_denoise.py` 10/10；`tests/e2e_hardware_denoise.py` 全链路通过；`py_compile` 与 `node --check` 通过；页面元素与 JS 语法核对 |
+| 结论 | 采纳（v1.4.16）；真机阈值标定与儿童佩戴验证仍未开始 |
 
 ---
 

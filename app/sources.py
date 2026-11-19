@@ -193,6 +193,10 @@ class HardwareSource(EEGSource):
     端口/采样率/通道数可通过 config 或环境变量覆盖：
 
       XMUSE_OSC_HOST / XMUSE_OSC_PORTS / XMUSE_OSC_FS / XMUSE_OSC_CHANNELS
+
+    每个窗口在交给引擎前都会先过 ``denoise.ArtifactCleaner``：
+    去趋势 → 50 Hz 陷波 → 眨眼/削顶/肌电/坏道检测与修复。
+    清洗结果与质量报告写回 ``meta["artifact"]``，校准和游戏共用同一套处理。
     """
 
     name = "hardware"
@@ -202,9 +206,11 @@ class HardwareSource(EEGSource):
         super().__init__()
         self.config = config or {}
         self._impl = None
+        self._cleaner = None
 
     def start(self):
         from .xmuse_osc import XmuseOSCSource
+        from .denoise import ArtifactCleaner
 
         self._impl = XmuseOSCSource(
             host=self.config.get("osc_host") or os.getenv("XMUSE_OSC_HOST"),
@@ -215,6 +221,7 @@ class HardwareSource(EEGSource):
         self._impl.start()
         self.fs = self._impl.fs
         self.ch_names = list(self._impl.ch_names)
+        self._cleaner = ArtifactCleaner(fs=self.fs)
         return self
 
     def next_window(self):
@@ -223,7 +230,21 @@ class HardwareSource(EEGSource):
         seg, meta = self._impl.next_window()
         self.fs = meta.get("fs", self.fs)
         self.ch_names = meta.get("ch_names") or self.ch_names
-        return seg, meta
+
+        if self._cleaner is None or abs(self._cleaner.fs - float(self.fs or 0)) > 1e-6:
+            from .denoise import ArtifactCleaner
+            self._cleaner = ArtifactCleaner(fs=self.fs)
+
+        clean, report = self._cleaner.process(
+            seg, ch_names=self.ch_names, device_quality=meta.get("quality"))
+        meta["artifact"] = report
+        return clean, meta
+
+    def artifact_summary(self):
+        """会话级的伪迹/信号质量汇总（写进报告与校准结果）。"""
+        if self._cleaner is None:
+            return None
+        return self._cleaner.summary()
 
     def describe(self):
         d = super().describe()
@@ -236,6 +257,16 @@ class HardwareSource(EEGSource):
                 "ports": [],
                 "osc_ports": self.config.get("osc_ports") or os.getenv("XMUSE_OSC_PORTS", "7000,8000"),
             })
+        # 如实反映当前生效的去噪配置（阈值都可用 EEG_* 环境变量覆盖）
+        from . import denoise as _dn
+        d["denoise"] = {
+            "enabled": True,
+            "notch_hz": _dn._notch_freqs(),
+            "blink_repair_band": list(_dn.BLINK_REPAIR_BAND),
+            "blink_repair_iters": _dn.BLINK_REPAIR_ITERS,
+            "blink_uv": _dn.BLINK_UV,
+            "rail_uv": _dn.RAIL_UV,
+        }
         return d
 
     def stop(self):

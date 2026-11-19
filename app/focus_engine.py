@@ -55,16 +55,30 @@ class FocusEngine:
     def smooth_focus(self):
         return self._ema if self._ema is not None else 0.5
 
-    def _band_focus(self, seg, fs):
-        """4/6 通道设备的频段工程指标：beta / (theta + alpha)。"""
+    def _band_focus(self, seg, fs, channel_mask=None):
+        """4/6 通道设备的频段工程指标：beta / (theta + alpha)。
+
+        channel_mask 来自去噪模块：被判定为坏道（电极脱落/接触不良）的通道
+        不参与平均，否则它的 0 功率会把 beta 相对功率拉低，凭空压低专注分。
+        """
         seg_f = features.prepare_signal(seg, fs)
         powers, total = features.band_power(seg_f, fs)
-        rel = {b: float(np.mean(powers[b] / total)) for b in features.BAND_NAMES}
+        mask = None
+        if channel_mask is not None:
+            m = np.asarray(channel_mask, dtype=bool)
+            # 只在「部分通道有效」时启用；全 False 说明整窗不可用，
+            # 由上层直接判无效帧，这里保持原行为避免除零
+            if m.size == seg.shape[0] and 0 < int(m.sum()) < m.size:
+                mask = m
+        if mask is not None:
+            powers = {k: v[mask] for k, v in powers.items()}
+            total = total[mask]
+        rel = {b: float(np.mean(powers[b] / (total + 1e-12))) for b in features.BAND_NAMES}
         ratio = rel["beta"] / (rel["theta"] + rel["alpha"] + 1e-9)
         focus = 1.0 / (1.0 + np.exp(-BAND_FOCUS_SLOPE * (ratio - BAND_FOCUS_CENTER)))
         return float(np.clip(focus, 0.02, 0.98))
 
-    def compute_raw(self, seg, fs):
+    def compute_raw(self, seg, fs, channel_mask=None):
         """计算原始专注值（不平滑）。seg: (n_ch, n_samples)。
 
         通道数/特征维度与模型一致时走模型推理；否则自动回退到频段指标，
@@ -74,7 +88,7 @@ class FocusEngine:
         n_feat = n_ch * len(features.FEAT_NAMES)
         if not self._model_ok or n_feat != self._expected_dim:
             self._active_mode = "band"
-            return self._band_focus(seg, fs)
+            return self._band_focus(seg, fs, channel_mask)
 
         seg_f = features.prepare_signal(seg, fs)
         feats = features.window_to_features(seg_f, fs)
@@ -89,14 +103,14 @@ class FocusEngine:
             self._model_ok = False
             self._last_model_error = str(exc)
             self._active_mode = "band"
-            return self._band_focus(seg, fs)
+            return self._band_focus(seg, fs, channel_mask)
 
         self._active_mode = "model"
         return float(p)
 
-    def update(self, seg, fs):
+    def update(self, seg, fs, channel_mask=None):
         """计算并平滑。返回 (raw_focus, smooth_focus)。"""
-        raw = self.compute_raw(seg, fs)
+        raw = self.compute_raw(seg, fs, channel_mask)
         if self._ema is None:
             self._ema = raw
         else:

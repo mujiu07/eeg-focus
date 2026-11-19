@@ -72,6 +72,14 @@
       0%   { transform: translateX(-120%); }
       100% { transform: translateX(430%); }
     }
+    /* 信号质量徽章：去噪模块每帧给出 good / fair / poor */
+    .sq-badge{display:inline-flex;align-items:center;gap:6px;margin-top:6px;
+      padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:600;
+      border:1px solid transparent;transition:background .2s}
+    .sq-badge.good{background:rgba(46,160,67,.12);color:#2ea043;border-color:rgba(46,160,67,.30)}
+    .sq-badge.fair{background:rgba(210,153,34,.14);color:#b8860b;border-color:rgba(210,153,34,.32)}
+    .sq-badge.poor{background:rgba(218,54,51,.12);color:#da3633;border-color:rgba(218,54,51,.30)}
+    .sq-dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;flex:0 0 auto}
   </style>
   <link rel="stylesheet" href="assets/sky.css">
   <script src="assets/sky.js"></script>
@@ -141,6 +149,7 @@
             </div>
           </div>
           <p id="calib-signal" class="hint" role="status"></p>
+          <div id="signal-quality" class="sq-badge hidden" role="status"></div>
         </div>
         <div id="manual-ctl" class="hidden" style="width:100%;max-width:520px">
           <div class="slider-row">
@@ -171,6 +180,7 @@
         <p class="hint" style="max-width:520px">
           当前信号已完成定标：50 分是今天的「专注线」，达到它青蛙就能蓄力起跳。
         </p>
+        <p class="hint" id="done-quality" style="max-width:520px;font-size:13px"></p>
         <p class="hint" id="valid-tip" style="max-width:520px;font-size:13.5px">
           校准后 1 小时内有效：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。
         </p>
@@ -342,6 +352,20 @@
       if (event.persisted) location.reload();
     });
 
+    // 信号质量徽章：good 绿 / fair 黄 / poor 红，文字直接用服务端给的中文提示
+    function updateQualityBadge(q) {
+      const el = $("signal-quality");
+      if (!el) return;
+      if (!q) { el.classList.add("hidden"); return; }
+      el.classList.remove("hidden", "good", "fair", "poor");
+      el.classList.add(q.level || "fair");
+      const dot = document.createElement("span");
+      dot.className = "sq-dot";
+      const txt = document.createElement("span");
+      txt.textContent = q.hint || "信号状态更新中";
+      el.replaceChildren(dot, txt);
+    }
+
     function startCalibration() {
       state.running = true;
       $("idle").classList.add("hidden");
@@ -379,7 +403,10 @@
           $("focus-pct").textContent = valid ? pct + "%" : "—";
           $("focus-fill").style.width = pct + "%";
           const status = $("calib-signal");
-          const next = valid ? "" : signalHelp;
+          // 去噪模块的即时质量反馈：这句话比"未收到信号"更能指导用户调整
+          updateQualityBadge(f.artifact);
+          const next = valid ? "" : (f.reason === "artifact" && f.artifact && f.artifact.hint
+            ? f.artifact.hint : signalHelp);
           if (status.textContent !== next) status.textContent = next;
           $("countdown").textContent = Math.max(0, Math.ceil(planSec - f.t));
           updateGuide(f.t);
@@ -503,6 +530,25 @@
         $("valid-tip").textContent =
           testMode ? "测试基线仅在当前标签页使用，与玩家校准分开保存。"
             : `校准后 1 小时内有效（至 ${untilText}）：刷新或关闭页面都无需重新校准，超过 1 小时需重新校准。`;
+        // 校准期的去噪汇总：告诉家长这次基线是在什么信号条件下算出来的
+        const sq = res.signal_quality || (res.calibration && res.calibration.signal_quality);
+        const qEl = $("done-quality");
+        if (qEl) {
+          if (sq && sq.usable_ratio != null) {
+            const ratio = Math.round(sq.usable_ratio * 100);
+            const blink = Math.round((sq.blink_frame_ratio || 0) * 100);
+            if (sq.usable_ratio < 0.6) {
+              qEl.textContent = `⚠️ 本次校准只有 ${ratio}% 的时间信号可用（眨眼或电极接触不良偏多）。`
+                + "建议放松面部、压紧头带后重新校准一次。";
+              qEl.style.color = "#b8860b";
+            } else {
+              qEl.textContent = `信号质量：可用 ${ratio}%；其中 ${blink}% 的时段检测到眨眼并已自动修复。`;
+              qEl.style.color = "";
+            }
+          } else {
+            qEl.textContent = "";
+          }
+        }
         calibrationStore.save(state.session.id, baseline, {
           mode: state.session.mode,
           file: state.session.file,

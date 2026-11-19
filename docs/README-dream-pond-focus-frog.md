@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 文档索引
 
 > 游戏名：**专注小蛙 · 梦境池塘**（Dream Pond Focus Frog）
-> 代码基线：v1.4.15（`main` 另含 `98b5b2a` 拖尾光效提交，2026-11-17）
+> 代码基线：v1.4.16（2026-11-19；上一基线 v1.4.15 + `98b5b2a` 拖尾光效）
 > 本目录：`docs/`
 > 说明：本文件是 `docs/` 的入口。仓库根目录另有项目总 README。
 
@@ -14,7 +14,7 @@
 | 评审代码与架构 | `BRIEF-TECH-DESIGN-dream-pond-focus-frog.md` → `ARCHITECTURE.md` → `tech-stack.md` |
 | 评审课程交付物 | `PROJECT-DOC` → `EVIDENCE` → `AI-USAGE-LOG` → `DECISIONS-AND-VERIFICATION` → `REFLECTION` → `VIBE-CODING` |
 | 让 AI 助手改代码 | `AGENTS-dream-pond-focus-frog.md` → 相关模块文档 |
-| 接 Xmuse 硬件 | `xmuse-hardware-integration.md` → `tech-stack.md` §5 |
+| 接 Xmuse 硬件 | `xmuse-hardware-integration.md` → `tech-stack.md` §5 → `denoise-artifacts.md` |
 
 ## 2. 文档清单（按用途分组）
 
@@ -34,6 +34,7 @@
 | `ARCHITECTURE.md` | 架构总览、数据流、API、会话模型、本地状态、动效约定 |
 | `tech-stack.md` | 技术栈、前端模块、后端模块、算法链路、硬件、导出、音乐代理 |
 | `xmuse-hardware-integration.md` | Xmuse OSC/UDP 接入证据、端口约定、实测与后续 |
+| `denoise-artifacts.md` | **去噪与去伪迹**：流程、阈值与依据、接入点、自检与端到端证据、已知局限 |
 
 ### 2.3 使用与合规
 
@@ -56,7 +57,7 @@
 
 | 文档中的说法 | 可核验位置 |
 |---|---|
-| 版本号与功能变更 | `CHANGELOG.md`、Git tag `v1.4.15` |
+| 版本号与功能变更 | `CHANGELOG.md`、Git tag `v1.4.16` |
 | 模型指标 | `outputs/train_report.md` |
 | API 路径 | `app/server.py` 的 `@app.get/post` |
 | 本地存储键 | `web/assets/*.js` 中的 `localStorage` 调用 |

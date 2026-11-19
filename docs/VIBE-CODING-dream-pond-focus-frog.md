@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — Vibe Coding 记录
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 记录周期：2026-10-20 → 2026-11-17（代码 v1.4.15）
+> 记录周期：2026-10-20 → 2026-11-19（代码 v1.4.16）
 > 记录方式：以 Git 提交、`CHANGELOG.md` 与本地验证结果为依据；无法核验的主观细节不做补写。
 
 ---
@@ -84,6 +84,7 @@ python -m uvicorn app.server:app --host 127.0.0.1 --port 8000
 | v1.4.13 | 2026-11-17 | 6 种肤色、头饰/面饰重排、装扮页默认标签 |
 | v1.4.14 | 2026-11-17 | 新增 4 款胸饰（荷叶/露珠/专注星章 + 成就专属池塘守护徽章） |
 | v1.4.15 | 2026-11-17 | 商城定价 5–18 积分；得分即积分，取消按起跳计分 |
+| v1.4.16 | 2026-11-19 | Xmuse 去噪去伪迹接入（`denoise.py`）；信号质量门控与前端提示 |
 
 ### 3.2 关键转折
 
@@ -125,7 +126,7 @@ python -m uvicorn app.server:app --host 127.0.0.1 --port 8000
 | 代码 | 仓库根目录（`app/`、`web/`、`scripts/`） |
 | 启动 | `start.command` / `start.bat` / `start.ps1` |
 | 运行地址 | <http://127.0.0.1:8000> |
-| 版本 | `CHANGELOG.md`、Git tag `v1.4.15` |
+| 版本 | `CHANGELOG.md`、Git tag `v1.4.16` |
 | 文档 | `docs/README-dream-pond-focus-frog.md` |
 
 ---

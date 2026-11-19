@@ -43,7 +43,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.11")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.16")
 
 # ---------------------------------------------------------------------------
 # 全局状态
@@ -144,16 +144,37 @@ class Session:
                     self._publish_frame(entry)
                     await asyncio.sleep(max(0.05, sources.STEP_SEC - (time.time() - t0)))
                     continue
+                artifact = meta.get("artifact") if isinstance(meta, dict) else None
                 if self.source.name == "manual":
                     raw = meta.get("focus", 0.5)
                     focus = raw
+                elif artifact is not None and not artifact.get("usable", True):
+                    raw = focus = None
                 else:
-                    raw, focus = self.engine.update(seg, meta.get("fs", self.source.fs))
+                    # 去噪模块给出的坏道掩码：被剔除的通道不参与频段平均
+                    mask = artifact.get("channel_mask") if artifact else None
+                    raw, focus = self.engine.update(
+                        seg, meta.get("fs", self.source.fs), channel_mask=mask)
+
+                if focus is None:
+                    # 伪迹过重（电极脱落 / 连续眨眼 / 强肌电）：本窗不出分。
+                    # 不能把脏窗口写进 history，否则校准基线和报告曲线都会被拉偏。
+                    entry = {"t": round(time.time() - self.created_at, 2),
+                             "raw": None, "focus": None, "valid": False,
+                             "reason": "artifact", "meta": meta,
+                             "artifact": artifact, "focus_fused": None,
+                             "hr": heart.snapshot()}
+                    self._publish_frame(entry)
+                    await asyncio.sleep(max(0.05, sources.STEP_SEC - (time.time() - t0)))
+                    continue
+
                 entry = {"t": round(time.time() - self.created_at, 2),
                          "raw": round(float(raw), 3),
                          "focus": round(float(focus), 3),
                          "valid": True,
                          "meta": meta}
+                if artifact is not None:
+                    entry["artifact"] = artifact
                 # 心率是低采样率辅助信号：只在读数新鲜时按权重修正专注分，
                 # 过期/未接入时 focus_fused 与纯 EEG 结果完全一致。
                 snap = heart.snapshot()
@@ -222,6 +243,13 @@ class Session:
             "actions": actions,
             "demo": demo,
             "source": self.source.describe(),
+            # 去噪/去伪迹的会话级汇总：有效窗占比、眨眼帧占比、参数快照。
+            # replay/manual/heart 源没有清洗器，写 None，前端按「未启用」处理。
+            "signal_quality": (
+                self.source.artifact_summary()
+                if hasattr(self.source, "artifact_summary") else None),
+            "n_artifact_frames": sum(
+                1 for e in self.history if e.get("reason") == "artifact"),
             "baseline": self.baseline,
             "calibration": self.calibration,
             "n_frames": len(self.history),
@@ -660,6 +688,14 @@ async def calibrate(sid: str, body: CalibrateStart):
         "heart_frames": sum(1 for e in frames if e.get("hr")),
         "heart_only": s.source.name == "heart",
     }
+    # 校准期间的去噪质量：把"这组基线是在什么信号质量下算出来的"一并留在结果里，
+    # 报告页与前端据此提示"这次校准信号不稳，建议重做"。
+    sq = (s.source.artifact_summary()
+          if hasattr(s.source, "artifact_summary") else None)
+    if sq:
+        s.calibration["signal_quality"] = sq
+        if sq.get("usable_ratio", 1.0) < 0.6:
+            s.calibration["quality_warning"] = True
     # 用校准期的心率跨度校准倒 U 尺度：跨度越小，说明这个人对任务的心率反应越平
     hr_bpms = [e["hr"]["bpm"] for e in frames if e.get("hr") and e["hr"].get("bpm")]
     if len(hr_bpms) >= 4:
@@ -671,6 +707,7 @@ async def calibrate(sid: str, body: CalibrateStart):
     return {"ok": True, "baseline": s.baseline, "calibration": s.calibration,
             "score_range": {"low": s.score_low, "high": s.score_high},
             "heart": hr_sum,
+            "signal_quality": sq,
             "hr_span": round(heart._hr_span, 2)}
 
 

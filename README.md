@@ -9,6 +9,7 @@
 ## 功能亮点
 
 - **三种信号源**：EDF 真实数据回放 / 手动滑块 / **Xmuse 脑电波仪真机（OSC/UDP，已接入）**
+- **信号质量防护（Xmuse）**：自动去除 50 Hz 工频、眨眼、电极削顶与坏道；质量不足的窗口不出分，校准页与游戏页实时显示信号状态
 - **心率辅助信号（可选，仅 macOS）**：接入 AirPods Pro 3 心率（经 `hrd` 读取 iPhone 训练界面），校准静息心率后按权重融合进专注分；未接入时保持纯 EEG
 - **仅心率模式（仅 macOS）**：没有脑电设备也能玩，信号源选「❤️ 仅心率」，专注指数完全由心率驱动（静息 = 0.5，降心率涨分）
 - **全站天空模式**：黎明 / 白天 / 傍晚 / 黑夜 / 跟随系统时间（按日出日落自动切换），跨页保存
@@ -105,6 +106,7 @@ python3 -m venv .venv
 - 默认端口的证据链与变更守则见 [`docs/xmuse-hardware-integration.md`](docs/xmuse-hardware-integration.md) §2.3.1；修改默认端口必须附真机探针日志，不能只凭单个官方示例
 - 可选环境变量：`XMUSE_OSC_HOST` / `XMUSE_OSC_PORTS` / `XMUSE_OSC_FS`（默认 256）/ `XMUSE_OSC_CHANNELS`（默认自动）
 - 4/6 通道数据无法输入 21 通道 EEGMAT 模型，会自动改用 `beta / (theta + alpha)` 频段指标映射到 0–1（仅游戏机制相对变化，不是临床分数）
+- 信号先经过 `app/denoise.py` 去噪去伪迹（50 Hz 陷波 / 眨眼修复 / 削顶插值 / 坏道掩码），阈值可用 `EEG_*` 环境变量调整；流程与参数见 `docs/denoise-artifacts.md`
 - 详细排障与协议说明见 `docs/xmuse-hardware-integration.md`
 
 ## 脑波分数引擎（教学映射）
@@ -150,6 +152,7 @@ eeg-focus/
 │   ├── sources.py    # replay / manual / hardware 信号源
 │   ├── xmuse_osc.py  # Xmuse OSC/UDP 多端口接收器
 │   ├── focus_engine.py # 模型推理 + 频段回退 + EMA
+│   ├── denoise.py    # 去噪去伪迹：陷波 / 眨眼修复 / 坏道掩码 / 质量评分
 │   ├── music.py      # 网易云歌单代理与缓存
 │   └── export.py     # 报告导出：PDF / Excel / Word / CSV / JSON
 └── web/              # 前端：5 个页面 + 原生 JS/Canvas（无构建工具）
@@ -163,6 +166,7 @@ eeg-focus/
 - **SSE 推流**：服务端按 0.5s 步长推专注指数，前端 rAF 游戏循环消费
 - **校准即基线**：校准期专注指数中位数作为个人基线阈值（P0 需求），1 小时有效
 - **硬件可回退**：通道数与模型不匹配时自动改用频段指标，Xmuse 无需重训模型即可驱动游戏
+- **信号质量优先**：硬件源每窗去噪并评分，伪迹过重的窗不出分（不污染基线与报告）；前端只降级提示，不频繁打断游戏
 - **单一硬件会话**：新建硬件会话会自动结束旧会话，避免 UDP 7000/8000 端口争抢
 
 ## 文档
@@ -173,6 +177,7 @@ eeg-focus/
 | `docs/usage-and-privacy.md` | 使用说明 + 隐私保障（数据本地处理） |
 | `docs/tech-stack.md` | 技术栈（前端/后端/算法/硬件接入/音乐代理） |
 | `docs/xmuse-hardware-integration.md` | Xmuse 脑电波仪接入方案与已实现细节 |
+| `docs/denoise-artifacts.md` | Xmuse 去噪与去伪迹：流程、阈值、接入点与验证证据 |
 | `docs/ARCHITECTURE.md` | 架构设计 |
 | `docs/PRD-brain-focusing-game-MVP.md` | 产品需求文档 |
 
@@ -182,6 +187,7 @@ eeg-focus/
 - [x] P0 专注映射游戏操作（蓄力→跳出）
 - [x] 结果报告页、开发者页、设置页（入口）
 - [x] Xmuse 脑电波仪真机接入（OSC/UDP + 4/6 通道频段回退）
+- [x] 信号去噪与去伪迹（陷波 / 眨眼 / 削顶 / 坏道 / 质量门控）
 - [x] 全站天空主题、动态池塘首页、背景音乐、游戏时长选择
 - [ ] Xmuse 4 通道专属模型重训（44 维，采集放松/心算标注数据）
 - [ ] 多孩子账号（可选）

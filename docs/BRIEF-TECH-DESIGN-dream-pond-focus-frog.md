@@ -1,9 +1,9 @@
 # 专注小蛙 · 梦境池塘 — 简要技术设计（Brief Tech Design）
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 适用代码：`main` @ `98b5b2a`（基线 v1.4.15 + 1 个未升版的光效提交）
+> 适用代码：`main` @ `v1.4.16`（去噪去伪迹接入；上一基线 `98b5b2a` 为 v1.4.15）
 > 说明：本文是**一页可读的技术设计摘要**，用于评审与新人上手；完整细节见 `ARCHITECTURE.md` / `tech-stack.md` / `DECISIONS-AND-VERIFICATION-dream-pond-focus-frog.md`。
-> 已知不一致：`app/server.py` 的 FastAPI `version` 仍为 `1.4.11`，与 Git 标签 v1.4.15 不同步（记录为 V-014，待修复）。
+> 版本元数据：`app/server.py` 的 FastAPI `version` 已在 v1.4.16 同步（V-014 的历史漂移由 V-018 修复）。
 
 ---
 
@@ -90,14 +90,18 @@ GET /api/session/{id}/stream (SSE, 0.5 s/帧)
 - **心率融合**：`focus_fused = (1−w) × focus + w × heart_component`，`w` 默认 0.15（0–0.5）
   - 心率分量：以校准静息为基准、跨度默认 12 BPM（6–80）；目标为静息 +45% 跨度的高斯倒 U；波动与下滑扣分
   - 仅心率模式的目标为静息本身（`target_delta=0`）：稳态下静息附近最高，偏离静息或波动变大都会降分（见 V-017）
-- **失效策略**：心率缺失/过期 → 退回纯 EEG；模型不可用 → 频段回退；信号中断 → 帧 `valid=false`
+- **去噪去伪迹**（`app/denoise.py`，仅 hardware 源，v1.4.16）：
+  - 去趋势 → 50 Hz 陷波 → 眨眼（80 µV / 0.5–8 Hz ×2 减除）/ 削顶（≤0.3 s 插值）/ 肌电（35–45 Hz）/ 坏道（MAD 上下限）/ 设备 `is_good` 检测 → 0–1 质量评分
+  - 坏道以 `channel_mask` 排除而非置零参与平均；单位自适应（`median(|x|)>500` 视为 ADC 计数）
+  - **不改特征口径**：不做 0.5–45 Hz 带通，仍由 `features.prepare_signal` 完成
+- **失效策略**：心率缺失/过期 → 退回纯 EEG；模型不可用 → 频段回退；信号中断 → 帧 `valid=false`；伪迹过重 → 帧 `valid=false, reason="artifact"`（不出分、不入 history）
 
 ## 7. 接口契约（摘要）
 
 | 契约 | 约定 |
 |---|---|
 | SSE | 首帧 `hello`；之后 `frame`，**CRLF `\r\n\r\n`**；字段只增不改 |
-| `frame` | `t`、`raw`、`focus`、`valid`、`focus_fused`、`score`、`baseline`、`score_low/high`、可选 `hr` |
+| `frame` | `t`、`raw`、`focus`、`valid`、`focus_fused`、`score`、`baseline`、`score_low/high`、可选 `hr`、可选 `artifact`（hardware 源质量报告） |
 | 报告 | 同时兼容旧字段：无 `score` 时退回 `focus_fused`（再退回 `focus`）× 100 |
 | 导出 | `pdf` / `xlsx` / `docx` / `csv` / `json`；缺依赖只影响对应格式 |
 | 静态资源 | 非 `/api/` 响应 `Cache-Control: no-cache` |
@@ -122,6 +126,7 @@ GET /api/session/{id}/stream (SSE, 0.5 s/帧)
 | 导出依赖缺失 | 单格式 500/提示 | 其他格式可用 |
 | 音乐接口失败 | 唱片机静音 | 不影响游戏 |
 | SSE 断开 | 页面无数据 | 6 s 自愈重连，最多 4 次 |
+| 信号伪迹过重 | 眨眼/电极晃动/肌电导致窗不可用 | 该帧 `valid=false, reason="artifact"`，游戏保持上一帧，报告与校准剔除 |
 
 ## 10. 验证入口
 
@@ -136,7 +141,7 @@ GET /api/session/{id}/stream (SSE, 0.5 s/帧)
 2. **4 通道精度**：频段回退只保证相对变化，未做用户级验证
 3. **成长系统动机**：签到/连续打卡/商城的长期效果与伦理边界无证据
 4. **本地数据易失**：清缓存即失去积分、成就、装扮；已在隐私说明中明示
-5. **版本元数据漂移**：FastAPI 应用版本仍为 `1.4.11`（`app = FastAPI(..., version="1.4.11")`），与 Git 标签 v1.4.15 不同步；该值只出现在 OpenAPI 文档，不影响运行（见 V-014）
+5. **版本元数据**：FastAPI 应用版本已在 v1.4.16 同步为 `1.4.16`（V-018 修复 V-014）；发布时仍须同时更新 tag / CHANGELOG / `FastAPI(version=...)` 三处
 
 ---
 
