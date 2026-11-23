@@ -219,7 +219,7 @@ MVP 在以下条件全部满足后即可上线：
 | PRD 条目 | 当前实现 | 证据 |
 |---|---|---|
 | 脑电校准 / 基线建立 | 默认 40 s（20 s 安静 + 20 s 心算，可跟随 60 s 视频），基线取中位数，浏览器本地保存 1 小时 | `web/calibrate.html`、`app/server.py` `/calibrate` |
-| 专注映射游戏操作 | `focus` 与个人基线比较 → 蓄力 ±Δ；金色区间主动起跳 +2，蓄满自动 +1；信号中断时蓄力与计时暂停 | `web/game.html` |
+| 专注映射游戏操作 | `focus` 定标为 20–80 动态分，45/38 分滞回判专注 → 专注时蓄力增长、分心暂停不回退；金色区间主动起跳 +2，蓄满自动 +1；信号中断时蓄力与计时暂停 | `web/game.html` |
 | 即时反馈 | 专注状态灯、走神提示、结算卡片、成就解锁动画 | `game.html`、`assets/achievement-cinematic.js` |
 | 报告与家长可读性 | 曲线回放 / 四倍速、「给家长的话」、PDF/Excel/Word/CSV/JSON 导出 | `web/report.html`、`app/export.py` |
 | 真机接入 | Xmuse OSC/UDP，4/6 通道自动回退 `β/(θ+α)` | `app/xmuse_osc.py`、`app/focus_engine.py` |

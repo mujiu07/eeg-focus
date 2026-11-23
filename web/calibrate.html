@@ -533,6 +533,12 @@
         // 校准期的去噪汇总：告诉家长这次基线是在什么信号条件下算出来的
         const sq = res.signal_quality || (res.calibration && res.calibration.signal_quality);
         const qEl = $("done-quality");
+        // 区分度过低（stretched/default）：分数区间被最小跨度撑开，判定会偏钝，
+        // 需要明确告知家长，否则同一孩子两次校准会得到完全不同的难度。
+        const rangeQuality = res.calibration && res.calibration.range_quality;
+        const weakRange = rangeQuality === "stretched" || rangeQuality === "default";
+        const weakTip = "另外，本次校准的分数区分度偏低（信号起伏太小），判定可能不够灵敏，"
+          + "建议在更有精神的时候重做一次校准。";
         if (qEl) {
           if (sq && sq.usable_ratio != null) {
             const ratio = Math.round(sq.usable_ratio * 100);
@@ -542,11 +548,16 @@
                 + "建议放松面部、压紧头带后重新校准一次。";
               qEl.style.color = "#b8860b";
             } else {
-              qEl.textContent = `信号质量：可用 ${ratio}%；其中 ${blink}% 的时段检测到眨眼并已自动修复。`;
-              qEl.style.color = "";
+              qEl.textContent = `信号质量：可用 ${ratio}%；其中 ${blink}% 的时段检测到眨眼并已自动修复。`
+                + (weakRange ? weakTip : "");
+              qEl.style.color = weakRange ? "#b8860b" : "";
             }
+          } else if (weakRange) {
+            qEl.textContent = "⚠️ " + weakTip;
+            qEl.style.color = "#b8860b";
           } else {
             qEl.textContent = "";
+            qEl.style.color = "";
           }
         }
         calibrationStore.save(state.session.id, baseline, {

@@ -979,7 +979,7 @@
       $("warn").classList.toggle("show", state.stale || (charging && !focused));
       $("warn").textContent = state.stale
         ? "正在等待信号，计时已暂停。请检查设备连接。"
-        : "注意力飘走了，慢慢来";
+        : "注意力飘走了，蓄力暂停（进度不倒退）";
 
       if (state.stale) return;
       state.timeLeft -= dt;
