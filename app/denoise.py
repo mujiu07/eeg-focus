@@ -51,6 +51,9 @@ BLINK_UV = float(os.getenv("EEG_BLINK_UV", "80"))
 #   而 2 次迭代在不影响 alpha/beta 的前提下能把残留再压低约 20%）
 BLINK_REPAIR_BAND = (0.5, 8.0)
 BLINK_REPAIR_ITERS = int(os.getenv("EEG_BLINK_REPAIR_ITERS", "2"))
+# 总开关：验收/对照用。off 时 HardwareSource 完全跳过去噪（默认 on）
+ENABLED = os.getenv("EEG_DENOISE", "1").strip().lower() not in ("0", "off", "false", "no")
+
 # 眨眼事件时长范围（秒）：短于此是尖刺，长于此更像慢漂移
 BLINK_MIN_SEC = 0.04
 BLINK_MAX_SEC = 0.70

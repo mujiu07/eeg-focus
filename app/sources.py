@@ -231,9 +231,13 @@ class HardwareSource(EEGSource):
         self.fs = meta.get("fs", self.fs)
         self.ch_names = meta.get("ch_names") or self.ch_names
 
+        from . import denoise as _dn
+        if not _dn.ENABLED:
+            # 对照模式（EEG_DENOISE=off）：原样出窗，不带 artifact，前端自动隐藏质量提示
+            return seg, meta
+
         if self._cleaner is None or abs(self._cleaner.fs - float(self.fs or 0)) > 1e-6:
-            from .denoise import ArtifactCleaner
-            self._cleaner = ArtifactCleaner(fs=self.fs)
+            self._cleaner = _dn.ArtifactCleaner(fs=self.fs)
 
         clean, report = self._cleaner.process(
             seg, ch_names=self.ch_names, device_quality=meta.get("quality"))
@@ -260,7 +264,7 @@ class HardwareSource(EEGSource):
         # 如实反映当前生效的去噪配置（阈值都可用 EEG_* 环境变量覆盖）
         from . import denoise as _dn
         d["denoise"] = {
-            "enabled": True,
+            "enabled": bool(_dn.ENABLED),
             "notch_hz": _dn._notch_freqs(),
             "blink_repair_band": list(_dn.BLINK_REPAIR_BAND),
             "blink_repair_iters": _dn.BLINK_REPAIR_ITERS,
