@@ -77,6 +77,21 @@ PAD_SEC = 0.5
 # 一阶差分削顶判据（µV/sample）：防止 AB 型饱和（幅值没到轨但斜率炸了）
 DIFF_UV = float(os.getenv("EEG_DIFF_UV", "60"))
 
+# --- 运动伪迹（头动 / 线缆晃动 / 电极相对位移）---
+# 台阶：相邻 0.25 s 段中位数的跳变，对应电极极化突变
+MOTION_STEP_UV = float(os.getenv("EEG_MOTION_STEP_UV", "60"))
+MOTION_STEP_MILD_UV = float(os.getenv("EEG_MOTION_STEP_MILD_UV", "25"))
+# 慢摆：0.5–3 Hz 的「持续高幅」占比。与 theta 重叠，只能检测不能修。
+# 用持续性而不是能量占比：眨眼在 0.5–3 Hz 也有能量，但只持续 0.2–0.5 s，
+# 而运动摆动会占满整窗。占比阈值用于报告，持续性阈值用于判定。
+MOTION_SWING_RMS_UV = float(os.getenv("EEG_MOTION_SWING_RMS_UV", "45"))
+MOTION_SWING_FRAC = float(os.getenv("EEG_MOTION_SWING_FRAC", "0.5"))
+MOTION_SWING_RATIO = float(os.getenv("EEG_MOTION_SWING_RATIO", "0.55"))
+# 共模：全通道同向偏移（整体头动），可减除
+MOTION_COMMON_UV = float(os.getenv("EEG_MOTION_COMMON_UV", "55"))
+# 台阶修复的基线限幅：超过这个幅度就不再尝试"修"，而是判不可用
+MOTION_REPAIR_MAX_UV = float(os.getenv("EEG_MOTION_REPAIR_MAX_UV", "120"))
+
 # 前额通道名关键字：眨眼检测优先用这些通道
 FRONTAL_KEYS = ("af7", "af8", "fp1", "fp2", "f7", "f8", "afp")
 
@@ -94,6 +109,8 @@ _HINTS = {
     "bad_channel": "电极接触不良，请调整头带位置",
     "flatline": "未见脑电波动，请检查电极是否贴合头皮",
     "low_device_quality": "设备报告接触质量偏低，请压紧头带",
+    "motion": "检测到头部或身体运动，本帧不出分",
+    "motion_fixed": "检测到轻微运动漂移，已修正基线",
     "nan": "信号出现空值，已丢弃该帧",
 }
 
@@ -173,20 +190,31 @@ def _thresholds(seg):
     if finite.size == 0:
         return {"rail": RAIL_UV, "sat": SAT_UV, "blink": BLINK_UV,
                 "emg_rms": EMG_RMS_UV, "bad_std_max": BAD_STD_MAX_UV,
-                "diff": DIFF_UV, "unit": "unknown", "median_abs": 0.0}
+                "diff": DIFF_UV, "motion_step": MOTION_STEP_UV,
+                "motion_step_mild": MOTION_STEP_MILD_UV,
+                "motion_common": MOTION_COMMON_UV,
+                "motion_swing_rms": MOTION_SWING_RMS_UV,
+                "unit": "unknown", "median_abs": 0.0}
     med_abs = float(np.median(np.abs(finite)))
     # 正常 EEG 的 |x| 中位数极少超过 500 µV（即使含眨眼）；
     # 超过说明固件推的是 ADC 计数而非 µV，此时绝对 µV 阈值全部失效。
     if med_abs <= 500.0:
         return {"rail": RAIL_UV, "sat": SAT_UV, "blink": BLINK_UV,
                 "emg_rms": EMG_RMS_UV, "bad_std_max": BAD_STD_MAX_UV,
-                "diff": DIFF_UV, "unit": "uV", "median_abs": med_abs}
+                "diff": DIFF_UV, "motion_step": MOTION_STEP_UV,
+                "motion_step_mild": MOTION_STEP_MILD_UV,
+                "motion_common": MOTION_COMMON_UV,
+                "motion_swing_rms": MOTION_SWING_RMS_UV,
+                "unit": "uV", "median_abs": med_abs}
     # 明显不是 µV 量级：所有绝对阈值按稳健统计倍数重算，不做单位假设
     sigma = _robust_std(finite)
     sigma = sigma if sigma > 0 else max(med_abs, 1.0)
     return {"rail": 8.0 * sigma, "sat": 12.0 * sigma, "blink": 5.0 * sigma,
             "emg_rms": 1.5 * sigma, "bad_std_max": 12.0 * sigma,
-            "diff": 1.2 * sigma, "unit": "auto", "median_abs": med_abs}
+            "diff": 1.2 * sigma, "motion_step": 3.0 * sigma,
+            "motion_step_mild": 1.5 * sigma, "motion_common": 2.5 * sigma,
+            "motion_swing_rms": 5.5 * sigma,
+            "unit": "auto", "median_abs": med_abs}
 
 
 def _pick_frontal(ch_names, n_ch):
@@ -367,6 +395,118 @@ def _emg_metrics(x, fs):
 
 
 # ---------------------------------------------------------------------------
+# 运动伪迹：检测 + 有限修复
+# ---------------------------------------------------------------------------
+def _step_metric(x, ch_ok, fs):
+    """窗口首尾 0.25 s 的中位数差，即「持续偏移」。
+
+    必须是首尾差而不是相邻段差：眨眼是脉冲（上去再回零），首尾都干净；
+    电极位移后基线整体平移，首尾差就是真实台阶幅度。
+    """
+    n_ch, n = x.shape
+    idx = [i for i in range(n_ch) if ch_ok[i]] or list(range(n_ch))
+    edge = max(4, int(0.25 * fs))
+    if n <= 2 * edge:
+        return 0.0
+    step = 0.0
+    for i in idx:
+        head = x[i, :edge]
+        tail = x[i, -edge:]
+        delta = abs(float(np.median(tail)) - float(np.median(head)))
+        if delta <= 0.0:
+            continue
+        # 段内离散度接近或超过台阶幅度，说明这一段是脉冲/摆动而不是
+        # 平稳的基线平移（典型反例：眨眼正好压在窗口边缘）。
+        # 这种通道的台阶判据不可信，跳过，交给眨眼/慢摆/削顶去判。
+        if _robust_std(head) > 0.45 * delta or _robust_std(tail) > 0.45 * delta:
+            continue
+        step = max(step, delta)
+    return step
+
+
+def _swing_metric(x, ch_ok, fs, thr):
+    """0.5–3 Hz 的慢摆指标，返回 (能量占比, 持续高幅占比)。
+
+    用「持续性」而不是纯能量：眨眼在 0.5–3 Hz 也有能量，但只持续 0.2–0.5 s，
+    而运动摆动会占满整窗。判定用占比，能量比只写进报告。
+    """
+    n_ch, n = x.shape
+    idx = [i for i in range(n_ch) if ch_ok[i]] or list(range(n_ch))
+    lo = _band(x[idx], fs, 0.5, 3.0, order=4)
+    full = _band(x[idx], fs, 0.5, min(45.0, fs / 2 * 0.95), order=4)
+    # 0.6 s 滑动窗：比 0.25 s 稳定，0.5–3 Hz 的摆动几乎整窗都在阈值以上；
+    # 眨眼的能量只集中在 0.2–0.5 s，占比自然低，两者能区分开。
+    w = max(3, int(0.6 * fs))
+    ratio, frac = 0.0, 0.0
+    for j in range(lo.shape[0]):
+        p_lo = float(np.mean(lo[j] ** 2))
+        p_full = float(np.mean(full[j] ** 2)) + 1e-12
+        if p_full > 1e-6:
+            ratio = max(ratio, p_lo / p_full)
+        rms = np.sqrt(np.convolve(lo[j] ** 2, np.ones(w) / w, mode="same"))
+        frac = max(frac, float(np.mean(rms > thr["motion_swing_rms"])))
+    return ratio, frac
+
+
+def _remove_step_baseline(x, ch_ok, fs, thr):
+    """减掉由分段中位数构造的低频基线，消除 DC 台阶和慢漂移。
+
+    基线由 0.25 s 段中位数线性插值而来，主要能量在 2 Hz 以下；
+    只在检测到台阶时逐通道应用，不改动 0.5–45 Hz 特征带的主体。
+    """
+    n_ch, n = x.shape
+    edge = max(4, int(0.25 * fs))
+    if n <= 2 * edge:
+        return x, []
+    out = x.copy()
+    repaired = False
+    win = max(8, int(0.1 * fs))
+    k = n // win
+    ramp = max(1.0, 0.05 * fs)   # 0.05 s 过渡：把阶跃换成平滑跃变，避免新的高频冲击
+    for i in range(n_ch):
+        if not ch_ok[i]:
+            continue
+        hs = x[i, :edge]
+        ts = x[i, -edge:]
+        delta = float(np.median(ts)) - float(np.median(hs))
+        if abs(delta) <= thr["motion_step_mild"]:
+            continue
+        if _robust_std(hs) > 0.45 * abs(delta) or _robust_std(ts) > 0.45 * abs(delta):
+            continue
+        # 定位跳变点：0.1 s 段中位数变化最大的地方
+        if k >= 2:
+            med = np.array([np.median(x[i, j * win:(j + 1) * win]) for j in range(k)])
+            at = (int(np.argmax(np.abs(np.diff(med)))) + 1) * win
+        else:
+            at = n // 2
+        # 用 sigmoid 构造跃变基线：左侧减 0、右侧减 delta
+        w = 1.0 / (1.0 + np.exp(-(np.arange(n) - at) / ramp))
+        base = np.clip(delta * w, -MOTION_REPAIR_MAX_UV, MOTION_REPAIR_MAX_UV)
+        out[i] = x[i] - base
+        repaired = True
+    return out, (["step"] if repaired else [])
+
+
+def _remove_common(x, ch_ok, thr):
+    """减掉通道共模分量（整体头动 / 参考电极位移）。
+
+    只有共模显著大于通道间残差时才动手，避免误伤真实的同步脑电；
+    保留 20% 是保守选择。返回 (信号, common_rms)；未触发时 common_rms 为 0。
+    """
+    idx = [i for i in range(x.shape[0]) if ch_ok[i]]
+    if len(idx) < 2:
+        return x, 0.0
+    cm = np.median(x[idx], axis=0)
+    c_rms = float(np.sqrt(np.mean(cm ** 2)))
+    resid = float(np.median([np.sqrt(np.mean((x[i] - cm) ** 2)) for i in idx]))
+    if c_rms <= thr["motion_common"] or c_rms <= resid * 1.2:
+        return x, 0.0
+    out = x.copy()
+    out[idx] = x[idx] - 0.8 * cm
+    return out, c_rms
+
+
+# ---------------------------------------------------------------------------
 # 主入口：有状态清洗器
 # ---------------------------------------------------------------------------
 class ArtifactCleaner:
@@ -389,7 +529,7 @@ class ArtifactCleaner:
         self.stats = {
             "frames": 0, "usable": 0, "blink_events": 0,
             "blink_frames": 0, "rail_frames": 0, "emg_frames": 0,
-            "bad_channel_frames": 0,
+            "bad_channel_frames": 0, "motion_frames": 0,
         }
 
     # -- 内部 ------------------------------------------------------------
@@ -437,6 +577,23 @@ class ArtifactCleaner:
 
         thr = _thresholds(arr)
         work = arr.copy()
+
+        # --- 0.5 粗运动：共模 + 台阶（必须在 detrend 之前）-----------
+        # 线性去趋势会把一个阶跃变成一条大斜率：首尾差被抵消，台阶反而
+        # 被"藏"进低频，之后再想修就分不清它和真实慢波了。
+        # 所以这两步要放在最前面，用原始信号的段中位数判定。
+        stds0 = np.array([_robust_std(work[i]) for i in range(n_ch)])
+        ch_ok0 = (stds0 >= BAD_STD_MIN_UV) & (stds0 <= thr["bad_std_max"])
+        # 先减共模：整体头动会让所有通道同时抬高，若先判台阶会误判成"不可修"
+        work, common_rms = _remove_common(work, ch_ok0, thr)
+        motion_repaired = ["common"] if common_rms > 0 else []
+        motion_severe = False
+        step_uv = _step_metric(work, ch_ok0, fs)
+        if step_uv > thr["motion_step"]:
+            motion_severe = True          # 太大，不接受"修"，直接拒绝出分
+        elif step_uv > thr["motion_step_mild"]:
+            work, rep_list = _remove_step_baseline(work, ch_ok0, fs, thr)
+            motion_repaired += rep_list
 
         # --- 1. 通道清理：去线性趋势 + 陷波 ---------------------------
         # detrend 先做：2 s 内的慢漂移会让后面的 filtfilt 在两端摆出假低频
@@ -520,6 +677,26 @@ class ArtifactCleaner:
                 work = repaired_ext[:, offset:offset + n_samples].copy()
                 flags.append("blink")
 
+        # --- 3.15 运动慢摆（在眨眼修复后测，避免眨眼能量干扰）-------
+        # 0.5–3 Hz 与 theta 重叠：减它会削掉 θ，让 β/(θ+α) 虚高，
+        # 所以慢摆只能识别、不能修——识别到就直接拒绝出分。
+        swing_ratio, swing_frac = _swing_metric(work, ch_ok, fs, thr)
+        if swing_frac > MOTION_SWING_FRAC:
+            motion_severe = True
+        motion = {
+            "step_uv": round(step_uv, 1),
+            "swing_ratio": round(swing_ratio, 3),
+            "swing_frac": round(swing_frac, 3),
+            "common_rms": round(common_rms, 1),
+            "severity": "severe" if motion_severe else ("mild" if motion_repaired else "none"),
+            "repaired": motion_repaired,
+        }
+        if motion_severe:
+            flags.append("motion")
+            self.stats["motion_frames"] += 1
+        elif motion_repaired:
+            flags.append("motion_fixed")
+
         # 3.2 削顶：逐通道插值
         for i in range(n_ch):
             if bad[i]:
@@ -564,6 +741,10 @@ class ArtifactCleaner:
             score -= 0.30
         if "low_device_quality" in flags:
             score -= 0.20
+        if "motion" in flags:
+            score -= 0.55
+        elif "motion_fixed" in flags:
+            score -= 0.15
         score = float(np.clip(score, 0.0, 1.0))
 
         # 硬性失效条件：没有可用通道，或眨眼看不住
@@ -572,6 +753,8 @@ class ArtifactCleaner:
         if severe_blink:
             usable = False
         if "nan" in flags or "flatline" in flags:
+            usable = False
+        if "motion" in flags:
             usable = False
 
         if not flags:
@@ -582,8 +765,8 @@ class ArtifactCleaner:
 
         # 提示语：按「最需要用户处理」的顺序挑一条
         hint = _HINTS[level] if level != LEVEL_GOOD else _HINTS["good"]
-        for key in ("flatline", "bad_channel", "blink_severe", "emg",
-                    "low_device_quality", "rail", "blink"):
+        for key in ("flatline", "bad_channel", "motion", "blink_severe", "emg",
+                    "low_device_quality", "rail", "blink", "motion_fixed"):
             if key in flags:
                 hint = _HINTS[key]
                 break
@@ -599,6 +782,7 @@ class ArtifactCleaner:
             rail_ratio=round(float(np.mean([r for r in rails])) if rails else 0.0, 3),
             device_quality=device_q, unit=thr["unit"],
             fixed_blinks=fixed_blinks, channel_mask=ch_ok.tolist(),
+            motion=motion,
         )
         return work, report
 
@@ -607,7 +791,7 @@ class ArtifactCleaner:
                 channels_ok=None, blink_count=0, blink_ratio=0.0,
                 emg_ratio=0.0, emg_rms=0.0, rail_ratio=0.0,
                 device_quality=None, unit="uV", fixed_blinks=0,
-                channel_mask=None):
+                channel_mask=None, motion=None):
         return {
             "usable": bool(usable),
             "level": level,
@@ -624,6 +808,7 @@ class ArtifactCleaner:
             "rail_ratio": float(rail_ratio),
             "device_quality": device_quality,
             "unit": unit,
+            "motion": motion or {"severity": "none"},
             "channel_mask": list(channel_mask) if channel_mask is not None
                             else [True] * int(n_ch),
         }
@@ -645,6 +830,11 @@ class ArtifactCleaner:
                 "diff_uv": DIFF_UV,
                 "blink_repair_band": list(BLINK_REPAIR_BAND),
                 "blink_repair_iters": BLINK_REPAIR_ITERS,
+                "motion_step_uv": MOTION_STEP_UV,
+                "motion_common_uv": MOTION_COMMON_UV,
+                "motion_swing_ratio": MOTION_SWING_RATIO,
+                "motion_swing_rms_uv": MOTION_SWING_RMS_UV,
+                "motion_swing_frac": MOTION_SWING_FRAC,
             },
         }
 

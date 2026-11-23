@@ -141,6 +141,15 @@
 - **证据**：`tests/selfcheck_denoise.py`（10 项）、`tests/e2e_hardware_denoise.py`；`docs/denoise-artifacts.md`。
 - **状态**：已实现；真机阈值标定未做。
 
+### D-017 运动伪迹：台阶/共模修，慢摆拒绝
+
+- **背景**：干电极贴前额，头动与线缆晃动会产生三类东西——电极极化突变造成的 DC 台阶、0.5–3 Hz 大幅摆动、全通道同向的共模偏移。原来的链路只有线性去趋势，而线性去趋势会把阶跃变成一条大斜率，等于把台阶藏进低频。
+- **决策**：① 共模与台阶放在**去趋势之前**处理；② 台阶用首尾 0.25 s 中位数差判定（脉冲型眨眼会回零，不算台阶），并用 sigmoid（0.05 s 过渡）构造跃变基线减除；③ 共模超过 55 µV 且显著大于通道间残差时减 80%；④ **0.5–3 Hz 慢摆只识别不修复**，直接 `usable=false`。
+- **关键理由**：慢摆与 θ 重叠，减掉它会削小 `β/(θ+α)` 的分母，制造假专注分。"宁可不出分，不出假分"优先于帧率。
+- **代价**：佩戴不稳时会出现较多不可用帧；台阶若正好落在窗口正中、首尾都干净，会被首尾差漏掉（靠削顶/慢摆兜底）。
+- **证据**：`tests/selfcheck_denoise.py` 用例 11–14；`docs/denoise-artifacts.md` §2.2/§6.1。
+- **状态**：已实现；真机阈值标定未做。
+
 ---
 
 ## 2. 验证记录（Verification Log）
@@ -168,6 +177,7 @@
 | V-017 | 2026-11-17 | 仅心率模式语义 | mock：向 `HeartRateMonitor` 注入 20 个 70 BPM 样本，再注入 64 BPM 样本，调用 `focus_component(target_delta=0)` | **发现注释不一致**：稳态静息 70 → 0.95，64 → 0.61；与 `server.py` 注释"静息=0.5，降心率才能拉高"不符，实际是倒 U 峰值在静息。已修正 ARCHITECTURE / BRIEF；代码未改 | 本机运行结果；`app/heart.py` L169–188 |
 | V-018 | 2026-11-19 | 去噪单元自检 | `python tests/selfcheck_denoise.py`（合成 4 ch × 256 Hz，逐项注入伪迹） | 通过（10/10）：陷波 20.3 dB；眨眼 196→60.9 µV 且 alpha −5.5%、beta −0.1%；削顶 400→60.7 µV；脱落判 `flatline+bad_channel`；肌电 ratio 0.985；ADC 量级不误伤；跨窗眨眼仍检出；44 维特征全部有限。同时把 `app/server.py` 版本同步为 `1.4.16`（修复 V-014） | `tests/selfcheck_denoise.py`；`docs/denoise-artifacts.md` §6.1 |
 | V-019 | 2026-11-19 | 去噪端到端 | `python tests/e2e_hardware_denoise.py`：合成 OSC（UDP 17000，8 样本/包）→ uvicorn → 会话 → SSE → 校准 → 报告 | 通过：`describe.denoise` 生效；帧带 `artifact`（`usable=true, level=good, flags=["blink"], rail_ratio=0.0`）；`calibration.signal_quality` 与 `report.signal_quality` 均落库（`usable_ratio=1.0`） | `tests/e2e_hardware_denoise.py`；`docs/denoise-artifacts.md` §6.2 |
+| V-020 | 2026-11-19 | 运动伪迹 | `python tests/selfcheck_denoise.py` 用例 11–14 | 通过：50 µV 台阶修复后残留 12.1 µV 且 β/(θ+α) 0.26→0.24（未虚高）；200 µV 台阶拒绝出分；0.8 Hz/100 µV 慢摆被判不可用且未修复；150 µV 共模减到 3.3 µV。过程中修复两个缺陷：边缘眨眼被误判为台阶、慢摆滑动窗过短 | `tests/selfcheck_denoise.py` |
 
 ### 2.1 失败与不一致（保留，不掩盖）
 

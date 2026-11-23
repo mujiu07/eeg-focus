@@ -159,6 +159,64 @@ def main():
     assert np.isfinite(feats).all()
     ok.append("features-compatible")
 
+    # --- 11. 运动：DC 台阶（可修，且不得把专注分抬高）---
+    def _focus_ratio(x):
+        th = band_power(x, FS, 4.0, 8.0)
+        al = band_power(x, FS, 8.0, 13.0)
+        be = band_power(x, FS, 13.0, 30.0)
+        return be / (th + al + 1e-12)
+
+    base_ratio = _focus_ratio(clean[1])
+    step_sig = clean.copy()
+    step_sig[1, N // 2:] += 50.0          # 电极极化突变后的新基线
+    c11 = denoise.ArtifactCleaner(fs=FS)
+    out11, rep11 = c11.process(step_sig, ch_names=CH)
+    edge = int(0.25 * FS)
+    left = float(np.median(out11[1, N // 2 - edge:N // 2]))
+    right = float(np.median(out11[1, N // 2 + edge:N // 2 + 2 * edge]))
+    r11 = _focus_ratio(out11[1])
+    print(f"[11] motion-step: flags={rep11['flags']}, usable={rep11['usable']}, "
+          f"residual={abs(right - left):.1f} uV, beta/(theta+alpha) "
+          f"{base_ratio:.2f}->{r11:.2f}")
+    assert rep11["usable"], "50 uV 台阶应可修复"
+    assert abs(right - left) < 30.0, f"台阶残留过大: {abs(right - left):.1f}"
+    assert r11 < base_ratio * 1.25, "台阶修复后专注分被虚高"
+    ok.append("motion-step")
+
+    # --- 12. 运动：大幅台阶 → 不可信，拒绝出分 ---
+    big = clean.copy()
+    big[1, N // 2:] += 200.0
+    c12 = denoise.ArtifactCleaner(fs=FS)
+    _, rep12 = c12.process(big, ch_names=CH)
+    print(f"[12] motion-severe: flags={rep12['flags']}, usable={rep12['usable']}")
+    assert "motion" in rep12["flags"], "200 uV 台阶未被识别为运动"
+    assert not rep12["usable"], "大幅台阶不应出分"
+    ok.append("motion-severe")
+
+    # --- 13. 运动：0.5-3 Hz 慢摆 → 与 theta 重叠，只能拒绝 ---
+    sway = clean.copy()
+    sway[1] += 100.0 * np.sin(2 * np.pi * 0.8 * t)
+    c13 = denoise.ArtifactCleaner(fs=FS)
+    _, rep13 = c13.process(sway, ch_names=CH)
+    print(f"[13] motion-sway: flags={rep13['flags']}, motion={rep13['motion']}")
+    assert "motion" in rep13["flags"], "慢摆未被识别"
+    assert not rep13["usable"], "慢摆不应出分"
+    assert not rep13["motion"]["repaired"], "慢摆不应被强行修复（会削掉 theta）"
+    ok.append("motion-sway")
+
+    # --- 14. 运动：全通道共模偏移 → 可减除 ---
+    cm_sig = clean.copy()
+    cm_sig[:, N // 2:] += 150.0
+    before = float(np.sqrt(np.mean(np.median(cm_sig, axis=0) ** 2)))
+    c14 = denoise.ArtifactCleaner(fs=FS)
+    out14, rep14 = c14.process(cm_sig, ch_names=CH)
+    after = float(np.sqrt(np.mean(np.median(out14, axis=0) ** 2)))
+    print(f"[14] motion-common: flags={rep14['flags']}, usable={rep14['usable']}, "
+          f"common {before:.1f}->{after:.1f} uV")
+    assert rep14["usable"], "共模偏移应可修复"
+    assert after < before * 0.6, f"共模减除不足: {before:.1f}->{after:.1f}"
+    ok.append("motion-common")
+
     # --- 10. 汇总 ---
     print("[10] summary =", c3.summary())
     ok.append("summary")
