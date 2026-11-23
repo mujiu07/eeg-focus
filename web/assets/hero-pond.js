@@ -72,6 +72,18 @@
   var raf = 0;
   var visible = true;
 
+  // 首页的跳跃尾迹：只有穿戴「星星尾迹」时生成，配色读装扮面板当前选择
+  var trailLayer = document.getElementById("heroTrail");
+  var trail = {
+    on: false,
+    el: null,
+    pts: [],
+    stars: [],
+    palette: null,
+    lastStar: 0,
+    fade: 0,
+  };
+
   function appendShape(parent, tag, attributes) {
     var shape = document.createElementNS(NS, tag);
     Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, value));
@@ -121,6 +133,152 @@
       const { width, height } = frog.ownerSVGElement.viewBox.baseVal;
       frogTouch.style.left = (x / width * 100) + "%";
       frogTouch.style.top = (y / height * 100) + "%";
+    }
+    if (jumping) pushTrail(x, y + 4, t);
+  }
+
+  // ---------- 跳跃尾迹：线条光 + 星屑 ----------
+  // 读取「当前穿戴的光效 + 当前颜色」；没穿星星尾迹就返回 null
+  function trailPaletteNow() {
+    if (!window.DressUp || typeof DressUp.wearing !== "function") return null;
+    var set = DressUp.wearing();
+    if (!set || set.aura !== "aura-trail") return null;
+    var palettes = DressUp.palettes ? DressUp.palettes() : null;
+    var colors = DressUp.colors ? DressUp.colors() : null;
+    var list = (palettes && palettes.trail) || [];
+    var picked = list[0];
+    for (var i = 0; i < list.length; i++) {
+      if (colors && list[i].id === colors.trail) { picked = list[i]; break; }
+    }
+    return picked ? picked.colors : null;
+  }
+
+  // 用中点二次曲线把采样点连成顺滑光带
+  function trailPath(pts) {
+    if (pts.length < 2) return "";
+    var d = "M" + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+    for (var i = 1; i < pts.length - 1; i++) {
+      var mx = (pts[i][0] + pts[i + 1][0]) / 2;
+      var my = (pts[i][1] + pts[i + 1][1]) / 2;
+      d += " Q" + pts[i][0].toFixed(1) + " " + pts[i][1].toFixed(1) +
+        " " + mx.toFixed(1) + " " + my.toFixed(1);
+    }
+    var last = pts[pts.length - 1];
+    d += " L" + last[0].toFixed(1) + " " + last[1].toFixed(1);
+    return d;
+  }
+
+  function beginTrail() {
+    if (!trailLayer || motion.matches) return;
+    var palette = trailPaletteNow();
+    if (!palette) return;
+    trailLayer.innerHTML = "";
+    trailLayer.setAttribute("opacity", "1");
+    var line = function (stroke, width, opacity) {
+      return appendShape(trailLayer, "path", {
+        fill: "none",
+        stroke: stroke,
+        "stroke-width": width,
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+        opacity: opacity,
+      });
+    };
+    trail.el = {
+      glow: line(palette[2] || palette[0], 14, 0.14),
+      mid: line(palette[0], 7, 0.32),
+      core: line(palette[0], 2.6, 0.9),
+      stars: appendShape(trailLayer, "g", {}),
+    };
+    trail.pts = [];
+    trail.stars = [];
+    trail.palette = palette;
+    trail.on = true;
+    trail.lastStar = 0;
+    trail.fade = 0;
+  }
+
+  function endTrail() {
+    trail.on = false;
+    trail.fade = 0;
+  }
+
+  // 跳跃中每帧把青蛙位置接到光带上；落地后由 updateTrail 淡出
+  function pushTrail(x, y, t) {
+    if (!trail.on || !trail.el) return;
+    var pts = trail.pts;
+    var last = pts[pts.length - 1];
+    if (last && Math.hypot(x - last[0], y - last[1]) < 1.2) {
+      last[0] = x;
+      last[1] = y;
+    } else {
+      pts.push([x, y]);
+      if (pts.length > 26) pts.shift();
+    }
+    if (pts.length > 1) {
+      var d = trailPath(pts);
+      trail.el.glow.setAttribute("d", d);
+      trail.el.mid.setAttribute("d", d);
+      trail.el.core.setAttribute("d", d);
+    }
+
+    // 星屑：沿光带落下一串小星，颜色同样来自当前选择
+    if (t - trail.lastStar > 0.055) {
+      trail.lastStar = t;
+      var pal = trail.palette;
+      var ci = Math.random() < 0.55 ? 0 : (Math.random() < 0.8 ? 1 : 2);
+      var sx = x + (Math.random() - 0.5) * 18;
+      var sy = y + (Math.random() - 0.5) * 14;
+      var r = 1.3 + Math.random() * 1.5;
+      var star = appendShape(trail.el.stars, "circle", {
+        cx: sx.toFixed(1),
+        cy: sy.toFixed(1),
+        r: r.toFixed(2),
+        fill: pal[ci % pal.length],
+        opacity: 0.9,
+      });
+      trail.stars.push({
+        el: star,
+        x: sx,
+        y: sy,
+        vx: (Math.random() - 0.5) * 28,
+        vy: -14 - Math.random() * 20,
+        r: r,
+        born: t,
+        life: 0.45 + Math.random() * 0.4,
+      });
+    }
+  }
+
+  function updateTrail(dt, t) {
+    if (!trail.el) return;
+    var alive = [];
+    trail.stars.forEach(function (s) {
+      var age = t - s.born;
+      if (age >= s.life) { s.el.remove(); return; }
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.vy += 20 * dt;
+      var k = age / s.life;
+      s.el.setAttribute("cx", s.x.toFixed(1));
+      s.el.setAttribute("cy", s.y.toFixed(1));
+      s.el.setAttribute("r", (s.r * (1 - k * 0.55)).toFixed(2));
+      s.el.setAttribute("opacity", (0.9 * (1 - k)).toFixed(3));
+      alive.push(s);
+    });
+    trail.stars = alive;
+
+    // 光带在落地后 0.45 s 内整体淡出，避免突然消失
+    if (!trail.on) {
+      trail.fade += dt;
+      var a = Math.max(0, 1 - trail.fade / 0.45);
+      trailLayer.setAttribute("opacity", a.toFixed(3));
+      if (a <= 0) {
+        trailLayer.innerHTML = "";
+        trail.el = null;
+        trail.pts = [];
+        trail.stars = [];
+      }
     }
   }
 
@@ -229,6 +387,7 @@
     dipLily(pads[cur], 170);   // 蹬水起跳：起跳荷叶轻微下沉
     jumping = { t: 0, from: cur, to: next };
     mode = "jumping";
+    beginTrail();
     PondAudio.play("jump", 2);   // 首页起跳音效为原来的 2 倍音量
   }
 
@@ -236,6 +395,7 @@
     cur = jumping.to;
     jumping = null;
     mode = "settle";
+    endTrail();
     var p = pads[cur];
     dipLily(p, PondEffects.landingImpulse);            // 落地：目标荷叶被压下
     spawnSplash(p.x, p.y + 6);  // 落水水花
@@ -265,6 +425,7 @@
 
     for (var i = 0; i < pads.length; i++) setPad(pads[i], i, t, dt);
     setFrog(t);
+    updateTrail(dt, t);
     setFish(dt);
   }
 

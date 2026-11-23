@@ -35,14 +35,16 @@
       { id: "pink", name: "粉色", colors: ["#ff9fc4", "#ffc7dc", "#f07ba8"] },
       { id: "rainbow", name: "彩虹", colors: ["#ff8f8f", "#8fd8ea", "#ffd166"] },
     ],
+    // 每种颜色给三层：[0] 主色 / [1] 高光 / [2] 尾色，
+    // 跳跃时主光带、星屑与星芒都按这三层取色，换颜色后整条尾迹一起变。
     trail: [
-      { id: "red", name: "红", colors: ["#ff7b7b"] },
-      { id: "orange", name: "橙", colors: ["#ffa94d"] },
-      { id: "yellow", name: "黄", colors: ["#ffd93d"] },
-      { id: "green", name: "绿", colors: ["#6fd08c"] },
-      { id: "blue", name: "蓝", colors: ["#6fb6f2"] },
-      { id: "purple", name: "紫", colors: ["#b08cf0"] },
-      { id: "pink", name: "粉", colors: ["#ff9fc4"] },
+      { id: "red", name: "红", colors: ["#ff6b6b", "#ffd2c8", "#e03a52"] },
+      { id: "orange", name: "橙", colors: ["#ffa94d", "#ffe0a8", "#e8742a"] },
+      { id: "yellow", name: "黄", colors: ["#ffd93d", "#fff6b8", "#e8a81c"] },
+      { id: "green", name: "绿", colors: ["#6fd08c", "#c8f7d6", "#2f9e63"] },
+      { id: "blue", name: "蓝", colors: ["#6fb6f2", "#cfeaff", "#2f7fd0"] },
+      { id: "purple", name: "紫", colors: ["#b08cf0", "#e6d9ff", "#7a55c8"] },
+      { id: "pink", name: "粉", colors: ["#ff9fc4", "#ffe0ee", "#e0628f"] },
     ],
   };
 
@@ -1261,12 +1263,20 @@
   }
 
   // ---------- 跳跃尾迹（世界坐标，游戏页调用） ----------
-  // 每颗星星都会拖出一段沿运动方向的光带：跳得越快尾迹越长，
-  // 落地后剩下的星屑继续上浮散开，而不是原地消失。
+  // 两部分：
+  //  · 光带：连续记录起跳后的青蛙位置，画成一条沿跳跃弧线的三层线条光，
+  //    头部最亮最粗、尾部渐细渐隐；落地后残影再淡出一小段。
+  //  · 星屑：每颗只记录「配色序号」，绘制时再按当前选中的颜色取色，
+  //    所以在装扮里换颜色后，空中正在飞的星屑也会立刻跟着变。
   let trailParticles = [];
   let trailSpawn = 0;
   let trailPrev = null;
   let trailLast = 0;
+  let trailRibbon = [];
+  let trailWasJumping = false;
+
+  const RIBBON_LIFE = 0.44;   // 光带残影寿命（秒）
+  const RIBBON_MAX = 30;
 
   function rgbaOf(color, a) {
     const hex = String(color || "");
@@ -1280,14 +1290,120 @@
     return hex;
   }
 
+  let reducedCache = null;
+  function prefersReducedMotion() {
+    if (reducedCache !== null) return reducedCache;
+    try {
+      reducedCache = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch (_) { reducedCache = false; }
+    return reducedCache;
+  }
+
+  // 星屑的取色权重：主色最多、高光次之、尾色最少
+  function pickColorIndex(palette) {
+    if (!palette || palette.length < 3) return 0;
+    const r = Math.random();
+    return r < 0.5 ? 0 : r < 0.82 ? 1 : 2;
+  }
+
+  // 记录青蛙跳跃时的实时位置；断帧或停顿过久就重开一条，
+  // 避免切换标签页后拉出一条横贯画面的直线。
+  function trimRibbon(t, jumping, x, y) {
+    trailRibbon = trailRibbon.filter(p => t - p.t < RIBBON_LIFE);
+    if (!jumping) return;
+    const last = trailRibbon[trailRibbon.length - 1];
+    if (last && t - last.t > 0.18) trailRibbon.length = 0;
+    if (last && Math.hypot(x - last.x, y - last.y) < 1.2) return;
+    trailRibbon.push({ x, y, t });
+    if (trailRibbon.length > RIBBON_MAX) trailRibbon.shift();
+  }
+
+  // 沿跳跃弧线的三层线条光：外圈宽而淡、中层过渡、内芯亮而细。
+  // 用「逐段中点二次曲线」连起来，点距大时也不会出现折角；
+  // 宽度与亮度都从尾部到头递增，尾部再按年龄淡出。
+  function paintRibbon(ctx, t, palette, reduced) {
+    const pts = trailRibbon;
+    if (pts.length < 2) return;
+    const head = pts[pts.length - 1];
+    const tail = pts[0];
+    if (Math.hypot(head.x - tail.x, head.y - tail.y) < 8) return;
+
+    const core = palette[0];
+    const light = palette[1] || core;
+    const deep = palette[2] || core;
+    const layers = reduced
+      ? [{ w: 6, a: 0.55 }]
+      : [{ w: 18, a: 0.2 }, { w: 9, a: 0.36 }, { w: 3.4, a: 0.95 }];
+
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let L = 0; L < layers.length; L++) {
+      const layer = layers[L];
+      let prev = { x: tail.x, y: tail.y };
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        const u = (i + 1) / (pts.length - 1);          // 0 = 尾，1 = 头
+        const age = Math.max(0, 1 - (t - b.t) / RIBBON_LIFE);
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        ctx.globalAlpha = layer.a * (0.25 + 0.75 * u) * (0.45 + 0.55 * age);
+        ctx.strokeStyle = L === layers.length - 1
+          ? (u > 0.8 ? light : core)
+          : (u > 0.6 ? core : deep);
+        ctx.lineWidth = layer.w * (0.35 + 0.65 * u);
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.quadraticCurveTo(a.x, a.y, mx, my);
+        ctx.stroke();
+        prev = { x: mx, y: my };
+      }
+      // 收束到青蛙身后的光点，光带前端不会缺一小截
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(head.x, head.y);
+      ctx.stroke();
+    }
+
+    // 前端光点：稍微退到青蛙身后，避免整团光被身体盖住；
+    // 落地后头部不再移动，随最后一段残影一起淡出。
+    const headAge = Math.max(0, 1 - (t - head.t) / RIBBON_LIFE);
+    const flareA = Math.pow(headAge, 0.6);
+    let fx = head.x, fy = head.y;
+    if (pts.length > 1) {
+      const pv = pts[pts.length - 2];
+      const dx = head.x - pv.x;
+      const dy = head.y - pv.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const back = Math.min(12, d);
+      fx -= dx / d * back;
+      fy -= dy / d * back;
+    }
+    const r = reduced ? 9 : 15;
+    const flare = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
+    flare.addColorStop(0, rgbaOf(light, 0.9 * flareA));
+    flare.addColorStop(0.4, rgbaOf(core, 0.34 * flareA));
+    flare.addColorStop(1, rgbaOf(core, 0));
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = flare;
+    ctx.beginPath();
+    ctx.arc(fx, fy, r, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawTrail(ctx, t, x, y, jumping) {
     const item = BY_ID[wearing.aura];
     if (!item || item.id !== "aura-trail") {
       if (trailParticles.length) trailParticles.length = 0;
+      if (trailRibbon.length) trailRibbon.length = 0;
       trailPrev = null;
+      trailWasJumping = false;
       return;
     }
     const palette = tonePalette(item) || ["#ffd93d"];
+    const reduced = prefersReducedMotion();
 
     // 用位移估青蛙速度：星星反向继承一部分速度，才会被甩在身后
     let vx = 0, vy = 0;
@@ -1299,31 +1415,61 @@
     trailPrev = { x, y, t };
     const speed = Math.hypot(vx, vy);
 
-    if (jumping && t - trailSpawn > (speed > 240 ? 0.022 : 0.034)) {
+    trimRibbon(t, jumping, x, y);
+
+    // 起跳瞬间在身后炸开一圈星屑（尊重减少动效偏好）；
+    // 同时清掉上一跳的残留光带，避免两次跳跃被连成一条折线。
+    if (jumping && !trailWasJumping) {
+      trailRibbon.length = 0;
+      if (!reduced) {
+        for (let i = 0; i < 7; i++) {
+          const a = (i / 7) * TAU + Math.random() * 0.4;
+          const sp = 42 + Math.random() * 72;
+          trailParticles.push({
+            x: x + Math.cos(a) * 6,
+            y: y + Math.sin(a) * 6,
+            vx: Math.cos(a) * sp - vx * 0.1,
+            vy: Math.sin(a) * sp * 0.7 - vy * 0.1,
+            born: t,
+            life: 0.5 + Math.random() * 0.35,
+            size: 1.4 + Math.random() * 1.6,
+            rot: Math.random() * TAU,
+            spin: (Math.random() - 0.5) * 4,
+            ci: pickColorIndex(palette),
+            tail: [],
+          });
+        }
+      }
+    }
+    trailWasJumping = jumping;
+
+    const spawnGap = reduced ? 0.09 : (speed > 260 ? 0.032 : 0.05);
+    if (jumping && t - trailSpawn > spawnGap) {
       trailSpawn = t;
-      const count = speed > 300 ? 2 : 1;
+      const count = !reduced && speed > 320 ? 2 : 1;
       for (let i = 0; i < count; i++) {
+        const back = speed > 20 ? 12 / speed : 0;
         trailParticles.push({
-          x: x + (Math.random() - 0.5) * 10,
-          y: y + (Math.random() - 0.5) * 10,
+          x: x - vx * back + (Math.random() - 0.5) * 10,
+          y: y - vy * back + (Math.random() - 0.5) * 10,
           vx: -vx * 0.14 + (Math.random() - 0.5) * 20,
           vy: -vy * 0.14 + (Math.random() - 0.5) * 12 - 14,
           born: t,
           life: 0.8 + Math.random() * 0.55,
-          size: 2.1 + Math.random() * 2.5,
+          size: 1.7 + Math.random() * 2.2,
           rot: Math.random() * TAU,
           spin: (Math.random() - 0.5) * 3.2,
-          color: palette[Math.floor(Math.random() * palette.length)],
+          ci: pickColorIndex(palette),
           tail: [],
         });
       }
-      if (trailParticles.length > 68) trailParticles.splice(0, trailParticles.length - 68);
+      if (trailParticles.length > 64) trailParticles.splice(0, trailParticles.length - 64);
     }
 
     const dt = Math.min(0.05, Math.max(0, t - trailLast));
     trailLast = t;
     trailParticles = trailParticles.filter(p => t - p.born < p.life);
-    if (!trailParticles.length) return;
+    if (!trailParticles.length && trailRibbon.length < 2) return;
 
     ctx.save();
     ctx.filter = "none";
@@ -1332,31 +1478,14 @@
     ctx.globalCompositeOperation = "source-over";
     ctx.lineCap = "round";
 
-    // 青蛙身后的速度拖影：跳跃时沿反方向拉出一条锥形光带
-    if (jumping && speed > 50) {
-      const len = Math.min(78, speed * 0.17);
-      const ang = Math.atan2(vy, vx) + Math.PI;
-      const head = palette[0];
-      const tip = palette[2] || palette[1] || head;
-      const sway = Math.sin(t * 22) * 2.5;
-      const grad = ctx.createLinearGradient(0, 0, len, 0);
-      grad.addColorStop(0, rgbaOf(head, 0.5));
-      grad.addColorStop(0.55, rgbaOf(tip, 0.2));
-      grad.addColorStop(1, rgbaOf(head, 0));
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(ang);
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.moveTo(0, -8.5);
-      ctx.quadraticCurveTo(len * 0.55, -5 + sway, len, sway);
-      ctx.quadraticCurveTo(len * 0.55, 5 + sway, 0, 8.5);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
+    // 沿跳跃弧线的线条光：比原来的锥形拖影更贴合飞行轨迹，
+    // 落地后还会残留一小段慢慢淡开。
+    paintRibbon(ctx, t, palette, reduced);
 
     trailParticles.forEach(p => {
+      // 颜色按当前配色实时取：换色后正在飞的星屑也会立刻变色
+      const tone = palette[(p.ci || 0) % palette.length];
+      const bright = palette[1] || tone;
       if (dt > 0) {
         p.vx *= 1 - 1.8 * dt;
         p.vy = p.vy * (1 - 1.2 * dt) - 16 * dt;
@@ -1366,7 +1495,7 @@
         const head = p.tail[0];
         if (!head || Math.hypot(p.x - head.x, p.y - head.y) > 1.6) {
           p.tail.unshift({ x: p.x, y: p.y });
-          if (p.tail.length > 6) p.tail.pop();
+          if (p.tail.length > 5) p.tail.pop();
         }
       }
       const k = Math.max(0, (t - p.born) / p.life);
@@ -1375,9 +1504,9 @@
       if (p.tail.length > 1) {
         for (let i = 0; i < p.tail.length - 1; i++) {
           const seg = 1 - i / (p.tail.length - 1);
-          ctx.globalAlpha = 0.42 * fade * seg;
-          ctx.strokeStyle = p.color;
-          ctx.lineWidth = p.size * 1.35 * seg * fade;
+          ctx.globalAlpha = 0.32 * fade * seg;
+          ctx.strokeStyle = seg > 0.5 ? bright : tone;
+          ctx.lineWidth = p.size * 1.05 * seg * fade;
           ctx.beginPath();
           ctx.moveTo(p.tail[i].x, p.tail[i].y);
           ctx.lineTo(p.tail[i + 1].x, p.tail[i + 1].y);
@@ -1387,12 +1516,12 @@
       // 2) 沿速度方向拉长的纺锤光晕
       const spd = Math.hypot(p.vx, p.vy);
       const ang = Math.atan2(p.vy, p.vx);
-      const rx = p.size * (2.2 + Math.min(spd * 0.045, 2.6));
-      const ry = p.size * 1.5;
+      const rx = p.size * (1.6 + Math.min(spd * 0.03, 1.6));
+      const ry = p.size * 1.1;
       const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
-      glow.addColorStop(0, rgbaOf(p.color, 0.55 * fade));
-      glow.addColorStop(0.3, rgbaOf(p.color, 0.24 * fade));
-      glow.addColorStop(1, rgbaOf(p.color, 0));
+      glow.addColorStop(0, rgbaOf(bright, 0.34 * fade));
+      glow.addColorStop(0.3, rgbaOf(tone, 0.12 * fade));
+      glow.addColorStop(1, rgbaOf(tone, 0));
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(ang);
@@ -1408,7 +1537,7 @@
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
       ctx.globalAlpha = fade;
-      ctx.fillStyle = p.color;
+      ctx.fillStyle = tone;
       try {
         ctx.fill(new Path2D(starPath(0, 0, s)));
       } catch (_) {
@@ -1417,9 +1546,9 @@
         ctx.fill();
       }
       ctx.globalAlpha = fade * 0.55;
-      ctx.strokeStyle = rgbaOf(p.color, 0.9);
+      ctx.strokeStyle = rgbaOf(bright, 0.9);
       ctx.lineWidth = 0.9;
-      const ray = s * 3.1;
+      const ray = s * 2.6;
       ctx.beginPath();
       ctx.moveTo(-ray, 0); ctx.lineTo(ray, 0);
       ctx.moveTo(0, -ray); ctx.lineTo(0, ray);
@@ -1997,7 +2126,9 @@
         ${list.map(opt => {
           const sw = opt.id === "rainbow"
             ? "linear-gradient(90deg,#ff8f8f,#ffd166,#6fd08c,#8fd8ea)"
-            : opt.colors[0];
+            : opt.colors.length >= 3
+              ? `linear-gradient(135deg,${opt.colors[0]},${opt.colors[1]} 52%,${opt.colors[2]})`
+              : opt.colors[0];
           return `<button type="button" class="swatch${opt.id === picked ? " is-active" : ""}"
                     data-kind="${item.tone}" data-color="${opt.id}"
                     style="--sw:${sw}" title="${opt.name}"
