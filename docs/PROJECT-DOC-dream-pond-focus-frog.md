@@ -94,11 +94,13 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | 校准时长 | 默认 40 s，可跟 60 s 视频，最长 600 s | `web/calibrate.html` |
 | 基线 | 校准期 focus 中位数（P50），另记 P10/P90 | `app/server.py` `/calibrate` |
 | 基线有效期 | 1 小时（`localStorage: bf-calib`） | `web/assets/api.js` |
-| 专注判定 | focus 与基线比较，高于则蓄力上升 | `web/game.html` |
-| 主动起跳 | 金色区间点击/空格 +2 分 | `web/game.html` |
-| 自动起跳 | 蓄满自动 +1 分 | `web/game.html` |
-| 信号中断 | 蓄力与计时暂停，超过阈值提示 | `web/game.html` |
-| 积分 | = 本局得分，一局结束一次性入账 | `web/assets/wallet.js` |
+| 专注判定 | 平滑后 45/38 分滞回；高于蓄力零点 42 分才蓄力 | `web/game.html`、`assets/focus-round.js` |
+| 宽容与衰减 | 低于阈值 1.5 s 内不掉进度，超过后按基准速度 30% 衰减至 0 | `assets/focus-round.js` |
+| 金色区域 | 每轮随机生成一次，进入后锁定潜在得分 | `assets/focus-round.js` |
+| 子弹时间 | 固定 2.5 s 穿过区域，所有玩家窗口一致 | `assets/focus-round.js` |
+| 计分 | `round(20 + 80×T_ref/(T+T_ref))`，成功点击兑现、错过 0 分 | `assets/focus-round.js` |
+| 信号中断 | 蓄力、衰减、单轮计时与子弹时间全部暂停 | `web/game.html` |
+| 积分 | 表现分按 30:1 折算（有得分至少 1 积分），一局结束一次性入账 | `web/assets/wallet.js` |
 | 签到 | 每天 +2 积分，本机 0 点刷新 | `web/assets/checkin.js` |
 | 商城 | 装扮 5–18 积分；成就专属不售卖 | `web/assets/shop.js`、`dressup.js` |
 | 成就 | 4 组 15 枚：首次校准、单局 1/3/5/10 分钟、累计 30/60/150/300/600 分钟、连续 3/5/7/15/30 天 | `web/assets/achievements.js` |
@@ -111,8 +113,8 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | AC1 | 无设备时可通过 EDF 回放完成校准→游戏→报告 | 通过 | 手动 E2E + 本地会话 JSON |
 | AC2 | 校准失败（无有效帧）不会写入基线并给出提示 | 通过 | 断流场景手动验证 |
 | AC3 | 基线 1 小时内刷新页面无需重新校准，超时后引导重校 | 通过 | 篡改 `bf-calib` 时间戳验证 |
-| AC4 | 专注高于基线可蓄力；低于基线时蓄力暂停、不回退（v1.4.0 起，此前为回落） | 通过 | 手动滑块 + 真机/回放 |
-| AC5 | 主动起跳 +2、自动起跳 +1，结算分与积分一致 | 通过 | 游戏结算 + `bf-wallet` 检查 |
+| AC4 | 专注高于蓄力零点可蓄力；短暂走神进度保持，超过 1.5 s 才缓慢衰减（v1.5.0 起） | 通过 | `node tests/selfcheck_round_logic.js` + 手动滑块 |
+| AC5 | 蓄力越快潜在得分越高；子弹窗口内点击才兑现，错过 0 分；积分按 30:1 折算 | 通过 | 模拟脑电回归 + `bf-wallet` 检查 |
 | AC6 | 信号中断时蓄力与计时暂停，不产生伪得分 | 通过 | 关闭 OSC 推流验证 |
 | AC7 | 报告包含曲线、有效数据占比与「给家长的话」 | 通过 | report 页 + 会话 JSON |
 | AC8 | PDF / Excel / Word / CSV / JSON 可导出且中文正常 | 通过（依赖齐全时） | 本机导出实测 |

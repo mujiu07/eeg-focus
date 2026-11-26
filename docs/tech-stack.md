@@ -35,6 +35,8 @@
 **无 `package.json`、无 npm、无框架、无打包**——这是刻意的产品约束：
 
 - 5 个页面：`index.html`（首页）、`calibrate.html`（校准）、`game.html`（游戏）、`report.html`（报告）、`dev.html`（联调/监视）
+- 游戏核心逻辑：
+  - `assets/focus-round.js`：不依赖 DOM 的单轮状态机（蓄力 → 宽容期/衰减 → 唯一金色区域 → 子弹时间 → 潜在得分/点击结算），参数集中在 `CONFIG`，浏览器与 Node 测试共用
 - 视觉与环境层：
   - `assets/style.css`：梦境池塘视觉与通用组件
   - `assets/sky.css` + `assets/sky.js`：全站天空模式（黎明/白天/傍晚/黑夜/跟随系统时间），按日出日落估算自动切换，`localStorage` 跨页保存；模式切换走 1.2 s 颜色渐变；`sky.js` 导出 `window.SkyTheme` 色板，首页 SVG 与游戏 Canvas 共用同一套天空 / 水面 / 远山 / 日月星配色
@@ -42,7 +44,7 @@
   - `assets/music.js` + `assets/vinyl.css`：黑胶唱片机，结构由脚本注入，跨页保留曲目与进度
 - 成长系统（全部本地 `localStorage`，无服务端）：
   - `achievements.js` + `achievements.css` + `achievement-cinematic.js/.css`：15 枚成就、解锁动画与待播队列
-  - `wallet.js`：积分钱包（一局结束按本局得分一次性入账）
+  - `wallet.js`：积分钱包（表现分按 30:1 折算，一局结束一次性入账）
   - `checkin.js` + `checkin.css`：每日签到（+2 积分，0 点刷新）
   - `shop.js` + `shop.css`：积分商城（装扮 5–18 积分）
   - `dressup.js` + `dressup.css`：图鉴 / 装扮 / 商城三页，肤色、头饰、面饰、手持等自由搭配，同一类别同时只穿一件

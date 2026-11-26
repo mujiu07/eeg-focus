@@ -75,6 +75,17 @@
       transform-origin: left center;
     }
     #energy-zone { border: 2px solid #ffda86; background: rgba(255, 218, 134, .18); }
+    /* 子弹时间：金色区域轻微发光；尊重系统的“减少动态效果” */
+    #energy-zone.bullet {
+      animation: zone-glow 1.6s ease-in-out infinite;
+      box-shadow: 0 0 9px rgba(255, 218, 134, .65);
+    }
+    @keyframes zone-glow {
+      50% { box-shadow: 0 0 17px rgba(255, 218, 134, .95); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #energy-zone.bullet { animation: none; box-shadow: 0 0 12px rgba(255, 218, 134, .8); }
+    }
     .game-guidance {
       width: 100%;
       max-width: 900px;
@@ -415,8 +426,8 @@
         <div class="tutorial-card">
           <h3>玩法</h3>
           <ol>
-            <li>池塘上方的能量条涨到 <b class="tut-gold">金色区间</b> 时，点击池塘或按空格，青蛙就会起跳。</li>
-            <li>走神的时候进度会停住，<b>不会往回退</b>，慢慢来就好。</li>
+            <li>能量条涨到 <b class="tut-gold">金色区间</b> 时，它会慢下来。趁它慢慢穿过金色区间，点击池塘或按空格，小蛙就会完美起跳。</li>
+            <li>短暂走神，进度不会掉；走神久一点，进度才会慢慢回落。信号中断时，蓄力和计时都会暂停。</li>
           </ol>
           <button class="btn btn-primary" id="tutorial-ok" type="button">开始玩</button>
         </div>
@@ -471,7 +482,7 @@
 
     <div class="game-guidance">
       <p id="replay-label" class="hidden">脑电数据回放 · 使用已录制的心算信号</p>
-      <p>蓄力进入金色区间后，点击池塘或按空格起跳。</p>
+      <p>能量条进入金色区间后会慢下来，这时点击池塘或按空格，小蛙就会完美起跳。</p>
       <p class="warn-banner show" id="warn">正在等待信号…</p>
       <p id="game-error" class="hint hidden" role="alert"></p>
     </div>
@@ -500,6 +511,7 @@
   <script src="assets/pond-effects.js"></script>
   <script src="assets/pond-audio.js"></script>
   <script src="assets/wallet.js"></script>
+  <script src="assets/focus-round.js"></script>
   <script src="assets/dressup.js"></script>
   <script>
     const $ = id => document.getElementById(id);
@@ -633,8 +645,12 @@
       focusOn: false,      // 滞回后的“在状态”开关
       tutorialOpen: false, // 首次上手的教学层是否打开
       introOpen: false,    // 开局倒数是否正在播放（计时与蓄力暂停）
-      jumpWindow: null,    // 金色起跳区间 {lo,hi}（能量百分比）：在区间内点击可提前起跳
-      actions: { timed_jumps: 0, automatic_jumps: 0, jumps: [] },
+      phase: "CHARGING",   // 单轮状态：CHARGING / BULLET_TIME / JUMP_SUCCESS / JUMP_MISSED
+      actions: {
+        timed_jumps: 0, automatic_jumps: 0,
+        successful_jumps: 0, missed_jumps: 0, early_taps: 0,
+        jumps: [],
+      },
       signalTime: 0,
       bpm: null, hrValid: false, hrMode: "off",
       energy: 0,
@@ -710,8 +726,12 @@
       if (!lilies[state.cur + 2]) addLily();
     }
     resetLilies();
-    // 第一次跳给一个更早的窗口，别让孩子干等到满格
-    state.jumpWindow = { lo: 22, hi: 36 };
+    // 单轮核心机制：蓄力、宽容期/衰减、唯一金色区域、子弹时间与潜在得分。
+    // 参数集中在 web/assets/focus-round.js 的 CONFIG，便于真机测试调整。
+    const roundConfig = FocusRound.CONFIG;
+    const focusRound = new FocusRound.RoundEngine(roundConfig, Math.random);
+    state.energy = focusRound.energy;
+    state.phase = focusRound.phase;
     const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
     // ---- 创建会话 ----
@@ -783,10 +803,9 @@
           // 质量指示必须放在 valid 判断之前：恰恰是伪迹帧，用户才需要看到提示
           updateQuality(f.artifact || null);
           if (!f.valid || f.focus == null) {
-            // 伪迹窗（眨眼/电极抖动）不等于断流：保持上一帧分数继续玩，
-            // 只把质量点降级。否则孩子眨一次眼游戏就暂停，体验会碎成渣。
-            // 真正断流由下面 3 s 无帧的看门狗兜底。
-            if (f.reason === "artifact") return;
+            // 不可用的伪迹窗 / 断流 / 推理异常：冻结蓄力、衰减、单轮计时与子弹时间。
+            // 可修复的眨眼仍在后端出分，不会因为一次眨眼就暂停；只有 backend 判为
+            // usable=false 的异常窗才走到这里。设备异常不等于玩家走神。
             state.stale = true;
             state.staleReason = f.reason || "signal";
             return;
@@ -875,13 +894,8 @@
       // 开局倒数期间只让画面呼吸：计时、蓄力与判定全部暂停
       if (state.introOpen) return;
 
-      // 主动任务 1：错过窗口就顺延到能量前方，孩子始终有下一个可追的目标
-      if (state.jumpWindow && !state.jumping.active && !state.settling && !state.pendingSettle
-          && state.energy > state.jumpWindow.hi + 1.5) {
-        const lo = Math.min(94, state.energy + 2);
-        state.jumpWindow = { lo, hi: Math.min(99, lo + 11) };
-      }
-
+      // 主动任务：本轮金色区域在开始时已生成，进入后由子弹时间接管；
+      // 错过后不再顺延或重掷区域，避免“总有下一个目标”削弱持续观察。
       // 数据新鲜度：超过 3 秒无有效帧 → 视为断流，暂停蓄力（旧分数不得继续驱动游戏）
       if (performance.now() - state.lastFrameTs > 3000) state.stale = true;
 
@@ -899,14 +913,25 @@
         state.focusOn = false;
       }
       const focused = !state.stale && state.focusOn;
-      // 蓄力：跳跃中与平移中不蓄力；落地后等待水花/上浮的这段时间仍可蓄力
-      if (!state.jumping.active && !state.settling && !state.pendingSettle && !state.stale) {
-        if (focused) {
-          const gain = (state.scoreSmooth - 42) * dt * 0.16;
-          state.energy = Math.min(100, state.energy + gain);
+
+      // 单轮状态机：跳跃、落地与平移期间不蓄力，也不把动画时间算进下一轮计时。
+      // 有效蓄力条件 = 已进入专注滞回 + 平滑分高于蓄力零点；低于零点绝不产生负增益。
+      const animating = state.jumping.active || state.settling || state.pendingSettle;
+      if (!animating) {
+        const events = focusRound.update(dt, {
+          signalOk: !state.stale,
+          charging: focused && state.scoreSmooth > roundConfig.chargeZeroScore,
+          score: state.scoreSmooth,
+        });
+        state.energy = focusRound.energy;
+        state.phase = focusRound.phase;
+        for (const ev of events) {
+          if (ev.type === "bullet_enter") onBulletEnter();
+          else if (ev.type === "miss") onBulletMiss();
         }
-        // 分心时不回退蓄力，只停止增长。时间仍在走，少跳几次本身就是代价，
-        // 不需要再让进度条往下掉——那只会让孩子觉得“白练了”。
+      } else {
+        state.energy = focusRound.energy;
+        state.phase = focusRound.phase;
       }
 
       if (state.pendingSettle) {
@@ -928,8 +953,6 @@
           state.cur += 1;                          // 青蛙落到下一片，旧荷叶保留在左侧
           // 正常流程里下一片在起跳时（ensureNextLily）就已生成，这里只是兜底
           if (!lilies[state.cur + 1]) addLily();
-          state.energy = 15;
-          rollJumpWindow();                        // 新一跳重新给一个金色窗口
           // 落地：新荷叶被压得下沉一截，四周溅起水花，随后回弹上浮
           dipLily(landing, PondEffects.landingImpulse);
           spawnLandingSplash(landing.x, landing.y + 6);
@@ -945,6 +968,7 @@
         if (dist <= 0.5) {
           cur.x = CX;   // 精确归位：青蛙正中心回到屏幕中间
           state.settling = false;
+          startNextRound();   // 动画彻底结束才开启下一轮，避免跨轮计时污染
         } else {
           const step = Math.min(dist, Math.max(24 * dt, dist * dt * 4));
           lilies.forEach(l => { l.x -= step; });
@@ -953,8 +977,6 @@
             state.cur -= 1;
           }
         }
-      } else if (!state.stale && state.energy >= 100) {
-        startJump();
       }
 
       const lamp = $("lamp");
@@ -974,12 +996,16 @@
         hrHud.classList.add("stale");
       }
       $("lamp-text").textContent = state.stale ? "信号中断" : (focused ? "跟上了" : "飘走了");
-      // 提示条：断流、或“正在蓄力但分心”。跳跃/平移期间本来就不蓄力，不算分心。
-      const charging = !state.jumping.active && !state.settling && !state.pendingSettle && !state.stale;
-      $("warn").classList.toggle("show", state.stale || (charging && !focused));
+      // 提示条：断流、或“正在蓄力但分心”。跳跃/平移/子弹时间不算分心。
+      const canChargeNow = !state.jumping.active && !state.settling && !state.pendingSettle
+        && state.phase === "CHARGING" && !state.stale;
+      const wavering = canChargeNow && focusRound.belowSec > 0;
+      $("warn").classList.toggle("show", state.stale || (canChargeNow && (!focused || wavering)));
       $("warn").textContent = state.stale
         ? "正在等待信号，计时已暂停。请检查设备连接。"
-        : "注意力飘走了，蓄力暂停（进度不倒退）";
+        : focusRound.decaying
+          ? "注意力飘走了，蓄力正在慢慢回落"
+          : "注意力飘走了，短暂走神不会掉进度";
 
       if (state.stale) return;
       state.timeLeft -= dt;
@@ -987,36 +1013,69 @@
       if (state.timeLeft <= 0) finishGame();
     }
 
-    // ---- 主动任务：金色起跳窗口 + 变化监测 ----
-    // 原先是全自动跳，孩子只要“看着”，十几秒后注意就飘了，测到的其实是“无事可做”。
-    // 这两件事给了必须持续盯住的落点：等窗口、抓飞过的目标。
-    function rollJumpWindow() {
-      const lo = 28 + Math.random() * 24;              // 28–52%：更早出现，不用干等
-      state.jumpWindow = { lo, hi: Math.min(92, lo + 14) };
+    // ---- 单轮状态机回调 ----
+    // 进入金色区域：潜在得分已由核心模块锁定，这里只切换姿态与发光。
+    function onBulletEnter() {
+      state.phase = focusRound.phase;
+    }
+
+    // 子弹时间结束仍未点击：立即普通跳跃、零分；不等待蓄满、不生成第二个区域。
+    function onBulletMiss() {
+      state.phase = focusRound.phase;
+      startJump("missed", 0);
+      if (!state.jumping.active) startNextRound();   // 无落点兜底，避免卡在错过态
+    }
+
+    // 跳跃动画 + 水花 + 视角归位全部结束后，才结算本轮并生成下一轮区域。
+    function startNextRound() {
+      if (focusRound.phase !== "JUMP_SUCCESS" && focusRound.phase !== "JUMP_MISSED") return;
+      focusRound.finishRound();
+      state.energy = focusRound.energy;
+      state.phase = focusRound.phase;
     }
 
     function tryJumpTap(event) {
       if (event?.type === "pointerdown" && event.button !== 0) return;
       if (state.over || state.stale || state.tutorialOpen || state.introOpen) return;
-      const w = state.jumpWindow;
-      const canJump = !state.jumping.active && !state.settling && !state.pendingSettle;
-      if (canJump && w && state.energy >= w.lo && state.energy <= w.hi) startJump(true);
-      else PondAudio.play("tap");
+      if (state.jumping.active || state.settling || state.pendingSettle) return;
+      if (!lilies[state.cur + 1]) return;   // 没有落点时不消耗本轮输入，避免卡在成功态
+      const outcome = focusRound.tap();
+      state.phase = focusRound.phase;
+      if (outcome.type === "success") {
+        startJump("perfect", outcome.score);
+      } else if (outcome.type === "early") {
+        // 提前点击只计数：不扣分、不清空蓄力，也不播放明显的失败反馈。
+        state.actions.early_taps += 1;
+        PondAudio.play("tap");
+      }
     }
 
-    function startJump(perfect = false) {
+    function startJump(kind = "missed", award = 0) {
       const from = lilies[state.cur], to = lilies[state.cur + 1];
-      if (!from || !to) return;
+      if (!from || !to || state.jumping.active) return;
+      const perfect = kind === "perfect";
+      const gain = perfect ? Math.max(0, Math.round(Number(award) || 0)) : 0;
       ensureNextLily();   // 新荷叶现在就从水下往上浮，落到目标荷叶时它已经在水面上了
-      state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x };
+      state.jumping = { active: true, t: 0, fromX: from.x, toX: to.x, perfect };
       PondAudio.play("jump");
-      state.actions[perfect ? "timed_jumps" : "automatic_jumps"] += 1;
       const time = state.signalTime + (performance.now() - state.lastFrameTs) / 1000;
-      state.actions.jumps.push({ t: Math.round(time * 100) / 100, timed: perfect });
-      state.score += perfect ? 2 : 1;
-      $("score").textContent = state.score;
-      state.popups.push({ x: from.x, y: from.y - 150, text: perfect ? "完美 +2" : "+1", t: 0 });
-      state.jumpWindow = null;
+      if (perfect) {
+        state.actions.timed_jumps += 1;
+        state.actions.successful_jumps += 1;
+        state.score += gain;
+        $("score").textContent = state.score;
+        state.popups.push({ x: from.x, y: from.y - 150, text: "完美 +" + gain, t: 0 });
+      } else {
+        // 普通跳跃只维持流程，不是奖励途径：不加分、不弹庆祝文字。
+        state.actions.automatic_jumps += 1;
+        state.actions.missed_jumps += 1;
+      }
+      state.actions.jumps.push({
+        t: Math.round(time * 100) / 100,
+        timed: perfect,
+        award: gain,
+        potential: focusRound.potential,
+      });
       // 蹬水起跳：脚下荷叶被踩得小幅度下沉，随后自动回弹上浮
       dipLily(from, 60);
     }
@@ -1083,6 +1142,7 @@
       drawReflection(p, t);
       drawSplashes();   // 涟漪在水面上、荷叶之下：被荷叶遮住内圈，叶缘外才露出
       drawLilies(p, t);
+      drawBulletFocus();
       drawFrog(p, t);
       drawDroplets();
       drawPopups();
@@ -1352,6 +1412,15 @@
       });
     }
 
+    // 子弹时间背景轻微压暗：把注意力收拢到蓄力条与青蛙，不改变美术风格。
+    function drawBulletFocus() {
+      if (state.phase !== "BULLET_TIME" || reducedMotion.matches || state.stale) return;
+      ctx.save();
+      ctx.fillStyle = "rgba(12, 30, 34, .18)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+
     function drawFrog(p, t) {
       // 荷叶上表面 = 荷叶中心 y - 26；青蛙中心 = 交点 y - 28（半高），青蛙底部正好落在三条直线交点（荷叶中心 y）
       // 荷叶下沉/上浮时青蛙跟着一起动，避免落地瞬间"悬空"
@@ -1386,6 +1455,12 @@
       ctx.restore();
       ctx.save();
       ctx.translate(fx, fy);
+      // 子弹时间：青蛙压低身体、略向前倾，呈“蓄势待发”姿态；
+      // 只做姿态变化，不叠加闪烁或粒子。
+      if (state.phase === "BULLET_TIME" && !state.stale) {
+        ctx.scale(1.07, 0.9);
+        ctx.translate(0, 5);
+      }
       ctx.filter = p.frog;
       // 背饰画在身体后面（披风、翅膀、背包），正饰画在身体前面
       if (window.DressUp) DressUp.drawCanvas(ctx, "back", t);
@@ -1456,13 +1531,16 @@
       const readout = $("energy-readout");
       if (readout.textContent !== energy + "%") readout.textContent = energy + "%";
       $("energy-fill").style.transform = "scaleX(" + state.energy / 100 + ")";
-      const window = state.jumpWindow;
+      // 金色区域每轮只画一次；子弹时间给它轻微发光，不新增倒计时或说明文字。
+      const zoneState = focusRound.zone;
       const zone = $("energy-zone");
-      zone.hidden = !window;
-      if (window) {
-        zone.style.left = window.lo + "%";
-        zone.style.width = (window.hi - window.lo) + "%";
+      const showZone = state.phase === "CHARGING" || state.phase === "BULLET_TIME";
+      zone.hidden = !showZone;
+      if (showZone) {
+        zone.style.left = zoneState.lo + "%";
+        zone.style.width = zoneState.width + "%";
       }
+      zone.classList.toggle("bullet", state.phase === "BULLET_TIME" && !state.stale);
     }
 
     function interpolateJump(tt) {
@@ -1628,7 +1706,8 @@
     function showEndCue() {
       if (!endCue) return Promise.resolve();
       const score = state.score;
-      const jumps = state.actions.timed_jumps + state.actions.automatic_jumps;
+      const perfect = state.actions.successful_jumps;
+      const jumps = perfect + state.actions.missed_jumps;
       const played = Math.max(0, Math.round(state.totalSec - Math.max(0, state.timeLeft)));
       endCue.querySelector(".cue-score b").textContent = score;
       endCue.querySelector(".cue-jumps b").textContent = jumps;
@@ -1639,14 +1718,14 @@
           pointsEl.classList.add("hidden");
         } else {
           pointsEl.classList.remove("hidden");
-          pointsEl.innerHTML = "本局积分 +<b>" + score + "</b>";
+          pointsEl.innerHTML = "本局积分 +<b>" + (state.earnedPoints || 0) + "</b>";
         }
       }
       endCue.querySelector(".cue-sub").textContent =
-        score >= 10 ? "小蛙跳得又稳又远，这一局真棒！"
-          : score >= 4 ? "小蛙跟着你的专注往前跳了好几步。"
-          : score > 0 ? "小蛙出发啦，下次再陪它走远一点。"
-          : "这次小蛙还没出发，慢慢来，我们再来一次。";
+        perfect >= 4 ? "小蛙连续抓到好几次金色时机，这一局真棒！"
+          : perfect >= 2 ? "小蛙跟着你的专注跳了好几步。"
+          : perfect >= 1 ? "抓到了一轮金色时机，下次再稳一点。"
+          : "这次还没抓到金色区间，慢慢来，我们再来一次。";
       endCue.classList.remove("leaving");
       paintCueArt();   // 结算卡片同样用池塘里的青蛙与荷叶
       endCue.classList.add("show");
@@ -1688,10 +1767,15 @@
       state.over = true;
       state.saving = true;
       if (state.es) state.es.close();
-      // 本局积分：与本局得分相同，整局一次性入账；开发者调试入口不计
+      // 若本局在跳跃动画中结束，把已结算的这一轮补进记录，避免数据缺口。
+      if (state.phase === "JUMP_SUCCESS" || state.phase === "JUMP_MISSED") {
+        focusRound.finishRound();
+      }
+      // 表现分（20–100/次）与商城积分分离：积分按固定比例折算，避免经济系统被放大。
+      state.earnedPoints = FocusRound.pointsForScore(state.score);
       if (!state.pointsSettled && !developerRun && window.Wallet) {
         state.pointsSettled = true;
-        Wallet.settleRound(state.score);
+        Wallet.settleRound(state.earnedPoints);
       }
       $("btn-retry").classList.add("hidden");
       $("game-error").classList.add("hidden");
@@ -1701,9 +1785,15 @@
       const ending = showEndCue();   // 结算转场与保存并行，节省等待
       try {
         const playedSec = state.totalSec - Math.max(0, state.timeLeft);
+        const actions = Object.assign({}, state.actions, {
+          successful_jumps: state.actions.successful_jumps,
+          missed_jumps: state.actions.missed_jumps,
+          early_taps: state.actions.early_taps,
+          rounds: focusRound.records.slice(),
+        });
         await API.post(`/api/session/${sessionId}/finish`, {
           score: state.score,
-          actions: state.actions,
+          actions,
           demo,
           played_sec: playedSec,
           notes: "完整一局（" + formatClock(state.totalSec) + "）",

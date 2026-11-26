@@ -43,7 +43,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.4.17")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.5.0")
 
 # ---------------------------------------------------------------------------
 # 全局状态
@@ -333,6 +333,27 @@ class ManualSet(BaseModel):
 class JumpEvent(BaseModel):
     t: float = Field(ge=0, allow_inf_nan=False)
     timed: bool
+    award: Optional[NonNegativeInt] = None
+    potential: Optional[NonNegativeInt] = None
+
+
+class RoundRecord(BaseModel):
+    """单轮研究数据：只做记录，不参与临床判断。"""
+    round: Optional[NonNegativeInt] = None
+    charge_sec: Optional[float] = Field(default=None, ge=0)
+    zone_lo: Optional[float] = Field(default=None, ge=0, le=100)
+    zone_hi: Optional[float] = Field(default=None, ge=0, le=100)
+    t_ref: Optional[float] = Field(default=None, ge=0)
+    potential: Optional[NonNegativeInt] = None
+    awarded: Optional[NonNegativeInt] = None
+    success: Optional[bool] = None
+    reaction_sec: Optional[float] = Field(default=None, ge=0)
+    mean_score: Optional[float] = Field(default=None, ge=0, le=100)
+    above_ratio: Optional[float] = Field(default=None, ge=0, le=1)
+    decay_events: Optional[NonNegativeInt] = None
+    decay_sec: Optional[float] = Field(default=None, ge=0)
+    stale_sec: Optional[float] = Field(default=None, ge=0)
+    early_taps: Optional[NonNegativeInt] = None
 
 
 class GameActions(BaseModel):
@@ -340,6 +361,11 @@ class GameActions(BaseModel):
     automatic_jumps: NonNegativeInt
     targets_shown: Optional[NonNegativeInt] = None
     targets_hit: Optional[NonNegativeInt] = None
+    # v1.5：主动完美起跳 / 错过金色区域 / 提前点击，以及逐轮研究数据
+    successful_jumps: Optional[NonNegativeInt] = None
+    missed_jumps: Optional[NonNegativeInt] = None
+    early_taps: Optional[NonNegativeInt] = None
+    rounds: Optional[list[RoundRecord]] = Field(default=None, max_length=2000)
     jumps: Optional[list[JumpEvent]] = Field(default=None, max_length=3600)
 
 

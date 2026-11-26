@@ -419,7 +419,7 @@
       </div>
       <p class="hint" style="font-size:13.5px;margin-top:10px">
         <span class="badge">橙色虚线</span> 50 分专注线
-        <span class="hidden" id="curve-jump-legend"> · 金色菱形为主动起跳，蓝色圆点为自动起跳</span>
+        <span class="hidden" id="curve-jump-legend"> · 金色菱形为完美起跳，蓝色圆点为普通跳跃</span>
       </p>
       <p class="hint" id="curve-tip" style="display:none;margin-top:6px;font-size:13px;color:#c26a1b"></p>
     </div>
@@ -885,8 +885,17 @@
       const srcName = r.demo ? "无设备试玩 · 手动模拟" : describeSignal(source);
       $("actions-card").classList.toggle("hidden", !r.actions);
       if (r.actions) {
-        const { timed_jumps, automatic_jumps, targets_shown, targets_hit } = r.actions;
-        $("actions-summary").textContent = `抓住起跳时机 ${timed_jumps} 次 · 蓄满自动跳 ${automatic_jumps} 次`;
+        const { timed_jumps, automatic_jumps, successful_jumps, missed_jumps,
+                early_taps, rounds, targets_shown, targets_hit } = r.actions;
+        const perfect = successful_jumps ?? timed_jumps;
+        const missed = missed_jumps ?? automatic_jumps;
+        $("actions-summary").textContent =
+          `完美起跳 ${perfect} 次 · 错过金色区域 ${missed} 次`;
+        if (early_taps) $("actions-summary").textContent += ` · 提前点击 ${early_taps} 次`;
+        if (Array.isArray(rounds) && rounds.length) {
+          const avg = rounds.reduce((sum, x) => sum + (Number(x.potential) || 0), 0) / rounds.length;
+          $("actions-summary").textContent += ` · 平均潜在得分 ${Math.round(avg)} 分`;
+        }
         if (targets_shown != null && targets_hit != null) {
           $("actions-summary").textContent += ` · 点中目标 ${targets_hit}/${targets_shown}`;
         }
@@ -895,7 +904,7 @@
         : isManual ? "滑块模拟曲线" : "专注曲线";
       $("report").innerHTML = `
         <div class="stat-grid" style="justify-content:center">
-          <div class="stat"><div class="icon">🐸</div><div class="label">游戏成绩（跳荷叶）</div><div class="value">${r.score ?? "—"}</div></div>
+          <div class="stat"><div class="icon">🐸</div><div class="label">游戏表现分（每轮 20–100）</div><div class="value">${r.score ?? "—"}</div></div>
           <div class="stat"><div class="icon">⏱️</div><div class="label">高于专注线时间占比</div><div class="value">${above ?? "—"}%</div></div>
           <div class="stat"><div class="icon">📈</div><div class="label">${recorded ? "专注分均值" : "演示信号分均值"}</div><div class="value">${r.score_mean != null ? Math.round(r.score_mean) : (r.focus_mean != null ? Math.round(r.focus_mean * 100) : "—")}</div></div>
           <div class="stat"><div class="icon">🎯</div><div class="label">定标方式</div><div class="value">20 – 80</div></div>
@@ -1003,7 +1012,7 @@
       const jump = jumps.find(event => Math.abs(event.t - cursorTime) < .4);
       $("curve-time").textContent = clock;
       $("curve-score").textContent = score;
-      $("curve-event").textContent = jump ? (jump.timed ? "主动起跳" : "蓄满自动起跳") : "";
+      $("curve-event").textContent = jump ? (jump.timed ? "完美起跳" : "普通跳跃") : "";
       seek.setAttribute("aria-valuetext", clock + "，" + score);
       $("curve-prev").disabled = !jumps.some(event => event.t < cursorTime - .05);
       $("curve-next").disabled = !jumps.some(event => event.t > cursorTime + .05);

@@ -217,7 +217,7 @@ def overview_rows(report: dict) -> list[tuple[str, str]]:
         ("报告编号", str(report.get("session_id") or "—")),
         ("训练时间", report_time(report)),
         ("信号来源", describe_source(report.get("source"))),
-        ("游戏成绩（跳荷叶）", fmt_num(report.get("score"), suffix=" 分")),
+        ("游戏表现分（每轮 20–100）", fmt_num(report.get("score"), suffix=" 分")),
         ("专注分均值", fmt_num(score_of("score_mean", "focus_mean"), suffix=" 分")),
         ("专注分最高 / 最低",
          f"{fmt_num(score_of('score_max', 'focus_max'))} / {fmt_num(score_of('score_min', 'focus_min'))} 分"),
@@ -239,10 +239,26 @@ def overview_rows(report: dict) -> list[tuple[str, str]]:
         suffix = f"（较静息 {delta:+d}）" if delta is not None else ""
         rows.append(("平均心率", f"{fmt_num(mean)} BPM{suffix}"))
     if actions:
-        text = f"主动起跳 {actions.get('timed_jumps', 0)} 次 · 自动起跳 {actions.get('automatic_jumps', 0)} 次"
+        perfect = actions.get("successful_jumps")
+        missed = actions.get("missed_jumps")
+        if perfect is None:
+            perfect = actions.get("timed_jumps", 0)
+        if missed is None:
+            missed = actions.get("automatic_jumps", 0)
+        text = f"完美起跳 {perfect} 次 · 错过金色区域 {missed} 次"
+        early = actions.get("early_taps")
+        if early:
+            text += f" · 提前点击 {early} 次"
         if actions.get("targets_shown") is not None and actions.get("targets_hit") is not None:
             text += f" · 点中目标 {actions['targets_hit']}/{actions['targets_shown']}"
         rows.append(("本局操作", text))
+        rounds = actions.get("rounds") or []
+        if rounds:
+            potentials = [float(x.get("potential")) for x in rounds
+                          if isinstance(x, dict) and x.get("potential") is not None]
+            if potentials:
+                rows.append(("每轮平均潜在得分",
+                             f"{sum(potentials) / len(potentials):.0f} 分（共 {len(potentials)} 轮）"))
     notes = report.get("notes")
     if notes:
         rows.append(("备注", str(notes)))
@@ -376,7 +392,7 @@ def _timeline_actions(report: dict) -> list[tuple[float, str]]:
         if not isinstance(item, dict) or item.get("t") is None:
             continue
         try:
-            events.append((float(item["t"]), "主动起跳" if item.get("timed") else "自动起跳"))
+            events.append((float(item["t"]), "完美起跳" if item.get("timed") else "普通跳跃"))
         except (TypeError, ValueError):
             continue
     events.sort(key=lambda e: e[0])
@@ -564,7 +580,7 @@ def build_pdf(report: dict, parent_note: Optional[str] = None) -> bytes:
     events = _timeline_actions(report)
     if events:
         story.append(Paragraph("起跳事件", head_style))
-        chips = [f"{t:g}s {'主动' if kind == '主动起跳' else '自动'}" for t, kind in events[:60]]
+        chips = [f"{t:g}s {'完美' if kind == '完美起跳' else '普通'}" for t, kind in events[:60]]
         extra = f"（共 {len(events)} 次，仅列前 60 次）" if len(events) > 60 else ""
         story.append(Paragraph(" · ".join(chips) + extra, body_style))
 
@@ -680,6 +696,44 @@ def build_xlsx(report: dict, parent_note: Optional[str] = None) -> bytes:
         ws3.append([round(t, 2), kind])
     ws3.column_dimensions["A"].width = 14
     ws3.column_dimensions["B"].width = 14
+
+    # ---- Sheet 4: 每轮数据（研究分析用，不在儿童端展示）----
+    rounds = (report.get("actions") or {}).get("rounds") or []
+    if rounds:
+        ws4 = wb.create_sheet("每轮数据")
+        headers = [
+            "轮次", "蓄力用时（秒）", "金色区域起点", "金色区域终点",
+            "基准蓄力用时（秒）", "潜在得分", "实际得分", "是否成功",
+            "点击反应（秒）", "平均信号分", "达标占比",
+            "衰减次数", "衰减时长（秒）", "信号异常时长（秒）", "提前点击",
+        ]
+        ws4.append(headers)
+        for cell in ws4[1]:
+            cell.fill = head_fill
+            cell.font = head_font
+        for item in rounds:
+            if not isinstance(item, dict):
+                continue
+            ws4.append([
+                item.get("round"),
+                item.get("charge_sec"),
+                item.get("zone_lo"),
+                item.get("zone_hi"),
+                item.get("t_ref"),
+                item.get("potential"),
+                item.get("awarded"),
+                "是" if item.get("success") else "否",
+                item.get("reaction_sec"),
+                item.get("mean_score"),
+                item.get("above_ratio"),
+                item.get("decay_events"),
+                item.get("decay_sec"),
+                item.get("stale_sec"),
+                item.get("early_taps"),
+            ])
+        for col, width in zip("ABCDEFGHIJKLMNO",
+                              [8, 16, 14, 14, 18, 10, 10, 10, 14, 14, 10, 10, 14, 16, 10]):
+            ws4.column_dimensions[col].width = width
 
     buf = io.BytesIO()
     wb.save(buf)
