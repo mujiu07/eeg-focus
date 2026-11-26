@@ -886,16 +886,40 @@
       $("actions-card").classList.toggle("hidden", !r.actions);
       if (r.actions) {
         const { timed_jumps, automatic_jumps, successful_jumps, missed_jumps,
-                early_taps, rounds, targets_shown, targets_hit } = r.actions;
+                early_taps, rounds, cooldown_count, targets_shown, targets_hit } = r.actions;
         const perfect = successful_jumps ?? timed_jumps;
         const missed = missed_jumps ?? automatic_jumps;
         $("actions-summary").textContent =
           `完美起跳 ${perfect} 次 · 错过金色区域 ${missed} 次`;
-        if (early_taps) $("actions-summary").textContent += ` · 提前点击 ${early_taps} 次`;
         if (Array.isArray(rounds) && rounds.length) {
-          const avg = rounds.reduce((sum, x) => sum + (Number(x.potential) || 0), 0) / rounds.length;
-          $("actions-summary").textContent += ` · 平均潜在得分 ${Math.round(avg)} 分`;
+          const bases = rounds
+            .map(x => x.potential)
+            .filter(v => v != null)
+            .map(Number)
+            .filter(Number.isFinite);
+          const awards = rounds
+            .map(x => x.awarded)
+            .filter(v => v != null)
+            .map(Number)
+            .filter(Number.isFinite);
+          const hits = rounds.filter(x => x.success).length;
+          $("actions-summary").textContent +=
+            ` · 金色时机命中率 ${Math.round(hits / rounds.length * 100)}%`;
+          if (bases.length) {
+            $("actions-summary").textContent +=
+              ` · 每轮平均脑电基础得分 ${Math.round(bases.reduce((a, b) => a + b, 0) / bases.length)} 分`;
+          }
+          if (awards.length) {
+            $("actions-summary").textContent +=
+              ` · 每轮平均实际得分 ${Math.round(awards.reduce((a, b) => a + b, 0) / awards.length)} 分`;
+          }
         }
+        if (early_taps) $("actions-summary").textContent += ` · 提前点击 ${early_taps} 次`;
+        const cooldownTaps = cooldown_count != null
+          ? Number(cooldown_count) || 0
+          : (Array.isArray(rounds)
+            ? rounds.reduce((n, x) => n + (Number(x.cooldown_count) || 0), 0) : 0);
+        if (cooldownTaps) $("actions-summary").textContent += `（触发冷却 ${cooldownTaps} 次）`;
         if (targets_shown != null && targets_hit != null) {
           $("actions-summary").textContent += ` · 点中目标 ${targets_hit}/${targets_shown}`;
         }
@@ -904,7 +928,7 @@
         : isManual ? "滑块模拟曲线" : "专注曲线";
       $("report").innerHTML = `
         <div class="stat-grid" style="justify-content:center">
-          <div class="stat"><div class="icon">🐸</div><div class="label">游戏表现分（每轮 20–100）</div><div class="value">${r.score ?? "—"}</div></div>
+          <div class="stat"><div class="icon">🐸</div><div class="label">本局游戏积分</div><div class="value">${r.score ?? "—"}</div></div>
           <div class="stat"><div class="icon">⏱️</div><div class="label">高于专注线时间占比</div><div class="value">${above ?? "—"}%</div></div>
           <div class="stat"><div class="icon">📈</div><div class="label">${recorded ? "专注分均值" : "演示信号分均值"}</div><div class="value">${r.score_mean != null ? Math.round(r.score_mean) : (r.focus_mean != null ? Math.round(r.focus_mean * 100) : "—")}</div></div>
           <div class="stat"><div class="icon">🎯</div><div class="label">定标方式</div><div class="value">20 – 80</div></div>

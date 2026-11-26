@@ -217,7 +217,7 @@ def overview_rows(report: dict) -> list[tuple[str, str]]:
         ("报告编号", str(report.get("session_id") or "—")),
         ("训练时间", report_time(report)),
         ("信号来源", describe_source(report.get("source"))),
-        ("游戏表现分（每轮 20–100）", fmt_num(report.get("score"), suffix=" 分")),
+        ("本局游戏积分", fmt_num(report.get("score"), suffix=" 分")),
         ("专注分均值", fmt_num(score_of("score_mean", "focus_mean"), suffix=" 分")),
         ("专注分最高 / 最低",
          f"{fmt_num(score_of('score_max', 'focus_max'))} / {fmt_num(score_of('score_min', 'focus_min'))} 分"),
@@ -246,19 +246,32 @@ def overview_rows(report: dict) -> list[tuple[str, str]]:
         if missed is None:
             missed = actions.get("automatic_jumps", 0)
         text = f"完美起跳 {perfect} 次 · 错过金色区域 {missed} 次"
+        rounds = [x for x in (actions.get("rounds") or []) if isinstance(x, dict)]
+        if rounds:
+            successes = sum(1 for x in rounds if x.get("success"))
+            text += f" · 金色时机命中率 {round(successes / len(rounds) * 100)}%"
+        elif perfect + missed > 0:
+            text += f" · 金色时机命中率 {round(perfect / (perfect + missed) * 100)}%"
         early = actions.get("early_taps")
         if early:
             text += f" · 提前点击 {early} 次"
+        cooldown = actions.get("cooldown_count")
+        if cooldown:
+            text += f" · 触发冷却 {cooldown} 次"
         if actions.get("targets_shown") is not None and actions.get("targets_hit") is not None:
             text += f" · 点中目标 {actions['targets_hit']}/{actions['targets_shown']}"
         rows.append(("本局操作", text))
-        rounds = actions.get("rounds") or []
         if rounds:
-            potentials = [float(x.get("potential")) for x in rounds
-                          if isinstance(x, dict) and x.get("potential") is not None]
-            if potentials:
-                rows.append(("每轮平均潜在得分",
-                             f"{sum(potentials) / len(potentials):.0f} 分（共 {len(potentials)} 轮）"))
+            bases = [float(x.get("potential")) for x in rounds
+                     if x.get("potential") is not None]
+            awards = [float(x.get("awarded")) for x in rounds
+                      if x.get("awarded") is not None]
+            if bases:
+                rows.append(("每轮平均脑电基础得分",
+                             f"{sum(bases) / len(bases):.0f} 分（共 {len(bases)} 轮）"))
+            if awards:
+                rows.append(("每轮平均实际得分",
+                             f"{sum(awards) / len(awards):.0f} 分（共 {len(awards)} 轮）"))
     notes = report.get("notes")
     if notes:
         rows.append(("备注", str(notes)))
@@ -703,9 +716,10 @@ def build_xlsx(report: dict, parent_note: Optional[str] = None) -> bytes:
         ws4 = wb.create_sheet("每轮数据")
         headers = [
             "轮次", "蓄力用时（秒）", "金色区域起点", "金色区域终点",
-            "基准蓄力用时（秒）", "潜在得分", "实际得分", "是否成功",
+            "基准蓄力用时（秒）", "脑电基础得分", "实际得分", "点击倍率", "是否成功",
             "点击反应（秒）", "平均信号分", "达标占比",
             "衰减次数", "衰减时长（秒）", "信号异常时长（秒）", "提前点击",
+            "冷却次数", "冷却时长（秒）",
         ]
         ws4.append(headers)
         for cell in ws4[1]:
@@ -722,6 +736,7 @@ def build_xlsx(report: dict, parent_note: Optional[str] = None) -> bytes:
                 item.get("t_ref"),
                 item.get("potential"),
                 item.get("awarded"),
+                item.get("multiplier"),
                 "是" if item.get("success") else "否",
                 item.get("reaction_sec"),
                 item.get("mean_score"),
@@ -730,9 +745,11 @@ def build_xlsx(report: dict, parent_note: Optional[str] = None) -> bytes:
                 item.get("decay_sec"),
                 item.get("stale_sec"),
                 item.get("early_taps"),
+                item.get("cooldown_count"),
+                item.get("cooldown_sec"),
             ])
-        for col, width in zip("ABCDEFGHIJKLMNO",
-                              [8, 16, 14, 14, 18, 10, 10, 10, 14, 14, 10, 10, 14, 16, 10]):
+        for col, width in zip("ABCDEFGHIJKLMNOPQR",
+                              [8, 16, 14, 14, 18, 16, 10, 10, 10, 14, 14, 10, 10, 14, 16, 10, 10, 14]):
             ws4.column_dimensions[col].width = width
 
     buf = io.BytesIO()

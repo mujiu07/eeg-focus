@@ -43,7 +43,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.5.0")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.6.0")
 
 # ---------------------------------------------------------------------------
 # 全局状态
@@ -335,6 +335,7 @@ class JumpEvent(BaseModel):
     timed: bool
     award: Optional[NonNegativeInt] = None
     potential: Optional[NonNegativeInt] = None
+    multiplier: Optional[float] = Field(default=None, ge=0, le=1)
 
 
 class RoundRecord(BaseModel):
@@ -348,12 +349,16 @@ class RoundRecord(BaseModel):
     awarded: Optional[NonNegativeInt] = None
     success: Optional[bool] = None
     reaction_sec: Optional[float] = Field(default=None, ge=0)
+    # v1.6：点击时机倍率（1=满分宽容期，0=超时/错过）
+    multiplier: Optional[float] = Field(default=None, ge=0, le=1)
     mean_score: Optional[float] = Field(default=None, ge=0, le=100)
     above_ratio: Optional[float] = Field(default=None, ge=0, le=1)
     decay_events: Optional[NonNegativeInt] = None
     decay_sec: Optional[float] = Field(default=None, ge=0)
     stale_sec: Optional[float] = Field(default=None, ge=0)
     early_taps: Optional[NonNegativeInt] = None
+    cooldown_count: Optional[NonNegativeInt] = None
+    cooldown_sec: Optional[float] = Field(default=None, ge=0)
 
 
 class GameActions(BaseModel):
@@ -365,6 +370,9 @@ class GameActions(BaseModel):
     successful_jumps: Optional[NonNegativeInt] = None
     missed_jumps: Optional[NonNegativeInt] = None
     early_taps: Optional[NonNegativeInt] = None
+    # v1.6：无效点击冷却汇总
+    cooldown_count: Optional[NonNegativeInt] = None
+    cooldown_sec: Optional[float] = Field(default=None, ge=0)
     rounds: Optional[list[RoundRecord]] = Field(default=None, max_length=2000)
     jumps: Optional[list[JumpEvent]] = Field(default=None, max_length=3600)
 

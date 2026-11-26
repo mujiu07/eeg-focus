@@ -223,6 +223,17 @@ check("下一轮重新生成金色区域并重置本轮数据", () => {
   assert.ok(e.zone.hi > e.zone.lo, "新区域必须合法");
 });
 
+check("进入金色区域后不再执行衰减", () => {
+  const e = engineAt(30);
+  chargeToBullet(e, { signalOk: true, charging: true, score: 85 }, 0.02);
+  const decaySec = e.decaySec;
+  const events = e.decayEvents;
+  e.update(1.0, { signalOk: true, charging: false, score: 0 });
+  assert.strictEqual(e.phase, "BULLET_TIME");
+  assert.strictEqual(e.decaySec, decaySec, "子弹时间内不得累计衰减时长");
+  assert.strictEqual(e.decayEvents, events, "子弹时间内不得新增衰减事件");
+});
+
 check("不同蓄力速度拥有相同的子弹时间点击窗口", () => {
   const slow = engineAt(30);
   const fast = engineAt(30);
@@ -344,6 +355,9 @@ check("主动暂停保存原有状态", () => {
   e.update(5, { signalOk: true, charging: true, score: 70, paused: true });
   assert.strictEqual(e.energy, snap.energy);
   assert.strictEqual(e.chargeSec, snap.chargeSec);
+  assert.strictEqual(e.tap().type, "ignored", "暂停期间点击不得触发冷却或奖励");
+  assert.strictEqual(e.earlyTaps, 0);
+  assert.strictEqual(e.cooldownCount, 0);
   e.update(1, { signalOk: true, charging: true, score: 70 });
   assert.ok(e.energy > snap.energy, "恢复后从原状态继续");
 });
@@ -361,6 +375,19 @@ check("低帧率或大帧间隔不会跳过金色区域", () => {
   assert.ok(e.potential >= 20 && e.potential <= 100, "潜在得分必须合法");
   e.update(10, { signalOk: true, charging: false, score: 0 });
   assert.strictEqual(e.phase, "JUMP_MISSED", "大帧间隔也只触发一次错过");
+});
+
+check("不同帧率下计时与基础分基本一致", () => {
+  const fast = engineAt(30);
+  const slow = engineAt(30);
+  chargeToBullet(fast, { signalOk: true, charging: true, score: 65 }, 0.02);
+  chargeToBullet(slow, { signalOk: true, charging: true, score: 65 }, 0.1);
+  assert.strictEqual(fast.phase, "BULLET_TIME");
+  assert.strictEqual(slow.phase, "BULLET_TIME");
+  assert.ok(Math.abs(fast.chargeSec - slow.chargeSec) < 0.12,
+    `20ms/100ms 帧率下计时差应小于 0.12s，实际 ${fast.chargeSec} / ${slow.chargeSec}`);
+  assert.ok(Math.abs(fast.potential - slow.potential) <= 1,
+    `计时差应只带来最多 1 分差异，实际 ${fast.potential} / ${slow.potential}`);
 });
 
 check("连续多轮不存在状态污染", () => {
@@ -392,12 +419,15 @@ check("每轮数据字段完整且可用于研究分析", () => {
   const e = engineAt(30);
   chargeToBullet(e, { signalOk: true, charging: true, score: 85 }, 0.02);
   e.update(0.5, { signalOk: false, charging: false, score: 0 });
-  e.tap();
+  assert.strictEqual(e.tap().type, "ignored", "信号异常期间点击不得结算");
+  e.update(0.02, { signalOk: true, charging: false, score: 0 });
+  assert.strictEqual(e.tap().type, "success");
   const rec = e.finishRound();
   const keys = [
     "round", "charge_sec", "zone_lo", "zone_hi", "t_ref", "potential",
-    "awarded", "success", "reaction_sec", "mean_score", "above_ratio",
+    "awarded", "success", "reaction_sec", "multiplier", "mean_score", "above_ratio",
     "decay_events", "decay_sec", "stale_sec", "early_taps",
+    "cooldown_count", "cooldown_sec",
   ];
   keys.forEach(k => assert.ok(Object.prototype.hasOwnProperty.call(rec, k), "缺少字段 " + k));
   assert.ok(rec.reaction_sec != null && rec.reaction_sec >= 0);
@@ -409,18 +439,166 @@ check("每轮数据字段完整且可用于研究分析", () => {
 // ---------------------------------------------------------------------------
 // 8. 积分经济
 // ---------------------------------------------------------------------------
-check("表现分与商城积分分离且不会产生负积分", () => {
+check("游戏积分与商城积分分离且不会产生负积分", () => {
   assert.strictEqual(FR.pointsForScore(0), 0);
   assert.strictEqual(FR.pointsForScore(19), 1, "有得分时至少 1 积分");
   assert.strictEqual(FR.pointsForScore(20), 1);
   assert.strictEqual(FR.pointsForScore(60), 2);
   assert.strictEqual(FR.pointsForScore(100), 3);
   assert.strictEqual(FR.pointsForScore(-100), 0);
-  assert.ok(FR.pointsForScore(100) < 100, "单跳积分不应等于表现分");
+  assert.ok(FR.pointsForScore(100) < 100, "单跳商城积分不应等于游戏积分");
 });
 
 // ---------------------------------------------------------------------------
-// 9. 整局模拟脑电：稳定高分 / 稳定低分 / 间歇性 / 快速波动 / 断流
+// 9. 点击时机倍率、无效点击冷却与参数边界
+// ---------------------------------------------------------------------------
+function advance(engine, sec, input, dt) {
+  const step = dt || 0.02;
+  let t = 0;
+  while (t < sec - 1e-9) {
+    const d = Math.min(step, sec - t);
+    engine.update(d, typeof input === "function" ? input(t) : input);
+    t += d;
+  }
+}
+
+check("点击时机：前 0.6s 满分，之后单调下降，窗口内折损不超过 10%", () => {
+  const B = 76;
+  assert.strictEqual(FR.actualScore(B, 0), 76);
+  assert.strictEqual(FR.actualScore(B, 0.2), 76);
+  assert.strictEqual(FR.actualScore(B, 0.6), 76);
+  assert.strictEqual(FR.actualScore(B, 1.0), 74);
+  assert.strictEqual(FR.actualScore(B, 1.5), 72);
+  assert.strictEqual(FR.actualScore(B, 2.0), 70);
+  assert.strictEqual(FR.actualScore(B, 2.4), 69);
+  assert.strictEqual(FR.actualScore(B, 2.5), 0);
+  assert.strictEqual(FR.actualScore(B, 3.0), 0);
+  const samples = [0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.49]
+    .map(t => FR.actualScore(B, t));
+  for (let i = 1; i < samples.length; i += 1) {
+    assert.ok(samples[i] <= samples[i - 1], "得分必须随时机推迟单调不增");
+  }
+  assert.ok(samples[samples.length - 1] >= Math.floor(B * 0.9),
+    "窗口末尾仍应保留至少约 90% 的基础得分");
+});
+
+check("参数校验：满分宽容期必须短于子弹时间，非法值会被收敛", () => {
+  assert.deepStrictEqual(FR.validateConfig({}), []);
+  assert.ok(FR.validateConfig({ fullScoreGraceSec: 2.5 }).length > 0);
+  assert.ok(FR.validateConfig({ maxTimingLoss: 1.2 }).length > 0);
+  assert.ok(FR.validateConfig({ invalidTapCooldownSec: -0.1 }).length > 0);
+  const c = FR.normalizeConfig({ fullScoreGraceSec: 9, maxTimingLoss: 3 });
+  assert.ok(c.fullScoreGraceSec < c.bulletTimeSec);
+  assert.ok(c.maxTimingLoss <= 1);
+});
+
+check("提前点击触发 0.5s 冷却：暂停增长、计时继续、不叠加", () => {
+  const e = engineAt(60);
+  advance(e, 1, { signalOk: true, charging: true, score: 70 });
+  const beforeEnergy = e.energy;
+  const beforeCharge = e.chargeSec;
+  const first = e.tap();
+  assert.strictEqual(first.type, "early");
+  assert.strictEqual(first.cooldownStarted, true);
+  assert.ok(Math.abs(e.cooldownRemaining - 0.5) < 1e-9);
+  assert.strictEqual(e.cooldownCount, 1);
+  assert.strictEqual(e.energy, beforeEnergy, "点击瞬间不得清空或扣除蓄力");
+
+  advance(e, 0.2, { signalOk: true, charging: true, score: 70 });
+  assert.ok(Math.abs(e.energy - beforeEnergy) < 1e-9, "冷却期间能量不得增长");
+  assert.ok(e.chargeSec > beforeCharge + 0.19, "冷却时间必须计入本轮用时");
+
+  const again = e.tap();
+  assert.strictEqual(again.cooldownStarted, false, "冷却中再次点击不得叠加");
+  assert.ok(Math.abs(e.cooldownRemaining - 0.3) < 1e-9, "冷却不得被延长");
+  assert.strictEqual(e.cooldownCount, 1);
+
+  advance(e, 0.3, { signalOk: true, charging: true, score: 70 });
+  assert.ok(e.cooldownRemaining <= 1e-9, "0.5s 后冷却应结束");
+  const afterCooldown = e.energy;
+  advance(e, 0.1, { signalOk: true, charging: true, score: 70 });
+  assert.ok(e.energy > afterCooldown, "冷却结束后应恢复蓄力");
+  assert.strictEqual(e.cooldownCount, 1);
+
+  // 冷却结束后的独立无效点击可以重新触发
+  const third = e.tap();
+  assert.strictEqual(third.cooldownStarted, true);
+  assert.strictEqual(e.cooldownCount, 2);
+});
+
+check("冷却期间不衰减；低专注超过宽容期后仍正常衰减", () => {
+  const e = engineAt(80);
+  advance(e, 2, { signalOk: true, charging: true, score: 70 });
+  const before = e.energy;
+  e.tap();
+  advance(e, 0.5, { signalOk: true, charging: false, score: 35 });
+  assert.ok(Math.abs(e.energy - before) < 1e-9, "冷却期间不得额外衰减");
+  assert.strictEqual(e.decaySec, 0);
+  assert.ok(Math.abs(e.cooldownSec - 0.5) < 1e-9);
+
+  advance(e, 2.0, { signalOk: true, charging: false, score: 35 });
+  assert.ok(e.energy < before, "冷却结束后低专注应正常衰减");
+  assert.ok(e.decaySec > 0);
+});
+
+check("冷却期间蓄力条不能进入金色区域", () => {
+  // 起点 15、区域 16，冷却 0.5s；即使蓄力增益很高，也必须等冷却结束。
+  const e = engineAt(16, { startEnergy: 15, chargeGainPerScoreSec: 20 });
+  e.tap();
+  advance(e, 0.49, { signalOk: true, charging: true, score: 100 });
+  assert.strictEqual(e.phase, "CHARGING");
+  assert.strictEqual(e.energy, 15);
+  advance(e, 0.02, { signalOk: true, charging: true, score: 100 });
+  assert.strictEqual(e.phase, "BULLET_TIME");
+});
+
+check("信号异常/暂停期间冷却与计时一起冻结", () => {
+  const e = engineAt(60);
+  advance(e, 1, { signalOk: true, charging: true, score: 70 });
+  e.tap();
+  const charge = e.chargeSec;
+  const cooldown = e.cooldownRemaining;
+  advance(e, 5, { signalOk: false, charging: true, score: 70 });
+  advance(e, 5, { signalOk: true, charging: true, score: 70, paused: true });
+  assert.ok(Math.abs(e.cooldownRemaining - cooldown) < 1e-9);
+  assert.ok(Math.abs(e.chargeSec - charge) < 1e-9);
+  advance(e, 0.2, { signalOk: true, charging: true, score: 70 });
+  assert.ok(Math.abs(e.cooldownRemaining - 0.3) < 1e-9, "恢复后只扣实际经过的冷却时间");
+});
+
+check("成功点击按反应时间结算，并写入倍率与冷却字段", () => {
+  const e = engineAt(30);
+  chargeToBullet(e, { signalOk: true, charging: true, score: 85 }, 0.02);
+  const base = e.potential;
+  e.update(1.0, { signalOk: true, charging: false, score: 0 });
+  const out = e.tap();
+  assert.strictEqual(out.type, "success");
+  assert.strictEqual(out.base, base);
+  assert.ok(out.multiplier < 1, "1.0s 已超过满分宽容期");
+  assert.strictEqual(out.score, FR.actualScore(base, 1.0));
+  assert.ok(out.score <= base, "实际得分不得超过基础得分");
+  const rec = e.finishRound();
+  assert.strictEqual(rec.potential, base);
+  assert.strictEqual(rec.awarded, out.score);
+  assert.ok(rec.multiplier > 0.9 && rec.multiplier < 1);
+  assert.strictEqual(rec.cooldown_count, 0);
+  assert.strictEqual(rec.cooldown_sec, 0);
+});
+
+check("错过点击：倍率为 0，不产生实际得分", () => {
+  const e = engineAt(30);
+  chargeToBullet(e, { signalOk: true, charging: true, score: 85 }, 0.02);
+  runBulletToEnd(e);
+  assert.strictEqual(e.phase, "JUMP_MISSED");
+  assert.strictEqual(e.awarded, 0);
+  assert.strictEqual(e.multiplier, 0);
+  const rec = e.finishRound();
+  assert.strictEqual(rec.multiplier, 0);
+  assert.strictEqual(rec.awarded, 0);
+});
+
+// ---------------------------------------------------------------------------
+// 10. 整局模拟脑电：稳定高分 / 稳定低分 / 间歇性 / 快速波动 / 断流
 // ---------------------------------------------------------------------------
 function simulateSession(profile, seconds, seed) {
   let s = seed || 20261127;
