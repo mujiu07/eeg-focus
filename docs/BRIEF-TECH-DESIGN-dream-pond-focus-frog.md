@@ -1,9 +1,9 @@
 # 专注小蛙 · 梦境池塘 — 简要技术设计（Brief Tech Design）
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 适用代码：`main` @ `v1.8.2`（每日游戏化校准与双基线；历史基线 v1.8.1/v1.7.0）
+> 适用代码：`main` @ `v1.8.3`（个体自适应难度；历史基线 v1.8.2/v1.8.1/v1.7.0）
 > 说明：本文是**一页可读的技术设计摘要**，用于评审与新人上手；完整细节见 `ARCHITECTURE.md` / `tech-stack.md` / `DECISIONS-AND-VERIFICATION-dream-pond-focus-frog.md`。
-> 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.8.1`。
+> 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.8.3`。
 
 ---
 
@@ -46,6 +46,7 @@
 | 服务 | `app/server.py` | 会话生命周期、校准、报告、导出、静态托管、用户归属/TTL | `POST /api/session`、`/calibrate`、`/finish` |
 | 服务 | `app/storage.py` / `app/accounts.py` | SQLite 档案/校准/游戏/资产、备份迁移与存储 API | `/api/profiles/*`、`/api/storage/*` |
 | 服务 | `app/calibration.py` | 每日 P15/P85、阶段有效时间、日状态/双基线 | `/api/session` 硬件门槛、`/calibration-status` |
+| 服务 | `app/difficulty.py` | 黄色区域起点范围、净蓄力指标、连续局间判定 | `/api/profiles/{id}/difficulty`、Session `difficulty` 快照 |
 | 服务 | `app/sources.py` | 信号源抽象与工厂 | `start()` / `next_window()` / `stop()` |
 | 服务 | `app/xmuse_osc.py` | OSC/UDP 接收、环形缓冲、质量/电量 | `next_window()` |
 | 服务 | `app/focus_engine.py` | 特征→模型/频段回退→EMA | `update(seg, fs)` |

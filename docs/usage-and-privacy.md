@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 使用与隐私说明
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.8.2（2026-11-27）
+> 版本：v1.8.3（2026-11-27）
 > 隐私承诺：**脑电数据全部在本地处理，不上传任何脑电数据**——本承诺基于代码实现，详见第 6 节。
 
 ---
@@ -111,6 +111,7 @@ python3 -m venv .venv
 - 支持切换信号源（EDF 文件 / 手动 / Xmuse OSC / 模拟心率）；Xmuse 默认同时监听 UDP 7000/8000
 - 提供无设备试玩、EDF 回放验证、手动模拟校准、模型评估与实时监视
 - **实时脑电工作台**：点击「脑电实时工作台」或在开发者会话中打开 `game.html?dev=1`，游戏左右显示真实多通道原始/处理后波形、频段功率与 30 秒趋势、算法中间值、游戏分数曲线和事件；儿童模式不显示也不订阅该数据
+- v1.8.3 起增加「个体自适应难度」基础卡片：查看当前系数/黄色区域范围/中位净蓄力/点击率/信号比例/未完成轮次/最近判定，开关自动适配、锁定当前难度、恢复 1.00；改动只对下一局生效
 - 普通用户无需使用
 
 ### 3.6 成长系统（积分 / 签到 / 成就 / 商城 / 装扮）
@@ -151,6 +152,7 @@ python3 -m venv .venv
 | POST | `/api/session/{id}/manual` | 手动模式设置专注度 |
 | GET | `/api/profiles/{id}/calibration-status` | 当日校准状态/设备/过期原因 |
 | GET/POST | `/api/profiles/{id}/reference-baselines` | 长期参考版本列表/显式新增 |
+| GET/POST | `/api/profiles/{id}/difficulty` | 个人难度档/自动开关/手动锁定/恢复 1.00（下一局生效） |
 | POST | `/api/session/{id}/calibrate` | `daily_v2` 阶段采样；正式游戏 Session 返回 409 |
 | POST | `/api/session/{id}/finish` | 结束会话并落盘报告 |
 | GET | `/api/report/{id}` | 会话报告（内存/本地 JSON） |
@@ -230,6 +232,7 @@ python3 -m venv .venv
 | 个人档案 | `专注小蛙/profiles.db` 的 `users` 表 | 昵称/头像/钱包/最近使用；不上传 |
 | 每日校准 | `profiles.db` 的 `calibrations` | 按档案/日期/设备/协议追加；含阶段统计与有效时长，不含原始高频波形 |
 | 长期参考 | `profiles.db` 的 `reference_baselines` | 首个有效硬件校准 v1；显式版本化；每日不覆盖 |
+| 难度档案/历史 | `profiles.db` 的 `difficulty_profiles / difficulty_history` | 当前系数、自动开关、连续计数、调整原因/指标；真实硬件才写，测试源隔离 |
 | 校准缓存 | 浏览器 `bf-calib-*` | 仅同一天/同设备快速恢复；服务端开局复验 |
 | 成长数据 | `profiles.db` 的 `wallet_transactions / inventories / achievements / user_settings` | 积分、签到、成就、装扮，按档案隔离 |
 | 备份 | `专注小蛙/backups/*.db` | 一致性快照；删除档案不自动删备份 |
@@ -280,3 +283,4 @@ SSE 推送（127.0.0.1 回环）→ 浏览器渲染
 - 项目主文档 / 证据 / 反思 / Vibe Coding：`docs/` 下带 `dream-pond-focus-frog` 的文档
 - 本地存储与多用户档案开发报告：`docs/DEV-REPORT-v1.8.1.md`
 - 每日校准与双基线开发报告：`docs/DEV-REPORT-v1.8.2.md`
+- 个体自适应难度开发报告：`docs/DEV-REPORT-v1.8.3.md`

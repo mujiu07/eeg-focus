@@ -2,7 +2,7 @@
 
 > 文档类型：Proposal + MVP PRD + Technical Design + AI Workflow（四合一，对应课程 Project Documentation Guidelines Part 1–4）
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 代码版本：v1.8.2（2026-11-27）
+> 代码版本：v1.8.3（2026-11-27）
 > 仓库：`eeg-focus/`（GitHub: `mujiu07/eeg-focus`）
 > 说明：本文件是评审入口；更细的架构、技术栈、隐私与硬件内容见 `docs/` 下对应文档。
 
@@ -106,7 +106,8 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | 商城 | 装扮 5–18 积分；成就专属不售卖 | `web/assets/shop.js`、`dressup.js` |
 | 成就 | 4 组 15 枚：首次校准、单局 1/3/5/10 分钟、累计 30/60/150/300/600 分钟、连续 3/5/7/15/30 天 | `web/assets/achievements.js` |
 | 档案 | 每个档案独立 `user_id`；校准/游戏/钱包/装扮/成就按档案隔离 | `app/storage.py`、`web/profiles.html` |
-| 数据边界 | 脑电/档案/校准/参考均在本机 `专注小蛙/`；SQLite 未加密；仅可选音乐联网 | `docs/usage-and-privacy.md` §6、`docs/DEV-REPORT-v1.8.2.md` |
+| 数据边界 | 脑电/档案/校准/参考/难度均在本机 `专注小蛙/`；SQLite 未加密；仅可选音乐联网 | `docs/usage-and-privacy.md` §6、`docs/DEV-REPORT-v1.8.2.md`、`docs/DEV-REPORT-v1.8.3.md` |
+| 自适应难度（v1.8.3） | 只调黄色区域起点；Session 锁定；净蓄力排除冷却/断流/暂停/子弹/动画；连续 2 局偏高降 10%、3 局偏低升 10%；测试源不写真实档案 | `app/difficulty.py`、`web/game.html`、`web/dev.html`、`tests/selfcheck_v183.py` |
 
 ### 2.4 可测试的验收标准
 
@@ -127,6 +128,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | AC12 | 多档案隔离：A 不能完成/读取 B 的 Session/报告/资产；重复结算不重复加积分；SQLite 重启持久化；备份可恢复（v1.8.1） | 通过 | `tests/selfcheck_v181.py`、`tests/selfcheck_ui_static.js` |
 | AC13 | 每日校准：硬件首局必须当日校准；同日同设备复用；跨日/换设备/超时重校；游戏 Session 锁定且禁止重校；回放不建真实参考 | 通过（模拟） | `tests/selfcheck_v182.py` |
 | AC14 | 全站不加载外部静态资源；断网（除音乐）可玩 | 通过 | DevTools Network 检查 |
+| AC15 | 自适应难度只改黄色区域起点，局内锁定，连续有效局才调整，重复结算不重复调整；测试源/用户隔离；关闭自动与手动锁定生效 | 通过（模拟） | `tests/selfcheck_v183.py`、`tests/selfcheck_v183_round.js` |
 
 > 未完成项：真实儿童用户的可用性测试、长时间连续使用稳定性、4 通道模型精度验证。
 
@@ -238,7 +240,7 @@ outputs/models/*.joblib ← scripts/preprocess.py + train.py ← data/eegmat/
 
 ### 4.2 上下文管理
 
-- 长期上下文：`README.md`（能力与启动）、`docs/ARCHITECTURE.md`（结构）、`docs/tech-stack.md`（选型）、`docs/xmuse-hardware-integration.md`（硬件证据）
+- 长期上下文：`README.md`（能力与启动）、`docs/ARCHITECTURE.md`（结构）、`docs/tech-stack.md`（选型）、`docs/DEV-REPORT-v1.8.3.md`（难度）、`docs/xmuse-hardware-integration.md`（硬件证据）
 - 会话内上下文：先定位模块，再读该模块与相邻测试/文档；避免整库通读
 - 交付前：用 `CHANGELOG` 对照实际改动，防止"文档写了、代码没做"
 

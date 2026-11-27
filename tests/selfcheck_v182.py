@@ -67,7 +67,7 @@ class FakeHardware:
 
 def main():
     m = StorageManager(DATA)
-    check("Schema v2", m.status()["schema_version"] == 2, str(m.status()))
+    check("Schema v2+", m.status()["schema_version"] >= 2, str(m.status()))
     check("配置集中且默认 30/30/P15/P85",
           ce.CONFIG["natural_sec"] == 30 and ce.CONFIG["tutorial_sec"] == 30
           and ce.CONFIG["p_low"] == .15 and ce.CONFIG["p_high"] == .85)
@@ -278,7 +278,7 @@ def main():
                     conn.execute(f"ALTER TABLE {table} DROP COLUMN {col}")
         conn.execute("DELETE FROM schema_version WHERE version = 2")
     migrated = StorageManager(legacy_dir)
-    check("v1.8.1 数据库原地迁移到 v2", migrated.status()["schema_version"] == 2)
+    check("v1.8.1 数据库原地迁移到 v2+", migrated.status()["schema_version"] >= 2)
     check("迁移保留旧用户与钱包",
           migrated.get_user(u1["user_id"]) is not None
           and migrated.wallet(u1["user_id"])["points"] >= 0)

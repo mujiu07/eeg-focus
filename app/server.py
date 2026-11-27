@@ -36,6 +36,7 @@ from . import monitor as monitor_data
 from .heart import heart
 from .accounts import router as accounts_router
 from .storage import StorageError, storage
+from . import difficulty
 from . import calibration as calib_engine
 
 # 心率采集链路依赖 macOS 专属的 AirPods 心率进程（hrd），其他系统没有对应实现，
@@ -48,7 +49,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.2")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.3")
 
 # 已完成会话在内存中保留的宽限时间；报告/逐轮数据先写入 SQLite，
 # 到期后释放 EDF 原始数组和监测批次，历史报告仍可从数据库读取。
@@ -142,6 +143,7 @@ class Session:
         self.reference_baseline_id = config.get("reference_baseline_id") if isinstance(config, dict) else None
         self.calibration_snapshot = None
         self.reference_snapshot = None
+        self.difficulty_snapshot = difficulty.default_snapshot()
         self.reference_low = 0.35
         self.reference_high = 0.75
         # 模型只加载一次，每个会话独立维护平滑和回退状态。
@@ -197,6 +199,11 @@ class Session:
     def raw50(self):
         """50 分线对应的原始专注值，用于 focused 判定与报告基线。"""
         return round((self.score_low + self.score_high) / 2.0, 3)
+
+    def apply_difficulty(self, snapshot: Optional[dict]) -> None:
+        """锁定本局黄色区域范围；局内任何实时表现都不得改动它。"""
+        if snapshot:
+            self.difficulty_snapshot = dict(snapshot)
 
     def apply_calibration(self, cal: Optional[dict], reference: Optional[dict] = None) -> None:
         """固定本局使用的当日校准与长期参考快照。"""
@@ -381,6 +388,7 @@ class Session:
             "daily_score": score,
             "reference_score": self.score_reference(fused),
         }
+        batch["difficulty"] = self.difficulty_snapshot
         if self.source.name == "replay":
             batch["replay"] = {
                 "window": (meta or {}).get("window"),
@@ -402,7 +410,8 @@ class Session:
         self._frame_ready = asyncio.Event()
         ready.set()
 
-    async def finish(self, score=None, played_sec=None, notes=None, actions=None, demo=False):
+    async def finish(self, score=None, played_sec=None, notes=None, actions=None, demo=False,
+                     planned_sec=None):
         if self.finished:
             return self
         self.finished = True
@@ -443,6 +452,8 @@ class Session:
             "notes": notes,
             "actions": actions,
             "demo": demo,
+            "purpose": self.purpose,
+            "planned_sec": planned_sec,
             "source": self.source.describe(),
             # 去噪/去伪迹的会话级汇总：有效窗占比、眨眼帧占比、参数快照。
             # replay/manual/heart 源没有清洗器，写 None，前端按「未启用」处理。
@@ -456,6 +467,8 @@ class Session:
             "n_frames": len(self.history),
             "n_valid_frames": len(valid),
             "n_invalid_frames": n_invalid,
+            "valid_signal_ratio": (round(len(valid) / len(self.history), 4)
+                                   if self.history else None),
             "focus_mean": round(float(np_mean(focuses)), 3) if focuses else None,
             "focus_max": round(float(max(focuses)), 3) if focuses else None,
             "focus_min": round(float(min(focuses)), 3) if focuses else None,
@@ -475,6 +488,7 @@ class Session:
             "reference_baseline_id": self.reference_baseline_id,
             "calibration_snapshot": self.calibration_snapshot,
             "reference_snapshot": self.reference_snapshot,
+            "difficulty_snapshot": self.difficulty_snapshot,
             "heart": hr_summary,
             "hr_curve": heart.curves(self._mono0),
             "curve": [{"t": e["t"], "focus": e["focus"], "raw": e["raw"],
@@ -525,6 +539,7 @@ class Session:
             "reference_baseline_id": self.reference_baseline_id,
             "calibration_snapshot": self.calibration_snapshot,
             "reference_snapshot": self.reference_snapshot,
+            "difficulty": self.difficulty_snapshot,
             "finished": self.finished,
             "monitor_available": self.source.name in ("hardware", "replay"),
         }
@@ -594,6 +609,9 @@ class RoundRecord(BaseModel):
     """单轮研究数据：只做记录，不参与临床判断。"""
     round: Optional[NonNegativeInt] = None
     charge_sec: Optional[float] = Field(default=None, ge=0)
+    eval_sec: Optional[float] = Field(default=None, ge=0)
+    difficulty_factor: Optional[float] = Field(default=None, ge=0.6, le=1.2)
+    zone_width: Optional[float] = Field(default=None, ge=0, le=100)
     zone_lo: Optional[float] = Field(default=None, ge=0, le=100)
     zone_hi: Optional[float] = Field(default=None, ge=0, le=100)
     t_ref: Optional[float] = Field(default=None, ge=0)
@@ -611,6 +629,24 @@ class RoundRecord(BaseModel):
     early_taps: Optional[NonNegativeInt] = None
     cooldown_count: Optional[NonNegativeInt] = None
     cooldown_sec: Optional[float] = Field(default=None, ge=0)
+    energy_gain: Optional[float] = Field(default=None, ge=0)
+
+
+class IncompleteRound(BaseModel):
+    """本局结束时尚未完成的一轮；只作为观察下限，不伪装成完整蓄力。"""
+    round: Optional[NonNegativeInt] = None
+    phase: Optional[str] = None
+    entered: Optional[bool] = None
+    charge_sec: Optional[float] = Field(default=None, ge=0)
+    eval_sec: Optional[float] = Field(default=None, ge=0)
+    zone_lo: Optional[float] = Field(default=None, ge=0, le=100)
+    zone_hi: Optional[float] = Field(default=None, ge=0, le=100)
+    energy: Optional[float] = Field(default=None, ge=0, le=100)
+    start_energy: Optional[float] = Field(default=None, ge=0, le=100)
+    energy_gain: Optional[float] = Field(default=None, ge=0)
+    potential: Optional[NonNegativeInt] = None
+    cooldown_sec: Optional[float] = Field(default=None, ge=0)
+    ended_reason: Optional[str] = None
 
 
 class GameActions(BaseModel):
@@ -626,6 +662,7 @@ class GameActions(BaseModel):
     cooldown_count: Optional[NonNegativeInt] = None
     cooldown_sec: Optional[float] = Field(default=None, ge=0)
     rounds: Optional[list[RoundRecord]] = Field(default=None, max_length=2000)
+    incomplete_round: Optional[IncompleteRound] = None
     jumps: Optional[list[JumpEvent]] = Field(default=None, max_length=3600)
 
 
@@ -634,6 +671,7 @@ class SessionFinish(BaseModel):
     demo: bool = False
     score: Optional[int] = None
     played_sec: Optional[float] = None
+    planned_sec: Optional[float] = None
     notes: Optional[str] = None
 
 
@@ -817,10 +855,10 @@ async def create_session(body: SessionCreate):
     # v1.8.2：真实 EEG 正式游戏必须拥有当天有效校准。校准会话本身不拦截；
     # 测试/回放/手动/仅心率也不被这条规则误伤。
     daily = None
+    dev_key = body.device_key or calib_engine.device_key(body.mode, {
+        "osc_ports": body.osc_ports, "osc_fs": body.osc_fs, "osc_channels": body.osc_channels,
+    })
     if user_id and purpose == "game" and body.mode == "hardware":
-        dev_key = body.device_key or calib_engine.device_key(body.mode, {
-            "osc_ports": body.osc_ports, "osc_fs": body.osc_fs, "osc_channels": body.osc_channels,
-        })
         daily = storage.calibration_status(user_id, mode=body.mode, device=dev_key,
                                             tz_offset_min=body.timezone_offset_min)
         if not daily.get("valid"):
@@ -839,7 +877,7 @@ async def create_session(body: SessionCreate):
         "user_id": user_id,
         "calibration_id": calibration_id,
         "purpose": purpose,
-        "device_key": body.device_key,
+        "device_key": dev_key,
         "timezone_offset_min": body.timezone_offset_min,
     }
     # 心率源：会话请求里声明了就自动接入；同一模式已在运行则复用，保留已采集样本。
@@ -872,6 +910,14 @@ async def create_session(body: SessionCreate):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, f"信号源创建失败: {e}")
     s = Session(source, config)
+    # v1.8.3：真实硬件正式游戏在创建时锁定难度；测试/回放/手动仍用 1.00，
+    # 并且结算时不会写入真实儿童难度档案。
+    if user_id and purpose == "game" and body.mode == "hardware":
+        try:
+            s.apply_difficulty(storage.begin_difficulty_session(
+                user_id, calibration_id=calibration_id, device_key=dev_key))
+        except StorageError as exc:
+            raise HTTPException(500, f"读取难度档案失败：{exc}")
     # 游戏会话使用服务端当日校准记录，而不是信任前端缓存里的旧区间。
     if user_id and purpose == "game":
         try:
@@ -909,7 +955,8 @@ async def create_session(body: SessionCreate):
     except Exception as e:  # noqa: BLE001 - 端口占用/依赖缺失时给出可读错误
         _sessions.pop(s.id, None)
         raise HTTPException(400, f"信号源启动失败: {e}")
-    return {"session_id": s.id, "source": source.describe()}
+    return {"session_id": s.id, "source": source.describe(),
+            "difficulty": s.difficulty_snapshot}
 
 
 @app.post("/api/session/{sid}/manual")
@@ -1185,7 +1232,8 @@ async def stream(sid: str, request: Request):
                                                       "baseline": s.baseline,
                                                       "purpose": s.purpose,
                                                       "calibration_id": s.calibration_id,
-                                                      "reference_baseline_id": s.reference_baseline_id})}
+                                                      "reference_baseline_id": s.reference_baseline_id,
+                                                      "difficulty": s.difficulty_snapshot})}
         last_frame = None
         while not s.finished:
             entry = s._latest_frame
@@ -1211,6 +1259,7 @@ async def stream(sid: str, request: Request):
             payload["calibration_status"] = (s.calibration_snapshot or {}).get("status") or "legacy"
             payload["reference_baseline_id"] = s.reference_baseline_id
             payload["reference_version"] = (s.reference_snapshot or {}).get("version")
+            payload["difficulty"] = s.difficulty_snapshot
             yield {"event": "frame", "data": json.dumps(payload)}
         yield {"event": "end", "data": json.dumps({"session_id": s.id})}
 
@@ -1284,22 +1333,26 @@ async def finish_session(sid: str, body: SessionFinish,
     s = _session_for(sid, x_user_id)
     await s.finish(
         score=body.score, played_sec=body.played_sec, notes=body.notes,
-        actions=body.actions.model_dump(exclude_none=True) if body.actions else None, demo=body.demo,
+        actions=body.actions.model_dump(exclude_none=True) if body.actions else None,
+        demo=body.demo, planned_sec=body.planned_sec,
     )
     wallet = None
     earned = 0
+    difficulty_result = {"applied": False, "reason": "no_user"}
     try:
         saved = storage.persist_session(
             s.stats, user_id=s.user_id, calibration_id=s.calibration_id,
         )
         wallet, earned = saved.get("wallet"), saved.get("earned_points", 0)
+        # 只有报告成功落库后才评估下一局；record_difficulty 以 session_id 幂等。
+        difficulty_result = storage.record_difficulty(s.stats, s.user_id)
     except StorageError as exc:
         # 游戏结果已经生成；明确报错，不静默假装已经结算。
         raise HTTPException(500, f"本局记录保存失败：{exc}")
     # 兼容旧版本的 outputs/sessions 仅供本地旧报告迁移读取；新报告以 SQLite 为主。
     # 不再重复写入仓库目录，避免个人数据出现在源码工作区。
     return {"ok": True, "report": s.stats, "wallet": wallet, "earned_points": earned,
-            "user_id": s.user_id}
+            "user_id": s.user_id, "difficulty": difficulty_result}
 
 
 @app.get("/api/report/{sid}")

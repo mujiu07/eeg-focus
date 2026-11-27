@@ -91,7 +91,7 @@ check("报告与导出区分脑电基础分、实际分和冷却数据", () => {
 });
 
 check("后端版本与逐轮字段已同步", () => {
-  assert.ok(serverPy.includes('version="1.8.2"'));
+  assert.ok(serverPy.includes('version="1.8.3"'));
   assert.ok(serverPy.includes("multiplier: Optional[float]"));
   assert.ok(serverPy.includes("cooldown_count: Optional[NonNegativeInt]"));
   assert.ok(serverPy.includes("cooldown_sec: Optional[float]"));
@@ -168,6 +168,24 @@ check("用户归属、结算幂等与 Session TTL 留在后端", () => {
   assert.ok(storagePy.includes("session:{session_id}"));
   assert.ok(storagePy.includes("load_report"));
   assert.ok(!serverPy.includes("SESSIONS_DIR, f\"{s.id}.json\", \"w\""));
+});
+
+check("v1.8.3 自适应难度只进入开发者端", () => {
+  const dev = read("web/dev.html");
+  assert.ok(dev.includes("个体自适应难度"));
+  assert.ok(dev.includes("/difficulty"));
+  assert.ok(dev.includes("锁定当前难度"));
+  assert.ok(dev.includes("恢复标准 1.00"));
+  assert.ok(game.includes("applyDifficulty(res.difficulty)"));
+  assert.ok(game.includes("incomplete_round"));
+  assert.ok(engine.includes("evalSec"));
+  assert.ok(engine.includes("pendingRound"));
+  assert.ok(serverPy.includes("difficulty_snapshot"));
+  assert.ok(serverPy.includes("record_difficulty"));
+  assert.ok(storagePy.includes("difficulty_profiles"));
+  assert.ok(accountsPy.includes("/profiles/{user_id}/difficulty"));
+  const childText = game.replace(/<script[\s\S]*?<\/script>/g, "");
+  assert.ok(!childText.includes("自动难度") && !childText.includes("难度系数"));
 });
 
 check("v1.8.2 每日校准与双基线入口", () => {

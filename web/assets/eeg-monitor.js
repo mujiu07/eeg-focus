@@ -1,5 +1,5 @@
 /* ============================================================
-   专注小蛙 v1.7 · 开发者实时脑电监测
+   专注小蛙 v1.8.3 · 开发者实时脑电监测
    ------------------------------------------------------------
    只消费后端已经计算完成的原始/处理后窗口、频段特征、算法中间结果
    与游戏 SSE；不生成随机曲线，不用分数反推波形。
@@ -832,6 +832,12 @@
         ? `${cal.reference_baseline_id} · ${cal.reference_version || "?"}` : "N/A");
       add("参考映射 S_reference", num(cal.reference_score, 1) + " / 100",
         false, "仅后台趋势记录，不参与蓄力/得分/商城");
+      const diff = b?.difficulty || {};
+      add("自动难度系数", diff.factor != null ? num(diff.factor, 3) : "—",
+        true, "只影响黄色区域起点随机范围");
+      add("黄色区域起点", diff.zone_low_min != null && diff.zone_low_max != null
+        ? `${num(diff.zone_low_min, 1)} – ${num(diff.zone_low_max, 1)}%` : "—");
+      add("难度策略版本", diff.strategy_version || "—");
       add("有效采集", cal.effective_sec != null ? `${num(cal.effective_sec, 1)}s` : "N/A");
       add("平滑系数 α", num(a.ema_alpha, 2));
       add("个人校准区间", a.score_range ? `${a.score_range.low.toFixed(3)} – ${a.score_range.high.toFixed(3)}` : "N/A");
@@ -879,6 +885,8 @@
         ["脑电驱动分数", stale ? "—" : num(s.norm, 1)],
         ["当前蓄力速度", chargeSpeed == null ? "—" : `${chargeSpeed.toFixed(2)} %/s`],
         ["当前蓄力进度", !stale && phase === "CHARGING" ? `${num(s.energy, 0)} %` : "—"],
+        ["黄色区域范围", cfg.zoneLoMin != null
+          ? `${num(cfg.zoneLoMin, 1)} – ${num(cfg.zoneLoMax, 1)}%` : "—"],
         ["游戏阶段", phase],
         ["冷却剩余", phase === "CHARGING" && s.cooldownRemaining > 0 ? `${num(s.cooldownRemaining, 2)} s` : "—"],
         ["子弹时间剩余", bulletLeft == null ? "—" : `${num(bulletLeft, 2)} s`],

@@ -1,0 +1,1739 @@
+{
+  "config": {
+    "default_factor": 1.0,
+    "min_factor": 0.6,
+    "max_factor": 1.2,
+    "down_multiplier": 0.9,
+    "up_multiplier": 1.1,
+    "zone_base_min": 24.0,
+    "zone_base_max": 55.0,
+    "zone_width": 6.0,
+    "zone_hi_max": 92.0,
+    "start_energy": 15.0,
+    "min_zone_distance": 2.0,
+    "suitable_min_sec": 4.0,
+    "suitable_max_sec": 12.0,
+    "long_wait_sec": 12.0,
+    "down_streak": 2,
+    "up_streak": 3,
+    "up_click_rate": 0.85,
+    "behavior_click_rate": 0.85,
+    "min_signal_ratio": 0.7,
+    "min_planned_sec": 60.0,
+    "min_active_sec": 45.0,
+    "min_up_rounds": 3,
+    "behavior_cooldown_ratio": 0.15,
+    "strategy_version": "adaptive_v1",
+    "params_version": "v1.8.3"
+  },
+  "profiles": {
+    "slow": {
+      "label": "稳定低速蓄力",
+      "fixed": {
+        "games": 10,
+        "entered": 2,
+        "success": 2,
+        "click_rate": 1.0,
+        "median_net_charge_sec": 44.162,
+        "avg_single_score": 26.0,
+        "total_game_score": 52,
+        "mall_points": 2,
+        "decision_counts": {
+          "TOO_HARD": 10,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive": {
+        "games": 10,
+        "entered": 8,
+        "success": 7,
+        "click_rate": 0.875,
+        "median_net_charge_sec": 29.292,
+        "avg_single_score": 22.75,
+        "total_game_score": 182,
+        "mall_points": 7,
+        "decision_counts": {
+          "TOO_HARD": 10,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive_final_factor": 0.6,
+      "fixed_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 57.95,
+          "entered": 1,
+          "success": 1,
+          "score": 26,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 30.38,
+          "entered": 1,
+          "success": 1,
+          "score": 26,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        }
+      ],
+      "adaptive_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 56.84,
+          "entered": 1,
+          "success": 1,
+          "score": 26,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.9
+        },
+        {
+          "factor": 0.9,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.9
+        },
+        {
+          "factor": 0.9,
+          "median_net_charge_sec": 30.22,
+          "entered": 1,
+          "success": 1,
+          "score": 26,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.81
+        },
+        {
+          "factor": 0.81,
+          "median_net_charge_sec": 26.4,
+          "entered": 2,
+          "success": 2,
+          "score": 52,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.81
+        },
+        {
+          "factor": 0.81,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.729
+        },
+        {
+          "factor": 0.729,
+          "median_net_charge_sec": 26.31,
+          "entered": 2,
+          "success": 2,
+          "score": 52,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.729
+        },
+        {
+          "factor": 0.729,
+          "median_net_charge_sec": 22.98,
+          "entered": 2,
+          "success": 1,
+          "score": 26,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.656
+        },
+        {
+          "factor": 0.656,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.656
+        },
+        {
+          "factor": 0.656,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.6
+        }
+      ]
+    },
+    "fast": {
+      "label": "稳定高效蓄力",
+      "fixed": {
+        "games": 10,
+        "entered": 169,
+        "success": 165,
+        "click_rate": 0.9763,
+        "median_net_charge_sec": 2.713,
+        "avg_single_score": 75.18,
+        "total_game_score": 12705,
+        "mall_points": 330,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 0,
+          "TOO_EASY": 10,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive": {
+        "games": 10,
+        "entered": 152,
+        "success": 144,
+        "click_rate": 0.9474,
+        "median_net_charge_sec": 3.013,
+        "avg_single_score": 72.95,
+        "total_game_score": 11088,
+        "mall_points": 288,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 1,
+          "TOO_EASY": 9,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive_final_factor": 1.2,
+      "fixed_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.75,
+          "entered": 17,
+          "success": 17,
+          "score": 1309,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.33,
+          "entered": 18,
+          "success": 18,
+          "score": 1386,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.61,
+          "entered": 18,
+          "success": 17,
+          "score": 1309,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.62,
+          "entered": 14,
+          "success": 13,
+          "score": 1001,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.65,
+          "entered": 16,
+          "success": 16,
+          "score": 1232,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.32,
+          "entered": 16,
+          "success": 15,
+          "score": 1155,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.06,
+          "entered": 17,
+          "success": 17,
+          "score": 1309,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.45,
+          "entered": 18,
+          "success": 18,
+          "score": 1386,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.62,
+          "entered": 17,
+          "success": 16,
+          "score": 1232,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.31,
+          "entered": 18,
+          "success": 18,
+          "score": 1386,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        }
+      ],
+      "adaptive_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.88,
+          "entered": 17,
+          "success": 17,
+          "score": 1309,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.11,
+          "entered": 19,
+          "success": 17,
+          "score": 1309,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.37,
+          "entered": 19,
+          "success": 18,
+          "score": 1386,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.1
+        },
+        {
+          "factor": 1.1,
+          "median_net_charge_sec": 3.13,
+          "entered": 15,
+          "success": 15,
+          "score": 1155,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.1
+        },
+        {
+          "factor": 1.1,
+          "median_net_charge_sec": 2.79,
+          "entered": 15,
+          "success": 15,
+          "score": 1155,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.1
+        },
+        {
+          "factor": 1.1,
+          "median_net_charge_sec": 3.14,
+          "entered": 15,
+          "success": 13,
+          "score": 1001,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.2
+        },
+        {
+          "factor": 1.2,
+          "median_net_charge_sec": 3.4,
+          "entered": 14,
+          "success": 12,
+          "score": 924,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.2
+        },
+        {
+          "factor": 1.2,
+          "median_net_charge_sec": 4.72,
+          "entered": 12,
+          "success": 12,
+          "score": 924,
+          "incomplete": true,
+          "decision": "SUITABLE",
+          "next_factor": 1.2
+        },
+        {
+          "factor": 1.2,
+          "median_net_charge_sec": 3.33,
+          "entered": 13,
+          "success": 12,
+          "score": 924,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.2
+        },
+        {
+          "factor": 1.2,
+          "median_net_charge_sec": 3.34,
+          "entered": 13,
+          "success": 13,
+          "score": 1001,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.2
+        }
+      ]
+    },
+    "click": {
+      "label": "蓄力正常、点击较低",
+      "fixed": {
+        "games": 10,
+        "entered": 125,
+        "success": 56,
+        "click_rate": 0.448,
+        "median_net_charge_sec": 3.575,
+        "avg_single_score": 31.36,
+        "total_game_score": 3920,
+        "mall_points": 112,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 10
+        }
+      },
+      "adaptive": {
+        "games": 10,
+        "entered": 123,
+        "success": 42,
+        "click_rate": 0.3415,
+        "median_net_charge_sec": 3.858,
+        "avg_single_score": 23.9,
+        "total_game_score": 2940,
+        "mall_points": 84,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 10
+        }
+      },
+      "adaptive_final_factor": 1.0,
+      "fixed_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.39,
+          "entered": 13,
+          "success": 6,
+          "score": 420,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.53,
+          "entered": 12,
+          "success": 6,
+          "score": 420,
+          "incomplete": false,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.95,
+          "entered": 12,
+          "success": 4,
+          "score": 280,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.57,
+          "entered": 13,
+          "success": 7,
+          "score": 490,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.76,
+          "entered": 13,
+          "success": 9,
+          "score": 630,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 5.47,
+          "entered": 10,
+          "success": 3,
+          "score": 210,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.95,
+          "entered": 14,
+          "success": 8,
+          "score": 560,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.67,
+          "entered": 11,
+          "success": 4,
+          "score": 280,
+          "incomplete": false,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.79,
+          "entered": 15,
+          "success": 5,
+          "score": 350,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.84,
+          "entered": 12,
+          "success": 4,
+          "score": 280,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        }
+      ],
+      "adaptive_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.62,
+          "entered": 12,
+          "success": 8,
+          "score": 560,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.73,
+          "entered": 12,
+          "success": 3,
+          "score": 210,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.89,
+          "entered": 13,
+          "success": 5,
+          "score": 350,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.0,
+          "entered": 12,
+          "success": 3,
+          "score": 210,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.22,
+          "entered": 12,
+          "success": 5,
+          "score": 350,
+          "incomplete": false,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.23,
+          "entered": 14,
+          "success": 4,
+          "score": 280,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.23,
+          "entered": 13,
+          "success": 5,
+          "score": 350,
+          "incomplete": false,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.67,
+          "entered": 12,
+          "success": 3,
+          "score": 210,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.67,
+          "entered": 11,
+          "success": 3,
+          "score": 210,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.55,
+          "entered": 12,
+          "success": 3,
+          "score": 210,
+          "incomplete": false,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        }
+      ]
+    },
+    "spam": {
+      "label": "高频提前点击",
+      "fixed": {
+        "games": 10,
+        "entered": 127,
+        "success": 115,
+        "click_rate": 0.9055,
+        "median_net_charge_sec": 3.657,
+        "avg_single_score": 63.39,
+        "total_game_score": 8050,
+        "mall_points": 230,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 2,
+          "TOO_EASY": 6,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 2
+        }
+      },
+      "adaptive": {
+        "games": 10,
+        "entered": 123,
+        "success": 112,
+        "click_rate": 0.9106,
+        "median_net_charge_sec": 3.843,
+        "avg_single_score": 63.74,
+        "total_game_score": 7840,
+        "mall_points": 224,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 4,
+          "TOO_EASY": 3,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 3
+        }
+      },
+      "adaptive_final_factor": 1.0,
+      "fixed_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.3,
+          "entered": 12,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SUITABLE",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.12,
+          "entered": 13,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.87,
+          "entered": 12,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.21,
+          "entered": 15,
+          "success": 13,
+          "score": 910,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 5.75,
+          "entered": 10,
+          "success": 10,
+          "score": 700,
+          "incomplete": true,
+          "decision": "SUITABLE",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.23,
+          "entered": 13,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.94,
+          "entered": 13,
+          "success": 11,
+          "score": 770,
+          "incomplete": false,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.98,
+          "entered": 11,
+          "success": 9,
+          "score": 630,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.67,
+          "entered": 14,
+          "success": 12,
+          "score": 840,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.06,
+          "entered": 14,
+          "success": 13,
+          "score": 910,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        }
+      ],
+      "adaptive_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.31,
+          "entered": 14,
+          "success": 14,
+          "score": 980,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.03,
+          "entered": 11,
+          "success": 10,
+          "score": 700,
+          "incomplete": true,
+          "decision": "SUITABLE",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.44,
+          "entered": 13,
+          "success": 12,
+          "score": 840,
+          "incomplete": false,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.46,
+          "entered": 11,
+          "success": 11,
+          "score": 770,
+          "incomplete": false,
+          "decision": "SUITABLE",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.37,
+          "entered": 11,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SUITABLE",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.77,
+          "entered": 14,
+          "success": 11,
+          "score": 770,
+          "incomplete": false,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.2,
+          "entered": 13,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.01,
+          "entered": 13,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "BEHAVIOR_BOTTLENECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.75,
+          "entered": 11,
+          "success": 10,
+          "score": 700,
+          "incomplete": true,
+          "decision": "SUITABLE",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.61,
+          "entered": 12,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "TOO_EASY",
+          "next_factor": 1.0
+        }
+      ]
+    },
+    "longwait": {
+      "label": "长时间无法进入区域",
+      "fixed": {
+        "games": 10,
+        "entered": 0,
+        "success": 0,
+        "click_rate": null,
+        "median_net_charge_sec": null,
+        "avg_single_score": null,
+        "total_game_score": 0,
+        "mall_points": 0,
+        "decision_counts": {
+          "TOO_HARD": 10,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive": {
+        "games": 10,
+        "entered": 4,
+        "success": 3,
+        "click_rate": 0.75,
+        "median_net_charge_sec": 40.821,
+        "avg_single_score": 17.25,
+        "total_game_score": 69,
+        "mall_points": 3,
+        "decision_counts": {
+          "TOO_HARD": 10,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 0,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive_final_factor": 0.6,
+      "fixed_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        }
+      ],
+      "adaptive_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.9
+        },
+        {
+          "factor": 0.9,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.9
+        },
+        {
+          "factor": 0.9,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.81
+        },
+        {
+          "factor": 0.81,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.81
+        },
+        {
+          "factor": 0.81,
+          "median_net_charge_sec": 55.49,
+          "entered": 1,
+          "success": 1,
+          "score": 23,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.729
+        },
+        {
+          "factor": 0.729,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.729
+        },
+        {
+          "factor": 0.729,
+          "median_net_charge_sec": 16.98,
+          "entered": 1,
+          "success": 1,
+          "score": 23,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.656
+        },
+        {
+          "factor": 0.656,
+          "median_net_charge_sec": 26.54,
+          "entered": 1,
+          "success": 1,
+          "score": 23,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.656
+        },
+        {
+          "factor": 0.656,
+          "median_net_charge_sec": 55.11,
+          "entered": 1,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "TOO_HARD",
+          "next_factor": 0.6
+        }
+      ]
+    },
+    "noenergy": {
+      "label": "没有有效蓄力",
+      "fixed": {
+        "games": 10,
+        "entered": 0,
+        "success": 0,
+        "click_rate": null,
+        "median_net_charge_sec": null,
+        "avg_single_score": null,
+        "total_game_score": 0,
+        "mall_points": 0,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 10,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive": {
+        "games": 10,
+        "entered": 0,
+        "success": 0,
+        "click_rate": null,
+        "median_net_charge_sec": null,
+        "avg_single_score": null,
+        "total_game_score": 0,
+        "mall_points": 0,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 10,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive_final_factor": 1.0,
+      "fixed_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        }
+      ],
+      "adaptive_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": null,
+          "entered": 0,
+          "success": 0,
+          "score": 0,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        }
+      ]
+    },
+    "noisy": {
+      "label": "设备频繁断流",
+      "fixed": {
+        "games": 10,
+        "entered": 121,
+        "success": 116,
+        "click_rate": 0.9587,
+        "median_net_charge_sec": 3.963,
+        "avg_single_score": 67.11,
+        "total_game_score": 8120,
+        "mall_points": 232,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 10,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive": {
+        "games": 10,
+        "entered": 119,
+        "success": 113,
+        "click_rate": 0.9496,
+        "median_net_charge_sec": 3.989,
+        "avg_single_score": 66.47,
+        "total_game_score": 7910,
+        "mall_points": 226,
+        "decision_counts": {
+          "TOO_HARD": 0,
+          "SUITABLE": 0,
+          "TOO_EASY": 0,
+          "INSUFFICIENT_DATA": 0,
+          "SIGNAL_OR_CALIBRATION_CHECK": 10,
+          "BEHAVIOR_BOTTLENECK": 0
+        }
+      },
+      "adaptive_final_factor": 1.0,
+      "fixed_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.44,
+          "entered": 13,
+          "success": 13,
+          "score": 910,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.29,
+          "entered": 11,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.85,
+          "entered": 12,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.53,
+          "entered": 11,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.72,
+          "entered": 11,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.5,
+          "entered": 13,
+          "success": 13,
+          "score": 910,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 5.29,
+          "entered": 10,
+          "success": 9,
+          "score": 630,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 2.93,
+          "entered": 14,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.77,
+          "entered": 13,
+          "success": 13,
+          "score": 910,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.27,
+          "entered": 13,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        }
+      ],
+      "adaptive_series": [
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 5.1,
+          "entered": 10,
+          "success": 10,
+          "score": 700,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.83,
+          "entered": 11,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.84,
+          "entered": 12,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.76,
+          "entered": 11,
+          "success": 9,
+          "score": 630,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.65,
+          "entered": 13,
+          "success": 12,
+          "score": 840,
+          "incomplete": false,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.82,
+          "entered": 12,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.17,
+          "entered": 13,
+          "success": 13,
+          "score": 910,
+          "incomplete": false,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.38,
+          "entered": 12,
+          "success": 11,
+          "score": 770,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 4.3,
+          "entered": 12,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        },
+        {
+          "factor": 1.0,
+          "median_net_charge_sec": 3.56,
+          "entered": 13,
+          "success": 12,
+          "score": 840,
+          "incomplete": true,
+          "decision": "SIGNAL_OR_CALIBRATION_CHECK",
+          "next_factor": 1.0
+        }
+      ]
+    }
+  }
+}

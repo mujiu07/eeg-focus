@@ -1,7 +1,7 @@
 # 技术设计：专注判定、蓄力与单轮计分
 
 > 面向本仓库维护者的判定链路说明。系统结构、选型、数据模型与完整实测记录见工作区 `docs/Tech Design.md`；本文只收录“专注 → 分数 → 蓄力 → 子弹时间 → 跳跃 → 计分”这条链路上容易被误读、且改动风险最高的部分。
-> 最后更新：2026-11-27（v1.8.2）
+> 最后更新：2026-11-27（v1.8.3）
 
 ## 1. 判定链路
 
@@ -40,6 +40,8 @@
 | 实际积分 | `S = round(B × M(t))` | `focus-round.js` | 点击时机决定最终兑现 |
 | 积分折算 `pointsDivisor` | 30 | `focus-round.js` | 商城积分 = `max(1, floor(本局积分/30))`（有得分时） |
 | 断流判定 | 3 s 无有效帧 | `web/game.html` | 冻结蓄力、衰减、冷却、单轮计时与子弹时间 |
+| 难度系数 | 0.60–1.20，默认 1.00 | `app/difficulty.py` | 只缩放黄色区域起点；Session 创建时锁定 |
+| 净蓄力评估 `eval_sec` | 排除冷却/断流/暂停/子弹/跳跃 | `focus-round.js` | 仅用于局间难度判定，不替换计分 `T` |
 
 所有可调参数集中在 `web/assets/focus-round.js` 的 `CONFIG`，真机测试只需改这一处；`web/game.html` 不重复写数值。`validateConfig()` 负责合法性检查（例如满分宽容期必须短于子弹时间），`normalizeConfig()` 把非法值收敛到安全范围。
 
@@ -73,14 +75,15 @@
 - **衰减**：连续低于条件达到 1.5 s 后，以 `V_ref×0.30 = 1.104 %/s` 缓慢下降；重新达标立即停止衰减并恢复蓄力。能量最低到 0，不产生负值，也不清空历史积分。
 - **进入金色区域后**：`phase = BULLET_TIME`，不再执行任何蓄力或衰减逻辑，能量只按固定子弹速度前进。
 - **无效点击冷却**：正常蓄力阶段点击时，触发 0.5 s 冷却；冷却期间暂停能量增长，但**不额外衰减**、不清空进度、不扣分、不跳跃。冷却时间计入本轮 `T`，因此提前点击会间接降低基础分。冷却中再次点击不叠加、不延长；冷却结束后的独立无效点击可重新触发。冷却期间能量不会进入金色区域。
-- **本轮计时 T**：从本轮开始累计，包含正常蓄力、低于阈值等待、宽容期、衰减、无效点击冷却；不包含信号异常、主动暂停、子弹时间、跳跃动画与视角平移。
+- **本轮计分 T**：从本轮开始累计，包含正常蓄力、低于阈值等待、宽容期、衰减、无效点击冷却；不包含信号异常、主动暂停、子弹时间、跳跃动画与视角平移。
+- **本轮净蓄力 `eval_sec`**：v1.8.3 为局间难度另算，排除无效点击冷却，但保留等待/宽容/衰减；两者不可互换。
 - **输入层防重复**：只认新的 `pointerdown`；键盘 `keydown` 忽略 `event.repeat`；长按不会自动起跳。动画、暂停、结算期间的点击直接忽略，不触发奖励或惩罚。
 
 ## 4. 金色区域、子弹时间与计分
 
 ### 4.1 每轮唯一区域
 
-每轮开始时用 `zoneLoMin..zoneLoMax` 随机一次起点，宽度固定 6%，本轮内**不再重掷**。错过窗口后不会在蓄力条后方生成第二个区域，也不会继续等待蓄满；下一轮 `RESET` 时才重新随机。首轮使用 22–34% 的更早区间，减少开局干等。
+每轮开始时用 `zoneLoMin..zoneLoMax` 随机一次起点，宽度固定 6%，本轮内**不再重掷**。错过窗口后不会在蓄力条后方生成第二个区域，也不会继续等待蓄满；下一轮 `RESET` 时才重新随机。当前正式游戏构造未启用代码中的 first-round 分支，实际每轮使用服务端锁定的常规范围（默认 24–55%）；字段保留但不覆盖标准配置。
 
 ### 4.2 进入即锁定脑电基础分
 
@@ -311,3 +314,39 @@ python tests/selfcheck_denoise.py          # 去噪：既有回归
 - 每日校准不会改动已有 active 参考；`POST /reference-baselines` 显式版本化，旧记录 `superseded` 保留。
 - Schema v2 使用 `_ensure_columns()` + `ALTER TABLE ADD COLUMN` 原地补列；不重建 users/sessions/inventories。
 - 新增字段见报告 §7；迁移测试在 `tests/selfcheck_v182.py`。
+
+
+## 13. v1.8.3 自适应难度实现
+
+完整报告：`docs/DEV-REPORT-v1.8.3.md`。
+
+### 13.1 范围与 Session 锁定
+
+- 参数集中 `app/difficulty.py`；默认 1.00，范围 0.60–1.20；只缩放黄色区域起点。
+- `zone_low_min/max = 24/55 × factor`，宽度仍 6%，末端 ≤92%；系数 0.60 时名义 14.4% 低于起始能量 15%，实际下界抬至 17% 并保留 `nominal_zone_min` 审计。
+- `POST /api/session` 对真实硬件正式游戏读取 `difficulty_profiles`，返回 `difficulty` 快照；游戏页重新建立 `RoundEngine`。当前 Session 不再读取个人档变化。
+
+### 13.2 净蓄力与未完成轮次
+
+- `RoundEngine` 新增 `evalSec`：只在 CHARGING 有效帧累计，排除断流、暂停、子弹时间、跳跃动画和无效点击冷却；等待/宽容/衰减仍计入。
+- `chargeSec` 保持原计分口径（含冷却），不能把 `eval_sec` 替换进计分公式。
+- 结束时仍在 CHARGING/BULLET_TIME 时 `pendingRound("time_up")` 上报 `incomplete_round`；包含 `eval_sec`、能量增长、区域、是否进入和结束原因。未完成轮次不进入完整轮次中位数。
+
+### 13.3 局间判定
+
+- 服务端在报告成功保存后调用 `storage.record_difficulty()`；以 `difficulty_history.session_id` 唯一索引保证重复 finish 不重复调整。
+- 中位净值 >12s 连续 2 局 → ×0.90；<4s/点击≥85%/进入≥3 连续 3 局 → ×1.10；4–12s 保持。
+- 信号 <70%、活动 <45s、计划 <60s、无有效能量、点击/乱序瓶颈均不调整；`BEHAVIOR_BOTTLENECK` 不处理子弹时间/点击窗口。
+- 重新校准、换设备、改策略、手动改档清空连续计数但保留系数；自动关闭时仍写最近指标。
+
+### 13.4 Schema v3 与 API
+
+- 新增 `difficulty_profiles` 和扩展 `difficulty_history`；`SCHEMA_VERSION=3`，`_ensure_columns()` + `ALTER TABLE` 原地迁移。
+- `GET/POST /api/profiles/{id}/difficulty`；手动设置只对下一局生效，旧 Session 快照不变。
+- 真实硬件、`purpose=game`、非 demo 才写档案；replay/manual/heart/test 返回 source isolation，不写真实儿童档案。
+
+### 13.5 计分与经济边界
+
+- `B=round(20+80×T_ref/(T+T_ref))`、`S=round(B×M)` 未改；`D` 用实际区域距离。
+- 难度降低会增加可完成次数，累计积分/商城货币可能增加；不能把累计积分当脑电表现改善证据。
+- 固定种子模拟见 `scripts/simulate_v183.py` 和 `outputs/v1.8.3/simulation.json`。

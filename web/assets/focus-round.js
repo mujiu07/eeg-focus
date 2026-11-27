@@ -13,6 +13,8 @@
    - 子弹时间固定时长，前 0.6 s 满分，之后最多折损 10%；
    - 脑电基础得分在进入金色区域时锁定，之后不再重算；
    - 非金色区域的无效点击只触发短暂冷却，不扣分、不清空蓄力。
+   - v1.8.3 另记 eval_sec（排除冷却/断流/暂停/子弹/动画）与未完成轮次，
+     只供局间难度评估，不参与计分。
    ============================================================ */
 
 (function (root, factory) {
@@ -58,6 +60,9 @@
 
     // ---- 积分经济：游戏积分与商城货币分离 ----
     pointsDivisor: 30,            // 商城积分 = max(1, floor(本局累计积分 / 30))（有得分时）
+
+    // v1.8.3：服务端锁定后才会覆盖；仅作为快照/测试元数据，不参与其他规则。
+    difficultyFactor: 1.0,
   });
 
   function clamp(v, lo, hi) {
@@ -225,7 +230,8 @@
       this.zone = { lo: round3(lo), hi: round3(hi), width: round3(hi - lo) };
       this.startEnergy = c.startEnergy;
       this.energy = c.startEnergy;
-      this.chargeSec = 0;             // 本轮有效蓄力用时（含等待/宽容/衰减，不含异常与子弹时间）
+      this.chargeSec = 0;             // 计分用时：含等待/宽容/衰减/冷却，不含异常与子弹时间
+      this.evalSec = 0;               // v1.8.3 评估用时：排除冷却，仍含等待/宽容/衰减
       this.belowSec = 0;              // 连续低于阈值的时长
       this.decaying = false;
       this.decayEvents = 0;
@@ -290,6 +296,8 @@
           this.cooldownSec += cooled;
         }
         const activeStep = Math.max(0, step - cooled);
+        // 净蓄力评估时间不含无效点击冷却；断流/暂停已在上面提前返回。
+        this.evalSec += activeStep;
 
         if (input && input.charging) {
           this.belowSec = 0;
@@ -408,6 +416,10 @@
         record = {
           round: this.roundIndex,
           charge_sec: round3(this.chargeSec),
+          eval_sec: round3(this.evalSec),
+          difficulty_factor: round3(finite(this.config.difficultyFactor, 1.0)),
+          zone_width: round3(this.zone.width),
+          energy_gain: round3(Math.max(0, this.energy - this.startEnergy)),
           zone_lo: round3(this.zone.lo),
           zone_hi: round3(this.zone.hi),
           t_ref: round3(referenceTime(distance, c)),
@@ -432,6 +444,26 @@
       return record;
     }
 
+    /** 本局结束时仍在进行的一轮；只作为观察下限，不伪装成完整轮次。 */
+    pendingRound(reason = "time_up") {
+      if (this.phase !== "CHARGING" && this.phase !== "BULLET_TIME") return null;
+      return {
+        round: this.roundIndex,
+        phase: this.phase,
+        entered: this.phase === "BULLET_TIME" || this.potential != null,
+        charge_sec: round3(this.chargeSec),
+        eval_sec: round3(this.evalSec),
+        zone_lo: round3(this.zone.lo),
+        zone_hi: round3(this.zone.hi),
+        energy: round3(this.energy),
+        start_energy: round3(this.startEnergy),
+        energy_gain: round3(Math.max(0, this.energy - this.startEnergy)),
+        potential: this.potential,
+        cooldown_sec: round3(this.cooldownSec),
+        ended_reason: String(reason || "time_up"),
+      };
+    }
+
     /** 当前帧的只读快照，便于 HUD / 测试。 */
     snapshot() {
       return {
@@ -439,6 +471,7 @@
         energy: round3(this.energy),
         zone: Object.assign({}, this.zone),
         chargeSec: round3(this.chargeSec),
+        evalSec: round3(this.evalSec),
         belowSec: round3(this.belowSec),
         decaying: this.decaying,
         decayEvents: this.decayEvents,

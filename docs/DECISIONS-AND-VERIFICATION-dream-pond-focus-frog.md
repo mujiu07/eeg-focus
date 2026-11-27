@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 决策与验证记录
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 记录范围：`main` @ v1.8.2（2026-11-27）；历史记录自 v1.4.15 起
+> 记录范围：`main` @ v1.8.3（2026-11-27）；历史记录自 v1.4.15 起
 > 用途：把"为什么这样做"（ADR 摘要）与"怎么确认做到了"（验证流水）分开留痕，便于评审追溯与后续交接
 > 原则：**决策写代价，验证写方法；没做的写"未开始"，失败/不一致照实记录**
 
@@ -195,6 +195,20 @@
 - **证据**：`app/calibration.py`、`app/storage.py`、`app/server.py`、`web/calibrate.html`、`tests/selfcheck_v182.py`、`docs/DEV-REPORT-v1.8.2.md`。
 - **状态**：已采纳；模拟/开发模式验证，真机/儿童未验收。
 
+### D-024 个体自适应难度只调黄色区域起点（v1.8.3）
+
+- **背景**：部分儿童蓄力过慢、部分过快；需要个体适配，但不能把难度变化混入脑电分数或长期基线。
+- **决策**：
+  - 只调整黄色区域起点范围；默认 1.00，范围 0.60–1.20。
+  - 局内锁定，局间调整；不改实时表现、不改计分公式、不改区域宽度。
+  - 净蓄力 `eval_sec` 排除冷却/断流/暂停/子弹时间/跳跃动画；`charge_sec` 保持原计分口径。
+  - 未完成轮次单独记录；无有效蓄力先查信号/校准，不通过不断缩短区域制造反馈。
+  - 中位 >12s 连续 2 局降低 10%；<4s + 点击≥85% + ≥3 次完整进入连续 3 局提高 10%；4–12s 保持。
+  - 信号/活动不足、点击/乱点瓶颈不调整；真实硬件、非 demo、正式 game 才写档案。
+- **自主边界**：0.60 时名义 14.4% 低于起始能量 15%，实际下界抬至 17% 并保留名义值审计；这是保证区域完整/可蓄力的技术决策。
+- **证据**：`app/difficulty.py`、`app/storage.py`、`web/assets/focus-round.js`、`web/game.html`、`web/dev.html`、`tests/selfcheck_v183.py`、`tests/selfcheck_v183_round.js`。
+- **状态**：已采纳；工程模拟验证，真机/儿童未验收。
+
 ---
 
 ## 2. 验证记录（Verification Log）
@@ -227,6 +241,7 @@
 | V-021 | 2026-11-27 | 开发者监测链路 | `python tests/selfcheck_monitor.py`；EDF/合成 OSC Playwright；儿童模式网络监听 | 通过（无真机）：9 项数据一致性；EDF 21 ch 与合成 4 ch 三栏显示；儿童模式 `/monitor` 请求 0；原始/处理后、窗口、暂停、折叠通过 | `tests/selfcheck_monitor.py`；`docs/DEV-REPORT-v1.7.0.md` |
 | V-022 | 2026-11-27 | 本地存储/多档案/隔离 | 临时数据目录运行 `tests/selfcheck_v181.py`；静态检查；FastAPI API 跨用户请求；真实 macOS 路径 `/Users/fan/Documents/专注小蛙` 初始化 | 通过（33+13 项）：目录/重复启动/中文路径/档案 CRUD/校准追加/逐轮/幂等结算/跨用户报告与资产 403/重启持久化/备份恢复/迁移幂等/TTL 回收/报告保留/Git 忽略；Windows 未实机 | `tests/selfcheck_v181.py`；`tests/selfcheck_ui_static.js`；`docs/DEV-REPORT-v1.8.1.md` |
 | V-023 | 2026-11-27 | 每日校准/双基线/Session 锁定 | `tests/selfcheck_v182.py`（35 项）；临时 FastAPI；开发者手动模拟截图 | 通过（模拟）：30/30s、P15/P85、有效时长、窄区间、样本不足、日/设备/超时状态、v1/v2 参考、回放隔离、硬件 409、锁定量程、双映射、游戏内禁重校、Schema v1→v2；真机/儿童未验收 | `tests/selfcheck_v182.py`；`docs/DEV-REPORT-v1.8.2.md` |
+| V-024 | 2026-11-27 | 自适应难度/净蓄力/Schema v3 | `tests/selfcheck_v183.py`（52 项）、`tests/selfcheck_v183_round.js`（8 项）、临时 FastAPI、确定性 10 局模拟、开发者面板截图 | 通过（模拟）：范围/宽度/安全下界、冷却排除、未完成轮次、连续高低判定、点击/乱点/断流/无能量保护、手动/自动/恢复、重新校准重置、幂等、用户/来源隔离、重启与 API 快照；真机/儿童未验收 | `tests/selfcheck_v183.py`；`tests/selfcheck_v183_round.js`；`scripts/simulate_v183.py`；`docs/DEV-REPORT-v1.8.3.md` |
 
 ### 2.1 失败与不一致（保留，不掩盖）
 
@@ -262,4 +277,4 @@
 ---
 
 *创建：2026-11-17*
-*快照：`main` @ v1.8.2（2026-11-27，待提交）*
+*快照：`main` @ v1.8.3（2026-11-27，待提交）*

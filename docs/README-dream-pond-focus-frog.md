@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 文档索引
 
 > 游戏名：**专注小蛙 · 梦境池塘**（Dream Pond Focus Frog）
-> 代码基线：v1.4.16（2026-11-19；上一基线 v1.4.15 + `98b5b2a` 拖尾光效）
+> 代码基线：v1.8.3（2026-11-27；上一基线 v1.8.2/v1.8.1/v1.7.0）
 > 本目录：`docs/`
 > 说明：本文件是 `docs/` 的入口。仓库根目录另有项目总 README。
 
@@ -22,7 +22,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `PRD-brain-focusing-game-MVP.md` | 原始产品需求（目标用户、问题、P0、范围边界）+「实现现状对照（v1.4.15）」 |
+| `PRD-brain-focusing-game-MVP.md` | 原始产品需求（目标用户、问题、P0、范围边界）+「实现现状对照（v1.8.3）」 |
 | `PROJECT-DOC-dream-pond-focus-frog.md` | **项目主文档**：提案 + MVP PRD 摘要 + 技术设计 + AI 协作约定（四合一） |
 | `research-request-brain-focusing-game.md` | 研究请求（问题清单，非研究结论）+ 当前研究缺口 |
 

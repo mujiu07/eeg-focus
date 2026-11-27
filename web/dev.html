@@ -25,6 +25,11 @@
       font-size: 14px;
     }
     .session-line:last-child { border-bottom: none; }
+    .diff-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin:12px 0; }
+    .diff-stat { padding:10px 12px; border-radius:12px; background:rgba(58,167,160,.07); }
+    .diff-stat span { display:block; font-size:12px; color:var(--ink-soft); margin-bottom:4px; }
+    .diff-stat b { font-size:17px; font-variant-numeric:tabular-nums; }
+    .diff-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
   </style>
   <link rel="stylesheet" href="assets/sky.css">
   <script src="assets/sky.js"></script>
@@ -101,6 +106,19 @@
       <p class="hint" style="margin-top:10px;font-size:13.5px">
         在此应用 Xmuse 配置后，玩家校准也会使用此端口。回放文件按"被试 · 段"列出（1=放松，2=心算专注）。
       </p>
+    </div>
+
+    <div class="card" id="difficulty-card">
+      <div class="section-title"><span class="dot"></span>🎚️ 个体自适应难度</div>
+      <p id="diff-hint" class="hint">读取当前档案的难度状态……</p>
+      <div id="diff-state" class="diff-grid"></div>
+      <div id="diff-reason" class="hint"></div>
+      <div class="diff-actions">
+        <button id="diff-auto" class="btn btn-sm btn-ghost" type="button" disabled>开启/关闭自动适配</button>
+        <button id="diff-lock" class="btn btn-sm btn-ghost" type="button" disabled>锁定当前难度</button>
+        <button id="diff-reset" class="btn btn-sm btn-ghost" type="button" disabled>恢复标准 1.00</button>
+      </div>
+      <p class="hint" style="margin-top:8px;font-size:12.5px">难度只改变黄色区域起点；改动只对下一局生效，不影响已保存记录。完整面板留待 v1.8.4。</p>
     </div>
 
     <div class="card hidden" id="mock-heart-card">
@@ -299,6 +317,93 @@
       }
     });
 
+    let diffData = null;
+    function renderDifficulty(data) {
+      diffData = data || null;
+      const hint = $("diff-hint");
+      const box = $("diff-state");
+      const reason = $("diff-reason");
+      const autoBtn = $("diff-auto"), lockBtn = $("diff-lock"), resetBtn = $("diff-reset");
+      if (!data) {
+        hint.textContent = "尚未选择孩子档案；请先在玩家模式选择一个档案。";
+        box.innerHTML = "";
+        reason.textContent = "";
+        [autoBtn, lockBtn, resetBtn].forEach(b => b.disabled = true);
+        return;
+      }
+      const cfg = data.config || {};
+      const m = data.last_metrics || {};
+      const decisionLabel = {
+        TOO_HARD: "偏高", SUITABLE: "适宜", TOO_EASY: "偏低",
+        INSUFFICIENT_DATA: "数据不足", SIGNAL_OR_CALIBRATION_CHECK: "需检查信号/校准",
+        BEHAVIOR_BOTTLENECK: "点击瓶颈", MANUAL_CONTROL: "手动设置",
+        MANUAL_RESET: "恢复标准",
+      };
+      const metrics = [
+        ["当前难度", Number(data.factor ?? 1).toFixed(3)],
+        ["自动适配", data.auto_enabled ? "开启" : "关闭"],
+        ["手动锁定", data.manual_lock ? "是" : "否"],
+        ["黄色区域起点", cfg.zone_low_min != null
+          ? `${Number(cfg.zone_low_min).toFixed(1)} – ${Number(cfg.zone_low_max).toFixed(1)}%` : "—"],
+        ["中位净蓄力", m.median_net_charge_sec != null ? `${Number(m.median_net_charge_sec).toFixed(1)}s` : "—"],
+        ["点击成功率", m.click_rate != null ? `${(Number(m.click_rate) * 100).toFixed(0)}%` : "—"],
+        ["信号有效比例", m.signal_ratio != null ? `${(Number(m.signal_ratio) * 100).toFixed(0)}%` : "—"],
+        ["未完成轮次", m.incomplete_count ?? "—"],
+        ["最近判定", decisionLabel[data.last_decision] || data.last_decision || "—"],
+        ["连续偏高/偏低", `${data.streak_hard || 0} / ${data.streak_easy || 0}`],
+        ["下一局预定", Number(data.next_factor ?? data.factor ?? 1).toFixed(3)],
+      ];
+      box.innerHTML = metrics.map(([k, v]) =>
+        `<div class="diff-stat"><span>${k}</span><b>${v}</b></div>`).join("");
+      reason.textContent = data.last_reason ? "最近原因：" + data.last_reason : "";
+      hint.textContent = "只影响下一局黄色区域起点；局内参数在 Session 创建时锁定。";
+      autoBtn.disabled = false;
+      autoBtn.textContent = data.auto_enabled ? "关闭自动适配" : "开启自动适配";
+      lockBtn.disabled = false;
+      lockBtn.textContent = data.manual_lock ? "解除手动锁定" : "锁定当前难度";
+      resetBtn.disabled = false;
+    }
+
+    async function loadDifficulty() {
+      const uid = typeof activeUserId === "function" ? activeUserId() : null;
+      if (!uid) { renderDifficulty(null); return; }
+      try {
+        const r = await API.get(`/api/profiles/${encodeURIComponent(uid)}/difficulty`);
+        renderDifficulty(r.difficulty || null);
+      } catch (e) {
+        $("diff-hint").textContent = "读取难度失败：" + e.message;
+      }
+    }
+
+    $("diff-auto").addEventListener("click", async () => {
+      const uid = typeof activeUserId === "function" ? activeUserId() : null;
+      if (!uid || !diffData) return;
+      try {
+        await API.post(`/api/profiles/${encodeURIComponent(uid)}/difficulty`,
+          { auto_enabled: !diffData.auto_enabled });
+        await loadDifficulty();
+      } catch (e) { toast("难度设置失败：" + e.message); }
+    });
+    $("diff-lock").addEventListener("click", async () => {
+      const uid = typeof activeUserId === "function" ? activeUserId() : null;
+      if (!uid || !diffData) return;
+      try {
+        const body = diffData.manual_lock
+          ? { manual_lock: false }
+          : { manual_lock: true, factor: diffData.factor };
+        await API.post(`/api/profiles/${encodeURIComponent(uid)}/difficulty`, body);
+        await loadDifficulty();
+      } catch (e) { toast("难度设置失败：" + e.message); }
+    });
+    $("diff-reset").addEventListener("click", async () => {
+      const uid = typeof activeUserId === "function" ? activeUserId() : null;
+      if (!uid) return;
+      try {
+        await API.post(`/api/profiles/${encodeURIComponent(uid)}/difficulty`, { reset: true });
+        await loadDifficulty();
+      } catch (e) { toast("难度设置失败：" + e.message); }
+    });
+
     function stopWatch() {
       if (watchEs) watchEs.close();
       watchSession = null;
@@ -367,6 +472,7 @@
     }
 
     init();
+    loadDifficulty();
   </script>
   <script src="assets/music.js" defer></script>
 </body>

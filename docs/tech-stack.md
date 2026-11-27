@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.8.2（2026-11-27）
+> 版本：v1.8.3（2026-11-27）
 > 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
@@ -53,6 +53,7 @@
   - `web/settings.html`：数据目录、Schema、磁盘、云同步提示、备份/恢复/迁移与隐私说明
   - `app/storage.py`：SQLite `profiles.db`、目录解析、备份、迁移、报告；`app/accounts.py`：`/api/profiles/*`、`/api/storage/*`
   - `app/calibration.py`：v1.8.2 每日校准配置、P15/P85、阶段有效时间、日状态、双基线工具
+  - `app/difficulty.py`：v1.8.3 难度范围/净蓄力指标/连续判定；`web/dev.html` 提供开发者基础控制，儿童端不显示难度数字
 - 数据通道：浏览器 `EventSource` 消费 SSE；`assets/api.js` 封装 REST + SSE，含 6 s 无数据自愈重连（最多 4 次）与 `onStatus("live"/"reconnecting")`
 
 适用人群（儿童）要求低刺激、无安装、秒开 → 原生方案零依赖、零构建开销。

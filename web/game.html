@@ -866,9 +866,30 @@
     resetLilies();
     // 单轮核心机制：蓄力、宽容期/衰减、唯一金色区域、子弹时间与脑电基础得分。
     // 参数集中在 web/assets/focus-round.js 的 CONFIG，便于真机测试调整。
-    const roundConfig = FocusRound.CONFIG;
-    const focusRound = new FocusRound.RoundEngine(roundConfig, Math.random);
+    let roundConfig = FocusRound.normalizeConfig(Object.assign({}, FocusRound.CONFIG));
+    let focusRound = new FocusRound.RoundEngine(roundConfig, Math.random);
     let monitor = null;
+
+    // v1.8.3：服务端创建 Session 时锁定难度；前端只消费该范围，局内不改。
+    function applyDifficulty(diff) {
+      if (!diff || !Number.isFinite(Number(diff.zone_low_min))
+          || !Number.isFinite(Number(diff.zone_low_max))) return;
+      roundConfig.zoneLoMin = Number(diff.zone_low_min);
+      roundConfig.zoneLoMax = Number(diff.zone_low_max);
+      roundConfig.zoneWidth = Number(diff.zone_width) || roundConfig.zoneWidth;
+      roundConfig.zoneHiMax = Number(diff.zone_hi_max) || roundConfig.zoneHiMax;
+      if (Number.isFinite(Number(diff.first_zone_low_min))) {
+        roundConfig.firstRoundLoMin = Number(diff.first_zone_low_min);
+      }
+      if (Number.isFinite(Number(diff.first_zone_low_max))) {
+        roundConfig.firstRoundLoMax = Number(diff.first_zone_low_max);
+      }
+      roundConfig.difficultyFactor = Number(diff.factor) || 1;
+      focusRound = new FocusRound.RoundEngine(roundConfig, Math.random);
+      state.energy = focusRound.energy;
+      state.phase = focusRound.phase;
+      state.cooldownRemaining = 0;
+    }
     state.energy = focusRound.energy;
     state.phase = focusRound.phase;
     // 儿童端默认只保留“本局积分”；实时脑电分/蓄力百分比/心率只在开发者模式出现。
@@ -946,6 +967,7 @@
         API.endAbandonedSession(res.session_id);
         return;
       }
+      applyDifficulty(res.difficulty);
       state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null };
       if (profileUser) Profile.markGame(res.session_id);
       $("replay-label").textContent = developerRun ? "开发者测试 · " + describeSignal(res.source) : "";
@@ -2024,11 +2046,16 @@
       if (state.es) state.es.close();
       // 若本局在跳跃动画中结束，把已结算的这一轮补进记录，避免数据缺口。
       // 同时切回 CHARGING，防止保存失败重试时重复写入同一条记录。
+      let incompleteRound = null;
       if (state.phase === "JUMP_SUCCESS" || state.phase === "JUMP_MISSED") {
         focusRound.finishRound();
         state.phase = focusRound.phase;
         state.energy = focusRound.energy;
         state.cooldownRemaining = 0;
+      } else {
+        // 结束时仍在蓄力/子弹时间：把未完成轮次作为“观察下限”上报，
+        // 不把它混入完整轮次，也不让空中位数掩盖“整局没进入区域”。
+        incompleteRound = focusRound.pendingRound("time_up");
       }
       // 本局累计积分（state.score）与商城货币（earnedPoints）分离：避免经济系统被放大。
       monitor?.event("score_settle", "积分结算", { score: state.score });
@@ -2057,12 +2084,14 @@
             (s, r) => s + (Number(r.cooldown_sec) || 0), 0)
             + focusRound.cooldownSec) * 1000) / 1000,
           rounds,
+          incomplete_round: incompleteRound,
         });
         const finished = await API.post(`/api/session/${sessionId}/finish`, {
           score: state.score,
           actions,
           demo,
           played_sec: playedSec,
+          planned_sec: state.totalSec,
           notes: "完整一局（" + formatClock(state.totalSec) + "）",
         });
         state.pointsSettled = true;

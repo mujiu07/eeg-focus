@@ -32,9 +32,10 @@ from typing import Any, Optional
 from .calibration import (
     PROTOCOL_VERSION, daily_status, device_key as calibration_device_key, local_date,
 )
+from . import difficulty
 
 APP_NAME = "专注小蛙"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MAX_PROFILES = 12
 AVATARS = ("frog", "tadpole", "lotus", "fish", "dragonfly", "snail")
 AVATAR_LABELS = {
@@ -391,6 +392,23 @@ class StorageManager:
                     reason TEXT,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS difficulty_profiles (
+                    user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+                    factor REAL NOT NULL DEFAULT 1.0,
+                    auto_enabled INTEGER NOT NULL DEFAULT 1,
+                    manual_lock INTEGER NOT NULL DEFAULT 0,
+                    streak_hard INTEGER NOT NULL DEFAULT 0,
+                    streak_easy INTEGER NOT NULL DEFAULT 0,
+                    last_decision TEXT,
+                    last_reason TEXT,
+                    last_metrics_json TEXT NOT NULL DEFAULT '{}',
+                    last_session_id TEXT,
+                    last_calibration_id TEXT,
+                    last_device_key TEXT,
+                    last_adjusted_at TEXT,
+                    strategy_version TEXT NOT NULL DEFAULT 'adaptive_v1',
+                    updated_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS inventories (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -467,6 +485,23 @@ class StorageManager:
                 "calibration_snapshot_json": "TEXT NOT NULL DEFAULT '{}'",
                 "reference_snapshot_json": "TEXT NOT NULL DEFAULT '{}'",
             })
+            # v1.8.3：难度档案与可审计的局间调整记录。保留 v1.8.1 预留的
+            # difficulty_history 表，只补列，不重建、不覆盖历史。
+            self._ensure_columns(conn, "difficulty_history", {
+                "before_factor": "REAL", "after_factor": "REAL",
+                "direction": "TEXT", "decision": "TEXT",
+                "metrics_json": "TEXT NOT NULL DEFAULT '{}'",
+                "calibration_id": "TEXT", "strategy_version": "TEXT",
+                "params_version": "TEXT", "source": "TEXT",
+            })
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_difficulty_history_session "
+                "ON difficulty_history(session_id) WHERE session_id IS NOT NULL AND session_id != ''"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_difficulty_history_user "
+                "ON difficulty_history(user_id, created_at)"
+            )
             conn.execute(
                 "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES(?, ?)",
                 (SCHEMA_VERSION, _now()),
@@ -1143,6 +1178,246 @@ class StorageManager:
                 "owned": inventory, "achievements": ach}
 
     # ------------------------------------------------------------------
+    # v1.8.3 个体自适应难度
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _difficulty_row(row: sqlite3.Row) -> dict:
+        return {
+            "user_id": row["user_id"],
+            "factor": round(float(row["factor"]), 3),
+            "auto_enabled": bool(row["auto_enabled"]),
+            "manual_lock": bool(row["manual_lock"]),
+            "streak_hard": int(row["streak_hard"]),
+            "streak_easy": int(row["streak_easy"]),
+            "last_decision": row["last_decision"],
+            "last_reason": row["last_reason"],
+            "last_metrics": _load_json(row["last_metrics_json"], {}) or {},
+            "last_session_id": row["last_session_id"],
+            "last_calibration_id": row["last_calibration_id"],
+            "last_device_key": row["last_device_key"],
+            "last_adjusted_at": row["last_adjusted_at"],
+            "strategy_version": row["strategy_version"],
+            "updated_at": row["updated_at"],
+        }
+
+    def _ensure_difficulty_profile(self, conn: sqlite3.Connection, user_id: str) -> sqlite3.Row:
+        conn.execute(
+            "INSERT OR IGNORE INTO difficulty_profiles(user_id,factor,auto_enabled,manual_lock,"
+            "streak_hard,streak_easy,last_metrics_json,strategy_version,updated_at) "
+            "VALUES(?,?,1,0,0,0,'{}',?,?)",
+            (str(user_id), difficulty.CONFIG["default_factor"], difficulty.STRATEGY_VERSION, _now()),
+        )
+        return conn.execute("SELECT * FROM difficulty_profiles WHERE user_id = ?",
+                            (str(user_id),)).fetchone()
+
+    def difficulty_profile(self, user_id: str, *, history_limit: int = 12) -> dict:
+        """读取个人难度档；老用户按 1.00 自动迁移，不改动历史 Session。"""
+        self.ensure_user(user_id)
+        with self.lock, self._db() as conn:
+            self._ensure_difficulty_profile(conn, str(user_id))
+            row = conn.execute("SELECT * FROM difficulty_profiles WHERE user_id = ?",
+                               (str(user_id),)).fetchone()
+            history = conn.execute(
+                "SELECT * FROM difficulty_history WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                (str(user_id), int(history_limit)),
+            ).fetchall()
+        out = self._difficulty_row(row)
+        out["history"] = [self._difficulty_history_row(r) for r in history]
+        out["next_factor"] = out["factor"]
+        out["config"] = difficulty.snapshot(
+            out["factor"], auto_enabled=out["auto_enabled"],
+            manual_lock=out["manual_lock"])
+        return out
+
+    @staticmethod
+    def _difficulty_history_row(row: sqlite3.Row) -> dict:
+        keys = set(row.keys())
+        def val(name, default=None):
+            return row[name] if name in keys else default
+        return {
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "session_id": val("session_id"),
+            "before_factor": val("before_factor"),
+            "after_factor": val("after_factor"),
+            "direction": val("direction"),
+            "decision": val("decision"),
+            "reason": val("reason"),
+            "metrics": _load_json(val("metrics_json"), {}) or {},
+            "calibration_id": val("calibration_id"),
+            "strategy_version": val("strategy_version"),
+            "params_version": val("params_version"),
+            "source": val("source"),
+            "created_at": row["created_at"],
+        }
+
+    def begin_difficulty_session(self, user_id: str, *, calibration_id: Optional[str],
+                                 device_key: Optional[str]) -> dict:
+        """在 Session 创建时锁定难度；校准/设备/策略变化时重置连续判定。"""
+        self.ensure_user(user_id)
+        current_cal = str(calibration_id or "")
+        current_device = str(device_key or "")
+        with self.lock, self._db() as conn:
+            row = self._ensure_difficulty_profile(conn, str(user_id))
+            reset = (
+                (row["last_calibration_id"] is not None
+                 and str(row["last_calibration_id"]) != current_cal)
+                or (row["last_device_key"] is not None
+                    and str(row["last_device_key"]) != current_device)
+                or (row["strategy_version"] or "") != difficulty.STRATEGY_VERSION
+            )
+            if reset:
+                conn.execute(
+                    "UPDATE difficulty_profiles SET streak_hard=0, streak_easy=0, "
+                    "last_calibration_id=?, last_device_key=?, updated_at=? WHERE user_id=?",
+                    (current_cal, current_device, _now(), str(user_id)),
+                )
+            else:
+                conn.execute(
+                    "UPDATE difficulty_profiles SET last_calibration_id=?, last_device_key=?, "
+                    "updated_at=? WHERE user_id=?",
+                    (current_cal, current_device, _now(), str(user_id)),
+                )
+            row = conn.execute("SELECT * FROM difficulty_profiles WHERE user_id = ?",
+                               (str(user_id),)).fetchone()
+        return difficulty.snapshot(
+            row["factor"], auto_enabled=bool(row["auto_enabled"]),
+            manual_lock=bool(row["manual_lock"]),
+            calibration_id=calibration_id, device_key=device_key,
+        )
+
+    def difficulty_history(self, user_id: str, limit: int = 20) -> list[dict]:
+        self.ensure_user(user_id)
+        with self.lock, self._db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM difficulty_history WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                (str(user_id), int(limit)),
+            ).fetchall()
+        return [self._difficulty_history_row(r) for r in rows]
+
+    def set_difficulty(self, user_id: str, *, auto_enabled: Optional[bool] = None,
+                       manual_lock: Optional[bool] = None, factor: Optional[float] = None,
+                       reset: bool = False) -> dict:
+        """手动控制只写个人档；已创建 Session 的快照不会被改动。"""
+        self.ensure_user(user_id)
+        with self.lock, self._db() as conn:
+            row = self._ensure_difficulty_profile(conn, str(user_id))
+            before = round(float(row["factor"]), 3)
+            new_factor = before
+            new_auto = bool(row["auto_enabled"])
+            new_lock = bool(row["manual_lock"])
+            if reset:
+                new_factor = difficulty.CONFIG["default_factor"]
+                new_lock = False
+            if factor is not None:
+                new_factor = round(difficulty.clamp(
+                    float(factor), difficulty.CONFIG["min_factor"], difficulty.CONFIG["max_factor"]), 3)
+                new_lock = True
+                new_auto = False
+            if manual_lock is not None:
+                new_lock = bool(manual_lock)
+                if new_lock:
+                    new_auto = False
+            if auto_enabled is not None:
+                new_auto = bool(auto_enabled)
+                if new_auto:
+                    new_lock = False
+            changed = (abs(new_factor - before) > 1e-9
+                       or new_auto != bool(row["auto_enabled"])
+                       or new_lock != bool(row["manual_lock"]))
+            if changed:
+                conn.execute(
+                    "UPDATE difficulty_profiles SET factor=?, auto_enabled=?, manual_lock=?, "
+                    "streak_hard=0, streak_easy=0, updated_at=? WHERE user_id=?",
+                    (new_factor, 1 if new_auto else 0, 1 if new_lock else 0,
+                     _now(), str(user_id)),
+                )
+                decision = "MANUAL_RESET" if reset else "MANUAL_CONTROL"
+                reason = "恢复标准难度 1.00" if reset else (
+                    "手动锁定难度" if new_lock else (
+                        "关闭自动适配" if not new_auto else "手动调整难度"))
+                conn.execute(
+                    "INSERT INTO difficulty_history(user_id,session_id,config_json,reason,created_at,"
+                    "before_factor,after_factor,direction,decision,metrics_json,calibration_id,"
+                    "strategy_version,params_version,source) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (str(user_id), None, _json(difficulty.snapshot(
+                        new_factor, auto_enabled=new_auto, manual_lock=new_lock)),
+                     reason, _now(), before, new_factor, "hold", decision, "{}",
+                     row["last_calibration_id"], difficulty.STRATEGY_VERSION,
+                     difficulty.PARAMS_VERSION, "manual"),
+                )
+            row = conn.execute("SELECT * FROM difficulty_profiles WHERE user_id = ?",
+                               (str(user_id),)).fetchone()
+        out = self._difficulty_row(row)
+        out["changed"] = changed
+        out["next_factor"] = out["factor"]
+        return out
+
+    def record_difficulty(self, report: dict, user_id: Optional[str] = None) -> dict:
+        """局后评估；唯一 session_id 保证重复结算不重复调整。"""
+        sid = str(report.get("session_id") or "")
+        source = report.get("source") or {}
+        source_name = str(source.get("name") or report.get("source_name") or "unknown")
+        if not user_id or not sid:
+            return {"applied": False, "reason": "no_user_or_session"}
+        if source_name != "hardware" or report.get("demo") or report.get("purpose") != "game":
+            # 回放、手动、心率、试玩与测试源绝不写真实儿童难度档案。
+            return {"applied": False, "reason": "source_isolated", "source": source_name}
+        snap = report.get("difficulty_snapshot") or {}
+        used_factor = difficulty.clamp(
+            float(snap.get("factor") if snap.get("factor") is not None
+                  else difficulty.CONFIG["default_factor"]),
+            difficulty.CONFIG["min_factor"], difficulty.CONFIG["max_factor"])
+        metrics = difficulty.compute_metrics(report)
+        with self.lock, self._db() as conn:
+            duplicate = conn.execute(
+                "SELECT * FROM difficulty_history WHERE session_id = ?", (sid,)).fetchone()
+            if duplicate:
+                profile = self._difficulty_row(self._ensure_difficulty_profile(conn, str(user_id)))
+                return {"applied": False, "duplicate": True, "profile": profile,
+                        "decision": duplicate["decision"]}
+            row = self._ensure_difficulty_profile(conn, str(user_id))
+            # 游戏进行中若发生过手动改档，不能再用旧 Session 覆盖新设置。
+            if abs(float(row["factor"]) - used_factor) > 1e-9:
+                profile = self._difficulty_row(row)
+                return {"applied": False, "reason": "profile_changed_during_session",
+                        "profile": profile}
+            plan = difficulty.decide(
+                metrics, factor=used_factor, auto_enabled=bool(row["auto_enabled"]),
+                manual_lock=bool(row["manual_lock"]),
+                streak_hard=int(row["streak_hard"]), streak_easy=int(row["streak_easy"]),
+            )
+            adjusted_at = _now()
+            conn.execute(
+                "UPDATE difficulty_profiles SET factor=?, streak_hard=?, streak_easy=?, "
+                "last_decision=?, last_reason=?, last_metrics_json=?, last_session_id=?, "
+                "last_adjusted_at=?, updated_at=? WHERE user_id=?",
+                (plan["next_factor"], plan["streak_hard"], plan["streak_easy"],
+                 plan["decision"], plan["reason"], _json(metrics), sid,
+                 adjusted_at if plan["changed"] else row["last_adjusted_at"], adjusted_at,
+                 str(user_id)),
+            )
+            conn.execute(
+                "INSERT INTO difficulty_history(user_id,session_id,config_json,reason,created_at,"
+                "before_factor,after_factor,direction,decision,metrics_json,calibration_id,"
+                "strategy_version,params_version,source) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (str(user_id), sid, _json(snap), plan["reason"], adjusted_at,
+                 plan["current_factor"], plan["next_factor"], plan["direction"],
+                 plan["decision"], _json(metrics), report.get("calibration_id"),
+                 difficulty.STRATEGY_VERSION, difficulty.PARAMS_VERSION, source_name),
+            )
+            profile = self._difficulty_row(conn.execute(
+                "SELECT * FROM difficulty_profiles WHERE user_id = ?", (str(user_id),)
+            ).fetchone())
+        out = dict(plan)
+        out["applied"] = plan["changed"]
+        out["profile"] = profile
+        out["metrics"] = metrics
+        return out
+
+    # ------------------------------------------------------------------
     # 游戏记录
     # ------------------------------------------------------------------
     def persist_session(self, report: dict, user_id: Optional[str] = None,
@@ -1389,6 +1664,7 @@ class StorageManager:
             "calibration": self.latest_calibration(user_id),
             "calibration_status": self.calibration_status(user_id),
             "reference_baseline": self.reference_baseline(user_id),
+            "difficulty": self.difficulty_profile(user_id),
             "calibration_history": self.calibration_history(user_id, 12),
             "recent_sessions": self.list_sessions(user_id, 6),
             "data_dir": str(self.root),

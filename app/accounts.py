@@ -1,4 +1,4 @@
-"""本地档案、每日校准状态、长期参考与备份 API（v1.8.2）。"""
+"""本地档案、每日校准状态、长期参考、难度控制与备份 API（v1.8.3）。"""
 
 from __future__ import annotations
 
@@ -60,6 +60,14 @@ class ReferenceBody(BaseModel):
     label: Optional[str] = None
 
 
+class DifficultyBody(BaseModel):
+    """开发者基础控制；完整个体适配面板留待 v1.8.4。"""
+    auto_enabled: Optional[bool] = None
+    manual_lock: Optional[bool] = None
+    factor: Optional[float] = Field(default=None, ge=0.6, le=1.2)
+    reset: bool = False
+
+
 @router.get("/storage/status")
 def storage_status():
     status = storage.status()
@@ -114,8 +122,10 @@ def profiles():
             hardware = next((c for c in hist if c.get("source_name") == "hardware"), None)
             device = (hardware or {}).get("device_key")
             p["calibration_status"] = storage.calibration_status(p["user_id"], device=device)
+            p["difficulty"] = storage.difficulty_profile(p["user_id"], history_limit=0)
         except StorageError:
             p["calibration_status"] = {"valid": False, "status_text": "需要重新校准"}
+            p["difficulty"] = None
     return {"profiles": items, "max": 12, "storage": storage.status()}
 
 
@@ -170,6 +180,26 @@ def calibration_status(user_id: str, mode: str = Query("hardware"),
     try:
         return {"ok": True, **storage.calibration_status(
             user_id, mode=mode, device=device, tz_offset_min=tz_offset_min)}
+    except StorageError as exc:
+        _fail(exc)
+
+
+@router.get("/profiles/{user_id}/difficulty")
+def get_difficulty(user_id: str):
+    try:
+        return {"ok": True, "difficulty": storage.difficulty_profile(user_id)}
+    except StorageError as exc:
+        _fail(exc)
+
+
+@router.post("/profiles/{user_id}/difficulty")
+def set_difficulty(user_id: str, body: DifficultyBody):
+    try:
+        data = storage.set_difficulty(
+            user_id, auto_enabled=body.auto_enabled, manual_lock=body.manual_lock,
+            factor=body.factor, reset=body.reset)
+        data["ok"] = True
+        return data
     except StorageError as exc:
         _fail(exc)
 
