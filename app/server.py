@@ -17,6 +17,7 @@ import os
 import platform
 import time
 import uuid
+from collections import deque
 from copy import copy
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +32,7 @@ from sse_starlette.sse import EventSourceResponse
 from .focus_engine import FocusEngine, features
 from . import export as report_export
 from . import sources
+from . import monitor as monitor_data
 from .heart import heart
 
 # 心率采集链路依赖 macOS 专属的 AirPods 心率进程（hrd），其他系统没有对应实现，
@@ -43,7 +45,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.6.0")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.7.0")
 
 # ---------------------------------------------------------------------------
 # 全局状态
@@ -83,6 +85,13 @@ class Session:
         self._frame_ready = asyncio.Event()
         self._latest_frame = None
         self._task = None
+        # v1.7 开发者监测：独立于低频游戏 SSE 的高频窗口流。
+        # 只有存在监测订阅者时才构造/保存批次；儿童模式不订阅就不会产生这份数据。
+        self._monitor_event = asyncio.Event()
+        self._monitor_latest = None
+        self._monitor_batches = deque(maxlen=12)
+        self._monitor_seq = 0
+        self.monitor_clients = 0
         # 动态定标：校准得到"最放松 / 最专注"两端，映射到 20–80 分。
         # 未校准（或旧前端不带区间）时用 0.35/0.75 兜底，50 分线仍是 0.55，与旧基线一致。
         self.score_low = 0.35
@@ -126,6 +135,10 @@ class Session:
                     seg, meta = self.source.next_window()
                 if self.finished:
                     break
+                # 只复制未处理窗口，绝不在这里做第二次滤波；监测使用原始数组，
+                # 处理后数组将在 FocusEngine 实际算完后从 last_debug 读取。
+                raw_mon = (self.source.take_monitor_window()
+                           if self.source.name in ("hardware", "replay") else None)
                 if self.source.name == "heart":
                     # 仅心率模式：不经过 EEG 模型，专注度直接取心率分量。
                     snap = heart.snapshot()
@@ -164,6 +177,7 @@ class Session:
                              "reason": "artifact", "meta": meta,
                              "artifact": artifact, "focus_fused": None,
                              "hr": heart.snapshot()}
+                    self._safe_publish_monitor(raw_mon, meta, artifact, None, None, None, entry)
                     self._publish_frame(entry)
                     await asyncio.sleep(max(0.05, sources.STEP_SEC - (time.time() - t0)))
                     continue
@@ -186,6 +200,13 @@ class Session:
                     entry["focus_fused"] = round((1.0 - w) * float(focus) + w * comp, 3)
                 else:
                     entry["focus_fused"] = round(float(focus), 3)
+                self._safe_publish_monitor(
+                    raw_mon, meta, artifact,
+                    getattr(self.engine, "last_debug", None),
+                    entry.get("score") if "score" in entry else self.score_of(
+                        entry.get("focus_fused") if entry.get("focus_fused") is not None
+                        else entry.get("focus")),
+                    entry.get("focus_fused"), entry)
                 self._publish_frame(entry)
             except Exception as e:  # noqa: BLE001
                 if self.finished:
@@ -195,6 +216,64 @@ class Session:
                          "meta": {"source": self.source.name, "error": str(e)}}
                 self._publish_frame(entry)
             await asyncio.sleep(max(0.05, sources.STEP_SEC - (time.time() - t0)))
+
+    def _safe_publish_monitor(self, *args):
+        """监测序列化失败不能影响游戏控制链路；失败只丢弃该监测批次。"""
+        try:
+            self._publish_monitor(*args)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _publish_monitor(self, raw_mon, meta, artifact, debug, score, fused, entry):
+        """把当前窗口整理为开发者监测批次；无订阅者时直接返回。"""
+        if self.monitor_clients <= 0 or self.source.name not in ("hardware", "replay"):
+            return
+        sample_meta = dict((raw_mon or {}).get("meta") or {})
+        raw = (raw_mon or {}).get("raw")
+        if not sample_meta:
+            sample_meta = dict((meta or {}).get("monitor") or {})
+        if raw is None and self.source.name == "replay":
+            # 回放源在 next_window 中已保存原始窗；这里不合成波形。
+            return
+        if raw is None and debug is None:
+            return
+        fs = (meta or {}).get("fs") or self.source.fs
+        n = int(sample_meta.get("n") or (raw.shape[1] if raw is not None and getattr(raw, "ndim", 0) == 2 else 0))
+        if not n:
+            return
+        if sample_meta.get("t0") is None:
+            # 兼容没有逐样本时间戳的旧源：只把窗口终点对齐到当前会话时间，
+            # 明确标记为 session_clock，不把浏览器到达时间伪装成硬件时间。
+            t1 = float((entry or {}).get("t") or 0.0)
+            sample_meta.update({
+                "n": n, "fs": fs,
+                "t0": max(0.0, t1 - n / float(fs or 1.0)), "t1": t1,
+                "time_basis": "session_clock",
+                "timestamp_note": "该信号源没有逐样本时间戳；按窗口终点推算",
+            })
+        processed = debug.get("processed") if debug else None
+        self._monitor_seq += 1
+        batch = monitor_data.build_batch(
+            seq=self._monitor_seq, session_id=self.id,
+            source_name=self.source.name, source_desc=self.source.describe(),
+            raw=raw, processed=processed, sample_meta=sample_meta,
+            artifact=artifact, debug=debug, score=score, fused=fused,
+            baseline=self.baseline,
+            score_range={"low": self.score_low, "high": self.score_high},
+            fs=fs, ch_names=self.source.ch_names or sample_meta.get("ch_names"),
+            t_offset=self.created_at,
+        )
+        if self.source.name == "replay":
+            batch["replay"] = {
+                "window": (meta or {}).get("window"),
+                "n_windows": (meta or {}).get("n_windows"),
+                "progress": (meta or {}).get("progress"),
+            }
+        self._monitor_latest = batch
+        self._monitor_batches.append(batch)
+        ready = self._monitor_event
+        self._monitor_event = asyncio.Event()
+        ready.set()
 
     def _publish_frame(self, entry):
         self.history.append(entry)
@@ -210,6 +289,7 @@ class Session:
             return self
         self.finished = True
         self._frame_ready.set()
+        self._monitor_event.set()
         self.finished_at = time.time()
         # 释放硬件源占用的 UDP 端口，避免下一局 hardware 会话绑定失败
         if self.source.name == "hardware":
@@ -286,6 +366,7 @@ class Session:
             "baseline": self.baseline,
             "calibration": self.calibration,
             "created_at": self.created_at,
+            "monitor_available": self.source.name in ("hardware", "replay"),
         }
 
 
@@ -766,10 +847,76 @@ async def stream(sid: str):
             payload["calibration"] = s.calibration
             payload["score"] = s.score_of(
                 payload.get("focus_fused") if payload.get("focus_fused") is not None else payload.get("focus"))
+            # 监测曲线需要同一条真实链路的前/后分数：原始模型输出与 EMA 平滑输出，
+            # 都走同一个 score_of，不在前端重新映射。
+            payload["score_raw"] = s.score_of(payload.get("raw"))
+            payload["score_smooth"] = s.score_of(payload.get("focus"))
             payload["score_low"] = s.score_low
             payload["score_high"] = s.score_high
             yield {"event": "frame", "data": json.dumps(payload)}
         yield {"event": "end", "data": json.dumps({"session_id": s.id})}
+
+    return EventSourceResponse(gen())
+
+
+@app.get("/api/session/{sid}/monitor")
+async def monitor_stream(sid: str):
+    """开发者高频监测流：与游戏分数 SSE 分离，避免波形阻塞控制帧。
+
+    只有该端点被订阅时才捕获/序列化窗口；儿童模式不会请求它。
+    数据只保存在内存中的有限队列里，不新增原始脑电持久化。
+    """
+    s = _sessions.get(sid)
+    if not s:
+        raise HTTPException(404, "会话不存在")
+    available = s.source.name in ("hardware", "replay")
+    s.monitor_clients += 1
+
+    async def gen():
+        seen = -1
+        try:
+            yield {"event": "hello", "data": json.dumps({
+                "session_id": s.id,
+                "available": available,
+                "source": s.source.describe(),
+                "source_name": s.source.name,
+                "fs": s.source.fs,
+                "ch_names": list(s.source.ch_names or []),
+                "sample_rate_note": (
+                    "Xmuse OSC 未携带采样率，使用配置值；不是实测值"
+                    if s.source.name == "hardware"
+                    else ("EDF 文件采样率" if s.source.name == "replay"
+                          else "当前模式无脑电采样")),
+                "time_basis": (
+                    "device_packet_arrival" if s.source.name == "hardware"
+                    else ("edf_file" if s.source.name == "replay" else "session_clock")),
+                "monitor_history_batches": len(s._monitor_batches),
+            })}
+            if not available:
+                yield {"event": "unavailable", "data": json.dumps({
+                    "reason": "当前信号源没有脑电采样数据",
+                    "source_name": s.source.name,
+                })}
+            # 补发最近几批，方便刷新页面后立即看到上下文；客户端按 seq 去重。
+            for batch in list(s._monitor_batches):
+                seen = max(seen, int(batch["seq"]))
+                yield {"event": "monitor", "id": str(batch["seq"]),
+                       "data": json.dumps(batch, ensure_ascii=False)}
+            while not s.finished:
+                batch = s._monitor_latest
+                if batch is not None and int(batch["seq"]) != seen:
+                    seen = int(batch["seq"])
+                    yield {"event": "monitor", "id": str(batch["seq"]),
+                           "data": json.dumps(batch, ensure_ascii=False)}
+                    continue
+                event = s._monitor_event
+                try:
+                    await asyncio.wait_for(event.wait(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    pass
+            yield {"event": "end", "data": json.dumps({"session_id": s.id})}
+        finally:
+            s.monitor_clients = max(0, s.monitor_clients - 1)
 
     return EventSourceResponse(gen())
 

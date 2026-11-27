@@ -103,7 +103,11 @@ class XmuseOSCSource:
         self._step = max(1, int(round(self.step_sec * self.fs)))
 
         self._buf: deque[list[float]] = deque(maxlen=self._win)
+        # 与采样点一一对应的时间/序号环，用于开发者监测追溯；
+        # 不参与特征计算，也不会写盘。
+        self._buf_ts: deque[float] = deque(maxlen=self._win)
         self._ready: deque[np.ndarray] = deque(maxlen=2)
+        self._ready_meta: deque[dict] = deque(maxlen=2)
         self._cond = threading.Condition()
 
         self._servers = []
@@ -123,6 +127,8 @@ class XmuseOSCSource:
         self._packets = 0
         self._samples = 0
         self._windows = 0
+        self._sample_seq = 0
+        self._last_sample_ts = 0.0
 
     # ------------------------------------------------------------------
     # 生命周期
@@ -235,13 +241,33 @@ class XmuseOSCSource:
         else:
             chunks = [(values + [0.0] * n_ch)[:n_ch]]
 
-        for chunk in chunks:
+        # OSC 报文本身不带逐样本硬件时间戳。这里以报文到达时刻为终点，
+        # 按配置采样率反推每个样本时间；只在监测中标注为“到达时间重建”。
+        start_ts = now - max(0, len(chunks) - 1) / float(self.fs or 1.0)
+        for i, chunk in enumerate(chunks):
+            ts = start_ts + i / float(self.fs or 1.0)
+            # 同一时刻多个报文/多段值也必须保持单调，避免时间轴倒流。
+            ts = max(ts, self._last_sample_ts + 1.0 / float(self.fs or 1.0))
+            self._last_sample_ts = ts
             self._buf.append(chunk)
+            self._buf_ts.append(ts)
+            self._sample_seq += 1
             self._samples += 1
 
         if len(self._buf) >= self._win and (now - self._last_emit) >= self.step_sec:
             arr = np.asarray(self._buf, dtype=float).T  # (n_ch, n_samples)
             self._ready.append(arr)
+            # 在锁内把这一窗对应的序号/时间快照一并保存，避免 next_window
+            # 读取时缓冲区已被后续采样覆盖，造成监测波形与时间错位。
+            n = int(arr.shape[1])
+            seq1 = int(self._sample_seq)
+            self._ready_meta.append({
+                "seq0": seq1 - n + 1, "seq1": seq1,
+                "t0": float(self._buf_ts[0]), "t1": float(self._buf_ts[-1]),
+                "n": n, "fs": float(self.fs),
+                "time_basis": "device_packet_arrival",
+                "timestamp_note": "OSC 无逐样本硬件时间戳；按报文到达时间与配置采样率重建",
+            })
             self._windows += 1
             self._last_emit = now
             self._cond.notify_all()
@@ -277,10 +303,15 @@ class XmuseOSCSource:
                     )
                 self._cond.wait(remaining)
             seg = self._ready.popleft()
+            window_meta = self._ready_meta.popleft() if self._ready_meta else None
 
         meta = self.snapshot()
         meta["window"] = self._windows
         meta["samples_in_window"] = int(seg.shape[1])
+        # 供开发者监测使用：窗口内每个样本的序号/时间由接收线程记录，
+        # 不是根据专注分数反推，也不改变交给算法的 seg。
+        if window_meta is not None:
+            meta["monitor"] = window_meta
         return seg, meta
 
     def snapshot(self) -> dict:

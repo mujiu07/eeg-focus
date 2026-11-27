@@ -1,6 +1,6 @@
 # 专注小蛙 · 梦境池塘 — 架构设计
 
-> 版本：v1.6.0（2026-11-27）
+> 版本：v1.7.0（2026-11-27）
 > 适用代码：`eeg-focus/`（`app/` + `web/`）
 > 定位：本地运行的脑电专注游戏 MVP，教学演示用途，不构成注意力评估或医疗诊断。
 
@@ -15,6 +15,7 @@
 │  report.html     报告：曲线回放、给家长的话、PDF/Excel/Word 导出 │
 │  dev.html        开发者：无设备试玩、EDF 回放验证、OSC 监视      │
 │  assets/  api.js · sky.js/css · music.js + vinyl.css            │
+│           eeg-monitor.js/css（开发者三栏监测）                   │
 │           hero-pond/hero-water/pond-effects/pond-audio           │
 │           achievements(+-cinematic) · dressup · shop · checkin   │
 │           wallet · style.css                                     │
@@ -26,6 +27,8 @@
 │  sources.py     信号源：replay · manual · hardware · heart       │
 │  xmuse_osc.py   Xmuse OSC/UDP 多端口接收（2 s 出窗）            │
 │  focus_engine.py 231 维模型推理 + 4/6 通道频段回退 + EMA        │
+│  denoise.py     去噪/去伪迹（硬件源）                            │
+│  monitor.py     开发者监测批次序列化（不重复滤波）              │
 │  heart.py       心率信号源（hrd/mock/csv）与 EEG 融合            │
 │  export.py      报告导出：PDF / Excel / Word / CSV / JSON        │
 │  music.py       网易云歌单代理（可选背景音乐）                   │
@@ -67,8 +70,25 @@ Xmuse 真机窗口 (2 s × 4/6 通道)
   → 每轮唯一金色区域；进入即锁定脑电基础分 B 并触发 2.5 s 子弹时间
   → 前 0.6 s 点击满分，之后最多折损 10%，超过窗口为 0；非金区点击触发 0.5 s 蓄力冷却
   → 本局累计积分 = Σ实际得分 S；商城积分 = max(1, floor(本局积分/30))
-  → 前端 rAF 渲染；SSE 0.5 s/帧；结束后报告落盘
+  → 前端 rAF 渲染；游戏 SSE 0.5 s/帧；结束后报告落盘
 ```
+
+### 2.1 v1.7 开发者监测支路
+
+```
+Xmuse OSC 窗 / EDF 窗
+  → sources.py 在软件处理前复制原始窗 + 样本序号/时间（硬件）
+  → ArtifactCleaner（硬件）→ FocusEngine 实际带通与特征
+  → FocusEngine.last_debug 保存同一批 processed/powers/relative/ratio
+  → Session._publish_monitor 仅在 /monitor 有订阅者时序列化
+  → 独立 SSE /api/session/{id}/monitor（不阻塞游戏 SSE）
+  → eeg-monitor.js Canvas 环形缓存（有限窗口）
+```
+
+- 原始/处理后数组共享采样序号；硬件时间由报文到达时间与配置采样率重建，EDF 用文件内时间；
+- 监测客户端不重新执行特征提取，不使用随机/正弦曲线替代脑电；
+- 儿童模式不创建 `EEGMonitor`，因此不会订阅该端点；
+- 批次只保存在内存有限队列，默认不落盘。
 
 ## 3. 前端本地状态（不上传、不联网）
 
@@ -92,7 +112,7 @@ Xmuse 真机窗口 (2 s × 4/6 通道)
 - 基线只写浏览器 `localStorage`，1 小时内有效；过期后进入游戏会引导重新校准
 - 校准失败（无有效帧 / 信号中断）会给出明确提示，不会写入伪基线
 
-## 5. API 一览（v1.4.16）
+## 5. API 一览（v1.7.0）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -107,7 +127,8 @@ Xmuse 真机窗口 (2 s × 4/6 通道)
 | GET | `/api/dev/current` | 当前信号源配置与最近会话 |
 | POST | `/api/dev/source` | 切换全局默认信号源（含 OSC 参数） |
 | POST | `/api/session` | 创建会话 `{mode, file, baseline, osc_*, heart_*}` |
-| GET | `/api/session/{id}/stream` | SSE 推流（hello / frame / end） |
+| GET | `/api/session/{id}/stream` | 游戏分数 SSE（hello / frame / end） |
+| GET | `/api/session/{id}/monitor` | 开发者高频监测 SSE（hello / monitor / unavailable / end） |
 | POST | `/api/session/{id}/manual` | 手动模式设置专注度 |
 | POST | `/api/session/{id}/calibrate` | 采样并建立基线 |
 | POST | `/api/session/{id}/finish` | 结束会话，生成报告 |
@@ -169,3 +190,4 @@ Xmuse 真机窗口 (2 s × 4/6 通道)
 | v1.4.17 | 运动伪迹处理：DC 台阶（sigmoid 基线）、全通道共模减除、0.5–3 Hz 慢摆识别；`artifact` 新增 `motion`；自检扩到 14 项 |
 | v1.5.0 | 单轮核心机制独立为 `assets/focus-round.js`：宽容期/衰减、唯一金色区域、2.5 s 子弹时间、归一化脑电基础分、逐轮研究数据；游戏积分与商城货币分离（30:1） |
 | v1.6.0 | 金色区域前 0.6 s 满分、之后最多折损 10%；无效点击 0.5 s 冷却；儿童端隐藏实时分数/百分比/潜在分，只显示本局积分与 +N；逐轮新增点击倍率与冷却数据 |
+| v1.7.0 | 开发者三栏监测：真实原始/处理后多通道波形、频段与算法中间值、30 s 分数/事件；独立 `/monitor` SSE，儿童模式零订阅；原始窗仅内存有限缓存 |

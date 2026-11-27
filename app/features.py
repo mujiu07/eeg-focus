@@ -53,14 +53,31 @@ def band_power(x, fs):
     return out, total
 
 
-def window_to_features(seg, fs):
-    """单个窗口 (n_ch, n_samples) -> 特征向量 (n_feat,)。"""
+def window_to_feature_details(seg, fs):
+    """单个窗口 -> (特征向量, 可追溯的中间结果)。
+
+    监测面板读取这里返回的同一批 powers/relative/ratio，避免为了展示
+    再执行一套滤波器或特征提取，保证展示值与模型实际输入完全一致。
+    """
     powers, total = band_power(seg, fs)
     rel = {b: powers[b] / total for b in BAND_NAMES}
     abs_pow = np.concatenate([powers[b] for b in BAND_NAMES])
     rel_pow = np.concatenate([rel[b] for b in BAND_NAMES])
     ratio = powers["theta"] / (powers["beta"] + 1e-12)
-    return np.concatenate([abs_pow, rel_pow, ratio])
+    details = {
+        "powers": powers,
+        "total_power": total,
+        "relative": rel,
+        "theta_beta_ratio": ratio,
+        "bands": dict(BANDS),
+    }
+    return np.concatenate([abs_pow, rel_pow, ratio]), details
+
+
+def window_to_features(seg, fs):
+    """单个窗口 (n_ch, n_samples) -> 特征向量 (n_feat,)。"""
+    feats, _ = window_to_feature_details(seg, fs)
+    return feats
 
 
 def prepare_signal(signals, fs):

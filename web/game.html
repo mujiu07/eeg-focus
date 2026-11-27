@@ -6,6 +6,7 @@
   <title>专注小蛙 - 游戏</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
+  <link rel="stylesheet" href="assets/eeg-monitor.css">
   <link rel="stylesheet" href="assets/achievement-cinematic.css">
   <style>
     .canvas-wrap { position: relative; width: 100%; max-width: 900px; }
@@ -31,6 +32,10 @@
       box-shadow: none;
     }
     .hud-item .icon { font-size: 22px; }
+    /* 开发者模式多两个状态项，压缩间距避免 HUD 换行挤压画布 */
+    html.debug-hud .hud { gap: 8px; }
+    html.debug-hud .hud-item { padding: 8px 15px; font-size: 16px; }
+    html.debug-hud .hud-item .icon { font-size: 19px; }
     /* 心率：图标按实际 BPM 节律跳动，低采样率数据过期时自动停下 */
     #hr-hud .icon { display: inline-block; transform-origin: 50% 60%; }
     /* 信号质量（去噪/去伪迹后的实时状态） */
@@ -421,6 +426,48 @@
         <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
       </div>
     </div>
+    <div class="monitor-toggles" id="monitor-toggles" aria-label="开发者监测面板开关">
+      <span>开发者监测</span>
+      <button type="button" data-monitor-show="left">显示波形</button>
+      <button type="button" data-monitor-show="right">显示算法</button>
+    </div>
+    <div class="game-layout" id="game-layout">
+      <aside class="monitor-panel monitor-left" id="monitor-left" aria-label="实时脑电波形" aria-hidden="true">
+        <div class="mon-head">
+          <div><span class="mon-kicker">EEG / LIVE</span><strong>实时脑电</strong></div>
+          <button type="button" class="mon-icon" id="monitor-hide-left" title="收起波形面板" aria-label="收起波形面板">‹</button>
+        </div>
+        <div class="mon-meta">
+          <span id="mon-source-label">—</span>
+          <span id="mon-stream-label" class="mon-state">未连接</span>
+          <span id="mon-mode-label" class="mon-state">—</span>
+        </div>
+        <div class="mon-toolbar">
+          <div class="mon-tabs" role="group" aria-label="波形类型">
+            <button type="button" data-wave-mode="raw" class="active">原始 Raw</button>
+            <button type="button" data-wave-mode="processed">处理后</button>
+          </div>
+          <label class="mon-control">窗口
+            <select id="mon-window-select">
+              <option value="2">2 s</option>
+              <option value="5" selected>5 s</option>
+              <option value="10">10 s</option>
+            </select>
+          </label>
+          <label class="mon-control">增益
+            <input id="mon-gain" type="range" min="0.5" max="3" step="0.1" value="1" aria-label="波形振幅缩放">
+          </label>
+          <button type="button" class="mon-small-btn" id="mon-pause-wave">暂停</button>
+        </div>
+        <div class="mon-wave-wrap">
+          <canvas id="mon-wave-canvas" aria-label="多通道脑电波形"></canvas>
+          <div class="mon-empty" id="mon-wave-empty">等待脑电数据…</div>
+        </div>
+        <div class="mon-legend" id="mon-wave-legend"></div>
+        <div class="mon-foot"><span id="mon-unit-label">—</span><span id="mon-wave-note"></span></div>
+      </aside>
+
+      <main class="game-main">
     <div class="card" style="padding:16px 22px">
       <div class="hud">
         <span class="hud-item" id="lamp"><span class="lamp-dot"></span><span id="lamp-text">专注中</span></span>
@@ -528,6 +575,61 @@
       <button id="btn-retry" class="btn btn-primary hidden" type="button">重新连接</button>
       <button id="btn-quit" class="btn btn-ghost">退出游戏</button>
     </div>
+      </main>
+
+      <aside class="monitor-panel monitor-right" id="monitor-right" aria-label="脑电频段与算法监测" aria-hidden="true">
+        <div class="mon-head">
+          <div><span class="mon-kicker">SIGNAL / ALGORITHM</span><strong>频段与算法</strong></div>
+          <button type="button" class="mon-icon" id="monitor-hide-right" title="收起算法面板" aria-label="收起算法面板">›</button>
+        </div>
+
+        <section class="mon-section">
+          <div class="mon-section-head"><h3>频段功率</h3><span id="mon-band-note">相对功率</span></div>
+          <div class="mon-bands" id="mon-bands"></div>
+          <details class="mon-details" id="mon-band-history">
+            <summary>最近 30 秒趋势</summary>
+            <canvas id="mon-band-canvas" aria-label="频段相对功率历史"></canvas>
+            <div class="mon-band-legend" id="mon-band-legend"></div>
+          </details>
+        </section>
+
+        <section class="mon-section">
+          <div class="mon-section-head"><h3>算法监测</h3><span id="mon-algo-mode">—</span></div>
+          <dl class="mon-algo" id="mon-algo"></dl>
+        </section>
+
+        <section class="mon-section">
+          <div class="mon-section-head"><h3>游戏驱动分数</h3><span>最近 30 s</span></div>
+          <div class="mon-score-wrap">
+            <canvas id="mon-score-canvas" aria-label="游戏驱动分数曲线"></canvas>
+            <div class="mon-tip" id="mon-score-tip" role="tooltip"></div>
+          </div>
+          <div class="mon-chart-legend">
+            <span class="mon-line-key raw">平滑前</span>
+            <span class="mon-line-key smooth">平滑后</span>
+            <span class="mon-line-key event">事件</span>
+            <span class="mon-line-key gap">信号异常</span>
+          </div>
+        </section>
+
+        <section class="mon-section">
+          <div class="mon-section-head"><h3>运行状态</h3><span id="mon-status-fresh">—</span></div>
+          <div class="mon-status" id="mon-status"></div>
+        </section>
+
+        <section class="mon-section mon-events-section">
+          <div class="mon-section-head">
+            <h3>游戏事件</h3>
+            <div class="mon-event-filter" role="group" aria-label="事件筛选">
+              <button type="button" data-event-filter="all" class="active">全部</button>
+              <button type="button" data-event-filter="game">游戏</button>
+              <button type="button" data-event-filter="signal">信号</button>
+            </div>
+          </div>
+          <ol class="mon-events" id="mon-events"></ol>
+        </section>
+      </aside>
+    </div>
   </div>
 
   <script src="assets/api.js"></script>
@@ -537,6 +639,7 @@
   <script src="assets/pond-audio.js"></script>
   <script src="assets/wallet.js"></script>
   <script src="assets/focus-round.js"></script>
+  <script src="assets/eeg-monitor.js"></script>
   <script src="assets/dressup.js"></script>
   <script>
     const $ = id => document.getElementById(id);
@@ -612,10 +715,12 @@
     const params = new URLSearchParams(location.search);
     const demoRequested = params.get("demo") === "1";
     const requestedTest = params.get("test");
+    const monitorRequested = params.get("dev") === "1";
     const demo = DeveloperTools.canTest && demoRequested;
     const testMode = DeveloperTools.canTest && ["replay", "manual"].includes(requestedTest) ? requestedTest : null;
-    const developerRun = demo || !!testMode;
-    const deniedTest = (demoRequested || requestedTest) && !developerRun;
+    // ?dev=1：使用上一次校准的信号源进入开发者监测（真机 / EDF 均可）。
+    const developerRun = demo || !!testMode || (DeveloperTools.canTest && monitorRequested);
+    const deniedTest = (demoRequested || requestedTest || monitorRequested) && !developerRun;
     const calibrationStore = testMode ? Store.forDeveloperTest() : Store;
     const calibInfo = testMode ? calibrationStore.calibInfo() : Store.playerCalibInfo();
     const prev = calibrationStore.load();
@@ -687,6 +792,7 @@
       timeLeft: totalSec,
       lastTs: null,
       stale: true,        // 首帧到来前和断流期间均暂停蓄力
+      hadValidFrame: false,
       lastFrameTs: 0,     // 最近一次有效帧时间（新鲜度检查）
       clock: 0,           // 平滑累积的动画时钟（秒）：不用 rAF 墙钟，避免切后台/掉帧时跳变
       over: false,
@@ -758,6 +864,7 @@
     // 参数集中在 web/assets/focus-round.js 的 CONFIG，便于真机测试调整。
     const roundConfig = FocusRound.CONFIG;
     const focusRound = new FocusRound.RoundEngine(roundConfig, Math.random);
+    let monitor = null;
     state.energy = focusRound.energy;
     state.phase = focusRound.phase;
     // 儿童端默认只保留“本局积分”；实时脑电分/蓄力百分比/心率只在开发者模式出现。
@@ -826,6 +933,22 @@
       }
       $("manual-card").classList.toggle("hidden", !state.manualMode);
 
+      // 开发者模式才创建高频监测；儿童模式不会建立 /monitor 连接。
+      if (developerRun && window.EEGMonitor) {
+        monitor = EEGMonitor.create({
+          sessionId: res.session_id,
+          source: res.source,
+          mode,
+          demo,
+          testMode,
+          roundConfig,
+          thresholds: { enter: 45, exit: 38 },
+          getState: () => state,
+          getRound: () => focusRound,
+        });
+        monitor.start();
+      }
+
       // 质量指示：没有 artifact 报告（回放/手动/心率模式）时整项隐藏
       function updateQuality(q) {
         const hud = $("quality-hud"), dot = $("quality-dot"), txt = $("quality-text");
@@ -843,14 +966,18 @@
         onFrame(f) {
           // 质量指示必须放在 valid 判断之前：恰恰是伪迹帧，用户才需要看到提示
           updateQuality(f.artifact || null);
+          monitor?.ingestFrame(f);
           if (!f.valid || f.focus == null) {
             // 不可用的伪迹窗 / 断流 / 推理异常：冻结蓄力、衰减、单轮计时与子弹时间。
             // 可修复的眨眼仍在后端出分，不会因为一次眨眼就暂停；只有 backend 判为
             // usable=false 的异常窗才走到这里。设备异常不等于玩家走神。
+            if (!state.stale) monitor?.event("signal_lost", "信号异常", { reason: f.reason || "signal" });
             state.stale = true;
             state.staleReason = f.reason || "signal";
             return;
           }
+          if (state.stale && state.hadValidFrame) monitor?.event("signal_recover", "信号恢复");
+          state.hadValidFrame = true;
           state.staleReason = null;
           state.lastFrameTs = performance.now();
           state.signalTime = f.t;
@@ -867,7 +994,12 @@
         },
         onEnd() { showGameError("本局连接已结束，请重新开局。", "重新开局"); },
         onError() { showGameError("连接中断。请检查本地服务，再重新开局。", "重新开局"); },
-        onStatus(s) { if (s === "reconnecting") state.stale = true; },
+        onStatus(s) {
+          if (s === "reconnecting") {
+            if (!state.stale) monitor?.event("signal_lost", "游戏 SSE 重连");
+            state.stale = true;
+          }
+        },
       });
 
       requestAnimationFrame(loop);
@@ -959,11 +1091,17 @@
       // 有效蓄力条件 = 已进入专注滞回 + 平滑分高于蓄力零点；低于零点绝不产生负增益。
       const animating = state.jumping.active || state.settling || state.pendingSettle;
       if (!animating) {
+        const wasDecaying = focusRound.decaying;
         const events = focusRound.update(dt, {
           signalOk: !state.stale,
           charging: focused && state.scoreSmooth > roundConfig.chargeZeroScore,
           score: state.scoreSmooth,
         });
+        if (!wasDecaying && focusRound.decaying) {
+          monitor?.event("decay_start", "开始能量衰减", { energy: focusRound.energy });
+        } else if (wasDecaying && !focusRound.decaying) {
+          monitor?.event("decay_end", "结束能量衰减", { energy: focusRound.energy });
+        }
         state.energy = focusRound.energy;
         state.phase = focusRound.phase;
         state.cooldownRemaining = focusRound.cooldownRemaining;
@@ -1061,12 +1199,18 @@
     function onBulletEnter() {
       state.phase = focusRound.phase;
       state.cooldownRemaining = 0;
+      monitor?.event("bullet_enter", "进入金色区域", {
+        potential: focusRound.potential,
+        zone_lo: focusRound.zone.lo,
+        zone_hi: focusRound.zone.hi,
+      });
       $("tap-hint").classList.remove("show");
     }
 
     // 子弹时间结束仍未点击：立即普通跳跃、零分；不等待蓄满、不生成第二个区域。
     function onBulletMiss() {
       state.phase = focusRound.phase;
+      monitor?.event("miss", "错过点击", { reaction: focusRound.bulletElapsed });
       startJump("missed", 0);
       if (!state.jumping.active) startNextRound();   // 无落点兜底，避免卡在错过态
     }
@@ -1074,7 +1218,12 @@
     // 跳跃动画 + 水花 + 视角归位全部结束后，才结算本轮并生成下一轮区域。
     function startNextRound() {
       if (focusRound.phase !== "JUMP_SUCCESS" && focusRound.phase !== "JUMP_MISSED") return;
-      focusRound.finishRound();
+      const record = focusRound.finishRound();
+      if (record) {
+        monitor?.event("round_start", "开始新一轮蓄力", {
+          round: focusRound.roundIndex, last_award: record.awarded,
+        });
+      }
       state.energy = focusRound.energy;
       state.phase = focusRound.phase;
       state.cooldownRemaining = 0;
@@ -1093,8 +1242,12 @@
       } else if (outcome.type === "early") {
         // 提前点击只触发短暂冷却：不扣分、不清空蓄力、不产生跳跃。
         state.actions.early_taps += 1;
+        monitor?.event("invalid_tap", "无效点击", { cooldown_started: !!outcome.cooldownStarted });
         if (outcome.cooldownStarted) {
           state.actions.cooldown_count += 1;
+          monitor?.event("cooldown_start", "开始点击冷却", {
+            duration_sec: outcome.cooldownRemaining,
+          });
           showTapHintOnce();
         }
         PondAudio.play("tap");
@@ -1114,6 +1267,11 @@
         state.actions.timed_jumps += 1;
         state.actions.successful_jumps += 1;
         state.score += gain;
+        monitor?.event("success", "成功点击", {
+          award: gain, base: base == null ? focusRound.potential : base,
+          multiplier: multiplier == null ? 1 : multiplier,
+          reaction_sec: focusRound.reactionSec,
+        });
         $("score").textContent = state.score;
         // 只在青蛙附近显示柔和 “+N”，不显示百分制、不显示 “+0”。
         if (gain > 0 && state.popups.length < 3) {
@@ -1724,6 +1882,7 @@
       if (!startCue) { startCueState = "done"; return; }
       startCueState = "playing";
       state.introOpen = true;
+      monitor?.event("game_pause", "开局倒数暂停", { reason: "intro" });
       state.lastTs = null;
       const sub = startCue.querySelector(".cue-sub");
       const dots = Array.from(startCue.querySelectorAll(".cue-dots i"));
@@ -1758,6 +1917,10 @@
         state.introOpen = false;
         state.lastTs = null;
         startCueState = "done";
+        monitor?.event("game_resume", "开局倒数结束");
+        if (state.phase === "CHARGING") {
+          monitor?.event("round_start", "开始新一轮蓄力", { round: focusRound.roundIndex });
+        }
       }, 4220));
     }
 
@@ -1844,6 +2007,7 @@
         state.cooldownRemaining = 0;
       }
       // 本局累计积分（state.score）与商城货币（earnedPoints）分离：避免经济系统被放大。
+      monitor?.event("score_settle", "积分结算", { score: state.score });
       state.earnedPoints = FocusRound.pointsForScore(state.score);
       if (!state.pointsSettled && !developerRun && window.Wallet) {
         state.pointsSettled = true;
@@ -1903,6 +2067,7 @@
     window.addEventListener("pagehide", () => {
       state.leaving = true;
       state.es?.close();
+      monitor?.stop();
       AchievementCinematic?.stop?.();
       if (state.session && !state.saving) API.endAbandonedSession(state.session.id);
     });
@@ -1926,6 +2091,7 @@
       okBtn.addEventListener("click", () => {
         box.classList.add("hidden");
         state.tutorialOpen = false;
+        monitor?.event("game_resume", "教学结束");
         try { tutorialStorage.setItem(tutorialKey, "1"); } catch (_) {}
         requestStartCue();   // 教学层关掉后才开始倒数
       });

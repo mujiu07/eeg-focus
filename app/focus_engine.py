@@ -46,10 +46,14 @@ class FocusEngine:
         self._model_ok = True
         self._active_mode = "model"
         self._last_model_error = None
+        # 最近一次实际计算的中间结果，仅供开发者监测读取。
+        # 不改变算法输入，也不会把原始数据持久化。
+        self.last_debug = None
 
     def reset(self):
         self._ema = None
         self._active_mode = "model"
+        self.last_debug = None
 
     @property
     def smooth_focus(self):
@@ -76,7 +80,23 @@ class FocusEngine:
         rel = {b: float(np.mean(powers[b] / (total + 1e-12))) for b in features.BAND_NAMES}
         ratio = rel["beta"] / (rel["theta"] + rel["alpha"] + 1e-9)
         focus = 1.0 / (1.0 + np.exp(-BAND_FOCUS_SLOPE * (ratio - BAND_FOCUS_CENTER)))
-        return float(np.clip(focus, 0.02, 0.98))
+        focus = float(np.clip(focus, 0.02, 0.98))
+        self.last_debug = {
+            "mode": "band",
+            "processed": seg_f,
+            "powers": powers,
+            "total_power": total,
+            "relative": rel,
+            "ratio": float(ratio),
+            "sigmoid": float(focus),
+            "band_focus": {
+                "center": BAND_FOCUS_CENTER,
+                "slope": BAND_FOCUS_SLOPE,
+                "formula": "beta / (theta + alpha)",
+            },
+            "channel_mask": None if mask is None else mask.tolist(),
+        }
+        return focus
 
     def compute_raw(self, seg, fs, channel_mask=None):
         """计算原始专注值（不平滑）。seg: (n_ch, n_samples)。
@@ -91,7 +111,7 @@ class FocusEngine:
             return self._band_focus(seg, fs, channel_mask)
 
         seg_f = features.prepare_signal(seg, fs)
-        feats = features.window_to_features(seg_f, fs)
+        feats, details = features.window_to_feature_details(seg_f, fs)
         feats = feats.reshape(1, -1)
         try:
             # 部分模型管道自带 StandardScaler，这里统一走 predict_proba
@@ -106,7 +126,20 @@ class FocusEngine:
             return self._band_focus(seg, fs, channel_mask)
 
         self._active_mode = "model"
-        return float(p)
+        p = float(p)
+        self.last_debug = {
+            "mode": "model",
+            "processed": seg_f,
+            "powers": details["powers"],
+            "total_power": details["total_power"],
+            "relative": details["relative"],
+            "ratio": float(np.mean(details["theta_beta_ratio"])),
+            "theta_beta_ratio": details["theta_beta_ratio"],
+            "probability": p,
+            "feature_dim": int(feats.shape[1]),
+            "channel_mask": None,
+        }
+        return p
 
     def update(self, seg, fs, channel_mask=None):
         """计算并平滑。返回 (raw_focus, smooth_focus)。"""
@@ -115,6 +148,10 @@ class FocusEngine:
             self._ema = raw
         else:
             self._ema = EMA_ALPHA * raw + (1 - EMA_ALPHA) * self._ema
+        if self.last_debug is not None:
+            self.last_debug["raw_focus"] = float(raw)
+            self.last_debug["smooth_focus"] = float(self._ema)
+            self.last_debug["ema_alpha"] = EMA_ALPHA
         return raw, self._ema
 
     def describe(self):

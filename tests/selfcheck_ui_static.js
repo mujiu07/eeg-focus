@@ -17,6 +17,8 @@ const report = read("web/report.html");
 const exportPy = read("app/export.py");
 const serverPy = read("app/server.py");
 const engine = read("web/assets/focus-round.js");
+const monitorJs = read("web/assets/eeg-monitor.js");
+const monitorCss = read("web/assets/eeg-monitor.css");
 
 let passed = 0;
 function check(name, fn) {
@@ -84,10 +86,47 @@ check("报告与导出区分脑电基础分、实际分和冷却数据", () => {
 });
 
 check("后端版本与逐轮字段已同步", () => {
-  assert.ok(serverPy.includes('version="1.6.0"'));
+  assert.ok(serverPy.includes('version="1.7.0"'));
   assert.ok(serverPy.includes("multiplier: Optional[float]"));
   assert.ok(serverPy.includes("cooldown_count: Optional[NonNegativeInt]"));
   assert.ok(serverPy.includes("cooldown_sec: Optional[float]"));
+});
+
+check("开发者模式三栏布局与监测面板隔离", () => {
+  assert.ok(game.includes('id="game-layout"'));
+  assert.ok(game.includes('class="monitor-panel monitor-left"'));
+  assert.ok(game.includes('class="monitor-panel monitor-right"'));
+  assert.ok(game.includes('assets/eeg-monitor.css'));
+  assert.ok(game.includes('assets/eeg-monitor.js'));
+  assert.ok(game.includes('if (developerRun && window.EEGMonitor)'));
+  assert.ok(monitorCss.includes('html.monitor-mode .monitor-panel'));
+  assert.ok(monitorCss.includes('grid-template-columns'));
+});
+
+check("监测只消费真实窗口、序号与算法中间结果", () => {
+  assert.ok(game.includes('monitor?.ingestFrame(f)'));
+  assert.ok(monitorJs.includes('b.raw'));
+  assert.ok(monitorJs.includes('b.processed'));
+  assert.ok(monitorJs.includes('sample_seq0'));
+  assert.ok(monitorJs.includes('time_basis'));
+  assert.ok(!monitorJs.includes('Math.random'));
+  assert.ok(serverPy.includes('/api/session/{sid}/monitor'));
+  assert.ok(serverPy.includes('take_monitor_window'));
+  assert.ok(serverPy.includes('last_debug'));
+  assert.ok(serverPy.includes('monitor_data.build_batch'));
+});
+
+check("监测面板覆盖频段、算法、分数、事件与状态", () => {
+  for (const id of ["mon-wave-canvas", "mon-band-canvas", "mon-score-canvas",
+    "mon-algo", "mon-status", "mon-events", "mon-band-history"]) {
+    assert.ok(game.includes(`id="${id}"`), id);
+  }
+  assert.ok(monitorJs.includes('游戏驱动分数'));
+  assert.ok(monitorJs.includes('当前信号源'));
+  assert.ok(monitorJs.includes('本局累计积分'));
+  assert.ok(monitorJs.includes('signal_lost'));
+  assert.ok(monitorJs.includes('score_settle'));
+  assert.ok(monitorJs.includes('canvas'));
 });
 
 console.log("");

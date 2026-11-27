@@ -2,7 +2,7 @@
 
 > 文档类型：Proposal + MVP PRD + Technical Design + AI Workflow（四合一，对应课程 Project Documentation Guidelines Part 1–4）
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 代码版本：v1.4.16（2026-11-19）
+> 代码版本：v1.7.0（2026-11-27）
 > 仓库：`eeg-focus/`（GitHub: `mujiu07/eeg-focus`）
 > 说明：本文件是评审入口；更细的架构、技术栈、隐私与硬件内容见 `docs/` 下对应文档。
 
@@ -115,6 +115,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | AC2 | 校准失败（无有效帧）不会写入基线并给出提示 | 通过 | 断流场景手动验证 |
 | AC3 | 基线 1 小时内刷新页面无需重新校准，超时后引导重校 | 通过 | 篡改 `bf-calib` 时间戳验证 |
 | AC4 | 专注高于蓄力零点可蓄力；短暂走神进度保持，超过 1.5 s 才缓慢衰减；信号异常/暂停冻结（v1.6.0） | 通过 | `node tests/selfcheck_round_logic.js` + 手动滑块 |
+| AC5 | 开发者三栏监测显示真实原始/处理后波形、频段、算法、分数与事件；儿童模式零订阅（v1.7.0） | 通过（无真机） | `tests/selfcheck_monitor.py`、`tests/selfcheck_ui_static.js`、Playwright |
 | AC5 | 蓄力越快脑电基础分越高；前 0.6 s 点击满分、之后最多折损 10%，错过 0 分；提前点击触发 0.5 s 冷却；积分按 30:1 折算 | 通过 | 模拟脑电回归 + `bf-wallet` 检查 |
 | AC6 | 信号中断时蓄力与计时暂停，不产生伪得分 | 通过 | 关闭 OSC 推流验证 |
 | AC7 | 报告包含曲线、有效数据占比与「给家长的话」 | 通过 | report 页 + 会话 JSON |

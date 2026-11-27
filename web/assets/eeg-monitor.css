@@ -1,0 +1,200 @@
+/* ============================================================
+   专注小蛙 v1.7 · 开发者实时脑电监测工作台
+   深色监测面板与浅色池塘分开；儿童模式完全不渲染面板。
+   ============================================================ */
+html.monitor-mode .wrap {
+  max-width: min(1880px, 98vw);
+}
+.monitor-toggles { display: none; }
+html.monitor-mode .monitor-toggles {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 0 4px; color: #c7dadd; font-size: 12px; font-weight: 800;
+  letter-spacing: .08em;
+}
+.monitor-toggles button {
+  border: 1px solid rgba(138, 190, 198, .28); border-radius: 999px;
+  background: #14242b; color: #c7dadd; padding: 6px 12px;
+  font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;
+}
+.monitor-toggles button:hover { background: #1d333b; }
+.monitor-toggles button[aria-pressed="true"] { color: #8fe3d0; border-color: rgba(143, 227, 208, .5); }
+
+.game-layout {
+  width: 100%;
+  display: block;
+}
+html.monitor-mode .game-layout {
+  display: grid;
+  grid-template-columns: var(--mon-left, 310px) minmax(420px, 900px) var(--mon-right, 360px);
+  gap: 16px;
+  align-items: start;
+  justify-content: center;
+}
+html.monitor-mode .game-layout.left-off { --mon-left: 0px; }
+html.monitor-mode .game-layout.right-off { --mon-right: 0px; }
+html.monitor-mode .game-layout.left-off .monitor-left,
+html.monitor-mode .game-layout.right-off .monitor-right { display: none; }
+.game-main {
+  min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+}
+
+.monitor-panel {
+  display: none;
+  min-width: 0;
+  padding: 13px;
+  border-radius: 18px;
+  color: #d7e7e9;
+  background:
+    radial-gradient(110% 80% at 100% 0%, rgba(66, 130, 139, .13), transparent 58%),
+    #0f1b21;
+  border: 1px solid rgba(116, 173, 181, .26);
+  box-shadow: 0 18px 46px rgba(12, 33, 41, .25);
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  position: sticky;
+  top: 14px;
+  max-height: calc(100vh - 28px);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #34545e #0f1b21;
+}
+html.monitor-mode .monitor-panel { display: flex; flex-direction: column; gap: 10px; }
+.monitor-panel * { box-sizing: border-box; }
+.monitor-panel canvas {
+  display: block; width: 100%; height: auto;
+  border-radius: 8px; box-shadow: none; background: #0a1217;
+}
+
+.mon-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mon-head strong { display: block; margin-top: 2px; font: 800 15px/1.25 var(--font); letter-spacing: .02em; color: #eef7f7; }
+.mon-kicker { font-size: 9px; letter-spacing: .18em; color: #6f9aa3; }
+.mon-icon {
+  width: 26px; height: 26px; border-radius: 8px; border: 1px solid rgba(140, 190, 197, .25);
+  background: transparent; color: #9fc3c8; font-size: 18px; line-height: 1; cursor: pointer;
+}
+.mon-icon:hover { background: rgba(126, 185, 193, .12); color: #fff; }
+.mon-meta { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font: 700 10px/1.2 var(--font); }
+#mon-source-label, .mon-state {
+  padding: 3px 7px; border-radius: 999px; border: 1px solid rgba(134, 184, 192, .2);
+  color: #a9c8cd; background: rgba(111, 157, 166, .08); white-space: nowrap;
+}
+.mon-state.ok { color: #8fe3bc; border-color: rgba(102, 208, 166, .35); }
+.mon-state.bad { color: #f0a49b; border-color: rgba(240, 114, 101, .35); }
+.mon-toolbar { display: flex; flex-wrap: wrap; gap: 7px 9px; align-items: center; }
+.mon-tabs { display: inline-flex; padding: 2px; border-radius: 8px; background: #172a31; border: 1px solid rgba(128, 183, 190, .18); }
+.mon-tabs button {
+  border: 0; border-radius: 6px; background: transparent; color: #89aeb4;
+  padding: 4px 7px; font: 700 10.5px/1.2 var(--font); cursor: pointer;
+}
+.mon-tabs button.active { background: #2a5057; color: #f0ffff; }
+.mon-control { display: inline-flex; gap: 5px; align-items: center; color: #83aeb5; font: 700 10px/1 var(--font); }
+.mon-control select, .mon-small-btn {
+  border: 1px solid rgba(128, 183, 190, .22); border-radius: 6px;
+  background: #172a31; color: #c7e2e5; padding: 3px 5px;
+  font: 700 10px/1.2 var(--font); cursor: pointer;
+}
+#mon-gain { width: 62px; accent-color: #6ccbb8; }
+.mon-small-btn.active { color: #102127; background: #8fe3d0; border-color: #8fe3d0; }
+.mon-wave-wrap {
+  position: relative; min-height: 260px; height: clamp(280px, 40vh, 430px);
+  border-radius: 9px; overflow: hidden; border: 1px solid rgba(126, 183, 191, .16);
+  background: #0a1217;
+}
+.mon-wave-wrap canvas { height: 100%; }
+.mon-empty {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  padding: 18px; color: #7fa4aa; font: 700 11px/1.6 var(--font);
+  text-align: center; background: linear-gradient(180deg, rgba(10,18,23,.15), rgba(10,18,23,.82));
+}
+.mon-empty.hidden { display: none; }
+.mon-legend { display: flex; flex-wrap: wrap; gap: 4px 8px; min-height: 22px; }
+.mon-channel {
+  border: 1px solid rgba(129, 184, 191, .18); border-radius: 5px;
+  background: transparent; color: #9abdbf; padding: 2px 5px;
+  font: 700 9.5px/1.3 var(--font); cursor: pointer;
+}
+.mon-channel.off { opacity: .35; text-decoration: line-through; }
+.mon-channel i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+.mon-foot { display: flex; justify-content: space-between; gap: 8px; color: #658b93; font: 600 9.5px/1.45 var(--font); }
+.mon-foot span:last-child { text-align: right; }
+
+.mon-section { border-top: 1px solid rgba(122, 176, 184, .14); padding-top: 7px; }
+.mon-section:first-of-type { border-top: 0; padding-top: 0; }
+.mon-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+.mon-section-head h3 { margin: 0; font: 800 12px/1.2 var(--font); color: #e1f2f2; letter-spacing: .02em; }
+.mon-section-head > span { color: #6f9aa3; font: 700 9px/1.2 var(--font); }
+.mon-bands { display: flex; flex-direction: column; gap: 6px; }
+.mon-band-row { display: grid; grid-template-columns: 94px 1fr 44px; gap: 5px; align-items: center; }
+.mon-band-name { color: #b9d6d8; font: 700 10px/1.2 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mon-band-name small { color: #658b93; font-size: 7.5px; font-weight: 600; white-space: nowrap; margin-left: 3px; }
+.mon-band-track { height: 8px; border-radius: 99px; background: #1b3037; overflow: hidden; }
+.mon-band-fill { height: 100%; width: 0; border-radius: inherit; transition: width .2s ease; }
+.mon-band-val { text-align: right; color: #d4e8e9; font: 700 10px/1.2 var(--font); }
+.mon-band-row.unavailable .mon-band-fill { width: 0 !important; }
+.mon-band-row.unavailable .mon-band-val { color: #58777d; }
+.mon-details { margin-top: 8px; border-top: 1px dashed rgba(126, 180, 187, .16); padding-top: 7px; }
+.mon-details summary { color: #8ab1b6; cursor: pointer; font: 700 10px/1.4 var(--font); }
+.mon-details canvas { height: 122px; margin-top: 5px; }
+.mon-band-legend { display: flex; flex-wrap: wrap; gap: 4px 7px; margin-top: 4px; }
+.mon-band-legend button {
+  border: 1px solid rgba(128, 183, 190, .2); background: transparent; border-radius: 4px;
+  color: #9dc1c4; padding: 2px 5px; font: 700 8.5px/1.2 var(--font); cursor: pointer;
+}
+.mon-band-legend button.off { opacity: .35; text-decoration: line-through; }
+
+.mon-algo { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; margin: 0; font: 600 9px/1.25 var(--font); }
+.mon-algo dt { color: #789fa6; }
+.mon-algo dd { margin: 0; color: #def0f0; text-align: right; font-variant-numeric: tabular-nums; }
+.mon-algo dd.em { color: #8fe3d0; }
+.mon-algo .mon-algo-note { grid-column: 1 / -1; color: #5f858d; font-size: 8.5px; line-height: 1.4; }
+.mon-score-wrap { position: relative; height: 122px; }
+.mon-score-wrap canvas { height: 100%; }
+.mon-chart-legend { display: flex; flex-wrap: wrap; gap: 7px; color: #718f96; font: 600 8.5px/1.3 var(--font); }
+.mon-line-key::before { content: ""; display: inline-block; width: 12px; height: 2px; margin-right: 4px; vertical-align: 2px; background: #8faeb3; }
+.mon-line-key.raw::before { background: #74a8d6; }
+.mon-line-key.smooth::before { background: #8fe3d0; }
+.mon-line-key.event::before { background: #ffc37e; height: 6px; width: 6px; border-radius: 50%; }
+.mon-line-key.gap::before { background: #d06f68; opacity: .45; }
+.mon-tip {
+  display: none; position: absolute; z-index: 2; pointer-events: none;
+  max-width: 210px; padding: 5px 7px; border-radius: 6px;
+  background: rgba(5, 14, 18, .96); border: 1px solid rgba(138, 195, 201, .3);
+  color: #d9eeee; font: 600 9.5px/1.4 var(--font); white-space: pre-line;
+}
+.mon-status { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 7px; font: 600 8.5px/1.2 var(--font); }
+.mon-stat { display: flex; justify-content: space-between; gap: 4px; min-width: 0; border-bottom: 1px dotted rgba(126,180,187,.10); padding: 1px 0; }
+.mon-stat span { color: #789fa6; white-space: nowrap; }
+.mon-stat b { color: #def0f0; text-align: right; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mon-stat b.muted { color: #58777d; }
+.mon-event-filter { display: flex; gap: 3px; }
+.mon-event-filter button {
+  border: 1px solid rgba(128, 183, 190, .18); background: transparent; border-radius: 4px;
+  color: #86aeb3; padding: 2px 5px; font: 700 8.5px/1.2 var(--font); cursor: pointer;
+}
+.mon-event-filter button.active { background: #24464d; color: #e1f8f7; }
+.mon-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 82px; overflow: auto; }
+.mon-events li { display: grid; grid-template-columns: 34px 1fr; gap: 5px; color: #9abcc0; font: 600 9px/1.35 var(--font); }
+.mon-events time { color: #5e858c; font-variant-numeric: tabular-nums; }
+.mon-events li.signal { color: #e6a29a; }
+.mon-events li.empty { display: block; color: #5d7e85; }
+
+@media (max-width: 1500px) {
+  html.monitor-mode .game-layout { --mon-left: 270px; --mon-right: 320px; }
+}
+@media (max-width: 1220px) {
+  html.monitor-mode .wrap { max-width: 1000px; }
+  html.monitor-mode .game-layout { grid-template-columns: minmax(0, 1fr); }
+  .monitor-panel { position: relative; top: auto; max-height: none; }
+  html.monitor-mode .monitor-panel { order: 2; }
+  html.monitor-mode .game-layout.left-off .monitor-left,
+  html.monitor-mode .game-layout.right-off .monitor-right { display: none; }
+}
+@media (max-width: 760px) {
+  html.monitor-mode .wrap { padding-left: 10px; padding-right: 10px; }
+  .mon-wave-wrap { height: 320px; }
+  .mon-band-row { grid-template-columns: 82px 1fr 40px; }
+}
+
+/* 折叠规则必须放在响应式变量之后，否则窄屏媒体查询会重新撑开列宽 */
+html.monitor-mode .game-layout.left-off { --mon-left: 0px; }
+html.monitor-mode .game-layout.right-off { --mon-right: 0px; }

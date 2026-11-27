@@ -171,6 +171,16 @@
 - **证据**：`web/assets/focus-round.js` 的 `timingMultiplier` / `actualScore` / 冷却逻辑，`tests/selfcheck_round_logic.js` 36 项、`tests/selfcheck_ui_static.js` 7 项、`tests/score_distribution.js`；报告与 Excel 新增 `multiplier`、`cooldown_count`、`cooldown_sec`。
 - **状态**：已采纳（补充 D-018，不替换脑电计分公式）。
 
+### D-020 开发者监测使用独立数据支路（v1.7.0）
+
+- **背景**：开发者需要在游戏两侧观察原始/处理后波形、频段、算法中间值和事件，但不能让高频波形阻塞游戏控制 SSE，也不能改变算法或儿童界面。
+- **决策**：在信号源层复制原始窗、在 `FocusEngine.last_debug` 保存实际 processed/特征；新增独立 `/api/session/{sid}/monitor` SSE，仅在开发者订阅时构造批次；前端用 Canvas + 有限窗口缓存；儿童模式不创建 `EEGMonitor`。不新增持久化、外部服务或第二套滤波。
+- **代价**：21 通道 EDF 原始+处理后 JSON 较大；OSC 无逐样本硬件时间戳，需要标注“按到达时间与 fs 重建”；真机与儿童可用性仍需验证。
+- **证据**：`app/monitor.py`、`app/server.py`、`web/assets/eeg-monitor.js`、`tests/selfcheck_monitor.py`、`docs/DEV-REPORT-v1.7.0.md`。
+- **状态**：已采纳；真机验证未完成。
+
+---
+
 ## 2. 验证记录（Verification Log）
 
 > 结果只写实际观察；"通过"指本机手测/脚本通过，不等于儿童用户验证。
@@ -197,6 +207,8 @@
 | V-018 | 2026-11-19 | 去噪单元自检 | `python tests/selfcheck_denoise.py`（合成 4 ch × 256 Hz，逐项注入伪迹） | 通过（10/10）：陷波 20.3 dB；眨眼 196→60.9 µV 且 alpha −5.5%、beta −0.1%；削顶 400→60.7 µV；脱落判 `flatline+bad_channel`；肌电 ratio 0.985；ADC 量级不误伤；跨窗眨眼仍检出；44 维特征全部有限。同时把 `app/server.py` 版本同步为 `1.4.16`（修复 V-014） | `tests/selfcheck_denoise.py`；`docs/denoise-artifacts.md` §6.1 |
 | V-019 | 2026-11-19 | 去噪端到端 | `python tests/e2e_hardware_denoise.py`：合成 OSC（UDP 17000，8 样本/包）→ uvicorn → 会话 → SSE → 校准 → 报告 | 通过：`describe.denoise` 生效；帧带 `artifact`（`usable=true, level=good, flags=["blink"], rail_ratio=0.0`）；`calibration.signal_quality` 与 `report.signal_quality` 均落库（`usable_ratio=1.0`） | `tests/e2e_hardware_denoise.py`；`docs/denoise-artifacts.md` §6.2 |
 | V-020 | 2026-11-19 | 运动伪迹 | `python tests/selfcheck_denoise.py` 用例 11–14 | 通过：50 µV 台阶修复后残留 12.1 µV 且 β/(θ+α) 0.26→0.24（未虚高）；200 µV 台阶拒绝出分；0.8 Hz/100 µV 慢摆被判不可用且未修复；150 µV 共模减到 3.3 µV。过程中修复两个缺陷：边缘眨眼被误判为台阶、慢摆滑动窗过短 | `tests/selfcheck_denoise.py` |
+
+| V-021 | 2026-11-27 | 开发者监测链路 | `python tests/selfcheck_monitor.py`；EDF/合成 OSC Playwright；儿童模式网络监听 | 通过（无真机）：9 项数据一致性；EDF 21 ch 与合成 4 ch 三栏显示；儿童模式 `/monitor` 请求 0；原始/处理后、窗口、暂停、折叠通过 | `tests/selfcheck_monitor.py`；`docs/DEV-REPORT-v1.7.0.md` |
 
 ### 2.1 失败与不一致（保留，不掩盖）
 

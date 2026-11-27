@@ -64,6 +64,7 @@ class EEGSource:
 
     def __init__(self):
         self._filtered = None  # 滤波后的信号 (n_ch, n_samples)
+        self._monitor = None   # 仅开发者监测：去噪/滤波前的原始窗口
         self.fs = None
         self.ch_names = None
 
@@ -76,6 +77,15 @@ class EEGSource:
 
     def describe(self):
         return {"name": self.name, "label": self.label}
+
+    def take_monitor_window(self):
+        """取出最近一个未处理的原始窗口；没有 EEG 的源返回 None。
+
+        监测模块在去噪前复制 ``seg``，因此该副本与算法输入共享同一组
+        采样序号/时间，但不参与后续特征计算。
+        """
+        out, self._monitor = self._monitor, None
+        return out
 
     def stop(self):
         """释放连接/端口。默认无资源需要释放。"""
@@ -122,6 +132,20 @@ class EDFReplaySource(EEGSource):
         s = idx * self._step
         seg = self._raw[:, s:s + self._win]
         progress = idx / self._n_windows
+        # EDF 回放的时间是文件内时间；它不是“当前真实采集”，前端必须明确标注。
+        self._monitor = {
+            "raw": seg.copy(),
+            "meta": {
+                "seq0": int(s),
+                "seq1": int(s + self._win - 1),
+                "t0": round(s / float(self.fs), 6),
+                "t1": round((s + self._win - 1) / float(self.fs), 6),
+                "n": int(self._win),
+                "fs": float(self.fs),
+                "time_basis": "edf_file",
+                "timestamp_note": "EDF 文件内采样时间；回放不是实时采集",
+            },
+        }
         return seg, {
             "source": self.name,
             "file": os.path.basename(self.file_path),
@@ -230,6 +254,11 @@ class HardwareSource(EEGSource):
         seg, meta = self._impl.next_window()
         self.fs = meta.get("fs", self.fs)
         self.ch_names = meta.get("ch_names") or self.ch_names
+        # 必须在 ArtifactCleaner 之前复制：这是软件处理链路之前的原始信号。
+        self._monitor = {
+            "raw": np.array(seg, dtype=float, copy=True),
+            "meta": dict(meta.get("monitor") or {}),
+        }
 
         from . import denoise as _dn
         if not _dn.ENABLED:

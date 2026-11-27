@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 使用与隐私说明
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.4.16（2026-11-19）
+> 版本：v1.7.0（2026-11-27）
 > 隐私承诺：**脑电数据全部在本地处理，不上传任何脑电数据**——本承诺基于代码实现，详见第 6 节。
 
 ---
@@ -101,6 +101,7 @@ python3 -m venv .venv
 - 面向开发者：创建会话、查看实时 SSE 帧、监视原始值
 - 支持切换信号源（EDF 文件 / 手动 / Xmuse OSC / 模拟心率）；Xmuse 默认同时监听 UDP 7000/8000
 - 提供无设备试玩、EDF 回放验证、手动模拟校准、模型评估与实时监视
+- **实时脑电工作台**：点击「脑电实时工作台」或在开发者会话中打开 `game.html?dev=1`，游戏左右显示真实多通道原始/处理后波形、频段功率与 30 秒趋势、算法中间值、游戏分数曲线和事件；儿童模式不显示也不订阅该数据
 - 普通用户无需使用
 
 ### 3.6 成长系统（积分 / 签到 / 成就 / 商城 / 装扮）
@@ -136,7 +137,8 @@ python3 -m venv .venv
 | GET | `/api/dev/current` | 当前信号源配置与最近会话 |
 | POST | `/api/dev/source` | 切换全局默认信号源（含 OSC 参数） |
 | POST | `/api/session` | 创建会话（可带基线、OSC、心率参数） |
-| GET | `/api/session/{id}/stream` | **SSE 实时流**（首帧 `hello`，之后每 0.5s `frame`） |
+| GET | `/api/session/{id}/stream` | **游戏分数 SSE**（首帧 `hello`，之后每 0.5s `frame`） |
+| GET | `/api/session/{id}/monitor` | **开发者高频监测 SSE**（原始/处理后窗口、频段、算法、质量；仅开发者页订阅） |
 | POST | `/api/session/{id}/manual` | 手动模式设置专注度 |
 | POST | `/api/session/{id}/calibrate` | 校准采样并建立基线 |
 | POST | `/api/session/{id}/finish` | 结束会话并落盘报告 |
@@ -203,7 +205,8 @@ python3 -m venv .venv
 | EDF 脑电样本 | `data/eegmat/*.edf` | PhysioNet 公开数据集本地副本（回放源） |
 | 预处理中间数据 | `data/processed/` | 训练用 |
 | 模型文件 | `outputs/models/LogisticRegression.joblib` | 本地训练产物 |
-| 会话记录 | `outputs/sessions/{会话id}.json` | 每次会话结束后落盘（专注度时序、起跳事件等） |
+| 会话记录 | `outputs/sessions/{会话id}.json` | 每次会话结束后落盘（专注度时序、起跳事件等；不含原始监测波形） |
+| 开发者监测原始窗 | 进程内存有限队列（最多 12 批） | 仅开发者订阅 `/monitor` 时存在；不落盘，页面关闭/会话结束后释放 |
 | 训练报告 | `outputs/train_report.md` | 模型指标 |
 | 校准基线 | 浏览器 `localStorage: bf-calib` | 1 小时有效，不上传 |
 | 成长数据 | `localStorage: bf-wallet / bf-checkin / bf-achievements / bf-owned / bf-outfit` | 积分、签到、成就、装扮 |
@@ -230,6 +233,7 @@ SSE 推送（127.0.0.1 回环）→ 浏览器渲染
 - Xmuse 设备 → 蓝牙 → 本机 Xmuse Direct/Lab 软件 → **OSC/UDP 均在本机回环（127.0.0.1）**
 - 心率由本机 `hrd` 工具经蓝牙读取，数据不离开本机
 - 原始脑电/心率仅在内存中参与特征计算，报告只存聚合后的专注度时序（`outputs/sessions/*.json`）
+- v1.7 开发者监测的原始/处理后窗口只保存在内存有限队列；订阅断开/页面关闭后不再保留，不写入报告，也不发送到任何第三方
 - 不会、也不需要把数据发往设备厂商云端
 
 ### 6.5 隐私最佳实践
