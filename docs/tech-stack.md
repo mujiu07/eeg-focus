@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.8.4（2026-11-27）
+> 版本：v1.9.0（2026-11-27）
 > 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
@@ -10,7 +10,7 @@
 
 | 层 | 技术 | 声明版本（`requirements.txt`） | 职责 |
 |---|---|---|---|
-| 前端 | HTML + CSS + 原生 JavaScript（零构建） | — | 7 个页面 + `assets/` 公共层、档案桥与成长系统 |
+| 前端 | HTML + CSS + 原生 JavaScript（零构建） | — | 10 个页面 + `assets/` 公共层、档案桥与成长系统 |
 | 服务 | FastAPI | `>=0.115,<1.0` | REST 接口 + 静态托管 |
 | 服务 | uvicorn | `>=0.30,<1.0` | ASGI 服务器（`127.0.0.1:8000`） |
 | 实时通道 | sse-starlette | `>=2.1,<4.0` | 会话实时数据推送（`EventSourceResponse`） |
@@ -34,7 +34,7 @@
 
 **无 `package.json`、无 npm、无框架、无打包**——这是刻意的产品约束：
 
-- 7 个页面：`index.html`（首页）、`profiles.html`（档案）、`settings.html`（数据设置）、`calibrate.html`（校准）、`game.html`（游戏）、`report.html`（报告）、`dev.html`（联调/监视）
+- 10 个页面：`index.html`（首页）、`profiles.html`（档案）、`settings.html`（数据设置）、`calibrate.html`（校准）、`game.html`（游戏）、`report.html`（报告）、`growth.html`（成长日记）、`parent.html`（家长中心）、`history.html`（历史详情）、`dev.html`（联调/监视）
 - 游戏核心逻辑：
   - `assets/focus-round.js`：不依赖 DOM 的单轮状态机（蓄力 → 宽容期/衰减 → 唯一金色区域 → 子弹时间 → 脑电基础分/点击时机结算 → 无效点击冷却），参数集中在 `CONFIG`，浏览器与 Node 测试共用
 - 视觉与环境层：
@@ -56,6 +56,9 @@
   - `app/difficulty.py`：v1.8.3 难度范围/净蓄力指标/连续判定；`web/dev.html` 提供开发者基础控制，儿童端不显示难度数字
   - `app/diagnostics.py`：v1.8.4 过程统计、9 类瓶颈诊断、客户端逐周边界校验；不重算正式计分
   - `app/dev_export.py`：v1.8.4 脱敏 JSON/CSV 导出；默认不含昵称和原始高频 EEG
+  - `app/growth.py`：v1.9.0 成长聚合、缺失值/分母、评估条件分段
+  - `app/growth_export.py`：v1.9.0 PDF/Excel/JSON/CSV 个人报告；`growth_api.py` 暴露 /api/growth
+  - `web/assets/growth-*.js`：v1.9.0 儿童日记/家长中心/历史详情/离线 Canvas 图表
   - `web/assets/dev-workbench.js`：v1.8.4 工作台五标签页；只在 `developerRun` 实例化
   - `app/storage.py`：Schema v4；`assessments`、Session purpose/assessment、逐轮过程列
 - 数据通道：浏览器 `EventSource` 消费 SSE；`assets/api.js` 封装 REST + SSE，含 6 s 无数据自愈重连（最多 4 次）与 `onStatus("live"/"reconnecting")`

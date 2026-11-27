@@ -1,6 +1,6 @@
 # 专注小蛙 · 梦境池塘 — 架构设计
 
-> 版本：v1.8.4（2026-11-27）
+> 版本：v1.9.0（2026-11-27）
 > 适用代码：`eeg-focus/`（`app/` + `web/`）
 > 定位：本地运行的脑电专注游戏 MVP，教学演示用途，不构成注意力评估或医疗诊断。
 
@@ -15,11 +15,15 @@
 │  calibrate.html  校准：档案 gate、信号源、心率辅助、安静+心算期   │
 │  game.html       游戏：档案 gate、3D 感池塘、蓄力→起跳、结算      │
 │  report.html     报告：归属读取、曲线回放、PDF/Excel/Word 导出    │
+│  growth.html     儿童成长日记：真实正式游戏、收藏与纪念           │
+│  parent.html     家长中心：日期筛选、指标、趋势、历史与导出       │
+│  history.html    历史详情：SQLite 报告、诊断与逐轮数据            │
 │  dev.html        开发者：无设备试玩、EDF 回放验证、OSC 监视      │
 │  assets/  api.js · sky.js/css · music.js + vinyl.css            │
 │           eeg-monitor.js/css（开发者三栏监测）                   │
 │           hero-pond/hero-water/pond-effects/pond-audio           │
 │           achievements(+-cinematic) · dressup · shop · checkin   │
+│           growth-common/charts/diary/parent/history.js            │
 │           wallet · style.css                                     │
 └───────────────┬──────────────────────────────────────────────┘
                 │ REST / SSE（仅 127.0.0.1 回环）
@@ -31,6 +35,9 @@
 │  difficulty.py  v1.8.3 难度范围、净蓄力指标、连续判定              │
 │  diagnostics.py v1.8.4 过程统计、瓶颈诊断、客户端边界校验          │
 │  dev_export.py  v1.8.4 脱敏 JSON/CSV 诊断导出                     │
+│  growth.py      v1.9.0 成长聚合、指标口径、评估分段             │
+│  growth_export.py v1.9.0 个人报告 PDF/Excel/JSON/CSV             │
+│  growth_api.py  v1.9.0 /api/growth 路由                           │
 │  accounts.py    档案/校准状态/参考基线/难度控制/存储 API           │
 │  sources.py     信号源：replay · manual · hardware · heart       │
 │  xmuse_osc.py   Xmuse OSC/UDP 多端口接收（2 s 出窗）            │
@@ -125,7 +132,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 - v1.8.3 难度只调整黄色区域起点，默认 1.00、范围 0.60–1.20；Session 创建时锁定，局内不变；详细规则见 `docs/DEV-REPORT-v1.8.3.md`。
 - v1.8.4 在同一 Session 上增加开发者工作台：概览、双基线、难度历史、瓶颈诊断、标准评估/导出。诊断和评估只读现有状态机，不自动改蓄力/计分/难度公式；详细规则见 `docs/DEV-REPORT-v1.8.4.md`。
 
-## 5. API 一览（v1.8.4）
+## 5. API 一览（v1.9.0）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -160,7 +167,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 | GET | `/api/music/playlist` | 背景音乐歌单（网易云代理） |
 | GET | `/api/music/url/{track_id}` | 单曲播放直链（服务端缓存） |
 
-> v1.8.4 起，`/api/session` 仍负责日常游戏；`/api/assessments` 强制 `purpose=assessment`，固定 1.00/90s 并写独立 `assessments` 表；工作台与导出 API 只在本地开发者页面使用。
+> v1.8.4 起，`/api/session` 仍负责日常游戏；`/api/assessments` 强制 `purpose=assessment`，固定 1.00/90s 并写独立 `assessments` 表；工作台与导出 API 只在本地开发者页面使用。v1.9.0 新增 `/api/growth/diary`、`/api/growth/report`、`/api/growth/sessions/{sid}`、`/api/growth/export/{fmt}`，全部要求 `user_id`。
 > v1.4.16 起，`hardware` 会话的 SSE `frame` 新增可选字段 `artifact`（信号质量报告，字段见 `docs/denoise-artifacts.md` §5）；
 > `valid=false, reason="artifact"` 表示该窗伪迹过重、不出分且不入 history；`/calibrate` 与 `finish` 的结果新增 `signal_quality`。
 > v1.8.2 起 `/calibrate` 请求增加 `protocol=daily_v2, stage_windows, tutorial_events, device_key, timezone_offset_min`；`stream`/`monitor` 增加 `calibration_id`、`reference_baseline_id`、`daily_score`、`reference_score`。
@@ -180,7 +187,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 1. **真实数据回放 + 真机双通道**：无硬件时可回放本机配对 EDF 复现端到端"校准→游戏→报告"；hardware 源已通过 Xmuse OSC/UDP 真机接入
 2. **单被试基线**：模型对陌生被试仍有区分度（LOSO 验证），但演示时建议校准/游戏用同一被试
 3. **数据隐私**：脑电与档案默认全程本地，无联网账号、无上传；数据目录在系统文档目录，SQLite 未加密（文件权限/OS 账户/磁盘加密为边界）；仅可选背景音乐访问网易云。详见 `docs/DEV-REPORT-v1.8.1.md`、`docs/DEV-REPORT-v1.8.2.md` 与 `docs/DEV-REPORT-v1.8.3.md`
-4. **前端零构建**：无需 Node/npm，静态托管即可；7 个页面共用一套 `assets/`；v1.8.4 工作台在开发者模式右栏标签页，儿童端不创建监测或工作台
+4. **前端零构建**：无需 Node/npm，静态托管即可；10 个页面共用一套 `assets/`；v1.8.4 工作台在开发者模式右栏标签页，儿童端不创建监测或工作台
 5. **成长系统本地化**：积分、签到、商城、装扮、成就都不依赖服务端，断网也能完整使用；清缓存会重置成长进度，需在隐私说明中明示
 
 ## 8. 扩展路径
@@ -223,3 +230,24 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 | v1.8.2 | 每日游戏化校准：自然观察 + 教学阶段、P15/P85、当日/长期双基线、每日状态/设备指纹、正式游戏锁定、Schema v2 原地迁移 |
 | v1.8.3 | 个体自适应难度：局内锁定黄色区域起点、净蓄力 `eval_sec`、未完成轮次、连续局间判定、Schema v3、开发者基础控制 |
 | v1.8.4 | 开发者工作台整合：五标签页、双基线历史、9 类瓶颈诊断、过程统计、标准评估、脱敏导出、Schema v4 |
+| v1.9.0 | 成长中心：儿童日记、家长报告、评估分段、历史详情、四格式个人报告；保持 Schema 4，无云同步 |
+
+
+## 11. v1.9.0 成长中心数据流
+
+```
+SQLite（users / sessions / rounds / calibrations / reference_baselines / assessments
+       / inventories / achievements）
+  → app/growth.py
+      记录分类（正式游戏 / 校准 / 标准评估 / 模拟 / 回放）
+      指标聚合（缺失保留 null，未完成轮次单列）
+      评估条件键（设备/算法/映射/参考/协议/任务参数）
+      按条件分段（不连接不可比点）
+  → GET /api/growth/diary
+  → GET /api/growth/report?range=7d|14d|30d|all|custom
+  → GET /api/growth/sessions/{id}?include_rounds=true
+  → app/growth_export.py
+      PDF / XLSX / JSON / CSV → 本地 reports/ → 浏览器下载
+```
+
+成长中心是**只读聚合层**：不写新表、不修改游戏难度/钱包/成就，也不把前端隐藏当作身份认证。服务端对每个请求校验 `user_id`；历史详情另校验 Session 归属。

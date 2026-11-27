@@ -18,7 +18,13 @@ edfio>=0.4; python_version >= "3.13"
 
 # 训练报告导出（app/export.py）：PDF / Excel / Word
 # 缺失时报告页仍可正常查看，只是对应导出格式会提示「暂时不可用」
-reportlab>=4.2
+# Python 3.10+ 使用新版；Python 3.9 验收环境回退到兼容版（仍支持中文字体）
+reportlab>=4.2; python_version >= "3.10"
+reportlab>=3.6.13,<4; python_version < "3.10"
 openpyxl>=3.1
 python-docx>=1.1
+
+# v1.9.0 自动化验收（TestClient / PDF 文本检查）
+httpx>=0.27
+pypdf>=4
 

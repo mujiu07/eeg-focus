@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-sky="day">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小蛙成长日记 · 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/sky.css">
+  <link rel="stylesheet" href="assets/growth.css">
+  <script src="assets/sky.js"></script>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
+
+  <main class="growth-page">
+    <header class="growth-top">
+      <div class="growth-brand">
+        <div class="frog-dot" aria-hidden="true">🐸</div>
+        <div>
+          <h1>小蛙成长日记</h1>
+          <p>只记录你和小蛙一起玩过的真实时光</p>
+        </div>
+      </div>
+      <nav class="growth-nav" aria-label="成长中心导航">
+        <a class="growth-link growth-link--ghost" href="index.html">← 回池塘</a>
+        <a class="growth-link" href="settings.html">设置</a>
+        <a class="growth-link growth-link--primary" href="parent.html">家长报告</a>
+      </nav>
+    </header>
+
+    <div id="growth-loading" class="growth-card growth-empty">正在翻开小蛙的成长日记…</div>
+    <div id="growth-error" class="growth-card growth-empty hidden">
+      <strong>暂时打不开日记</strong>
+      <span id="growth-error-text">请稍后再试。</span>
+    </div>
+
+    <div id="growth-content" class="hidden">
+      <section class="growth-hero">
+        <div class="growth-hero__main">
+          <span class="growth-kicker">🌱 你的小小成长记录</span>
+          <h2>你好，<span id="growth-name">小蛙朋友</span>！</h2>
+          <p>每一次跳上荷叶、每一次认真等待，都变成了池塘里的小星星。这里没有比较，也没有催促，只有你和小蛙一起留下的脚印。</p>
+          <div class="growth-stats">
+            <div class="growth-stat"><div class="label">累计游玩天数</div><div class="value" id="growth-days">0</div><div class="sub">有游戏记录的日子</div></div>
+            <div class="growth-stat"><div class="label">累计游玩时长</div><div class="value"><span id="growth-minutes">0</span><small> 分钟</small></div><div class="sub">正式游戏</div></div>
+            <div class="growth-stat"><div class="label">成功跳跃</div><div class="value"><span id="growth-jumps">0</span><small> 次</small></div><div class="sub">每一步都算数</div></div>
+            <div class="growth-stat"><div class="label">历史游戏积分</div><div class="value" id="growth-score">0</div><div class="sub" id="growth-games">0 次正式游戏</div></div>
+          </div>
+        </div>
+        <div class="growth-frog-scene" aria-label="小蛙在荷叶上">
+          <div class="sun"></div>
+          <div class="ripple"></div>
+          <div class="lily"></div>
+          <div class="frog-emoji">🐸</div>
+        </div>
+      </section>
+
+      <div id="growth-first-empty" class="growth-empty hidden" style="margin-top:16px">
+        <strong>日记还是空白的</strong>
+        等小蛙完成第一次正式游戏，这里会出现第一片荷叶。现在去池塘看看吧。
+        <div style="margin-top:10px"><a class="growth-link growth-link--primary" href="index.html">去和小蛙玩</a></div>
+      </div>
+
+      <section class="growth-card" style="margin-top:16px">
+        <div class="growth-section-head">
+          <div><h3>最近七天</h3><p>亮起来的日子，是你来找小蛙玩过。</p></div>
+          <a class="growth-link growth-link--ghost" href="index.html">继续玩</a>
+        </div>
+        <div class="growth-week" id="growth-week"></div>
+      </section>
+
+      <div class="growth-collection-grid" style="margin-top:16px">
+        <section class="growth-card">
+          <div class="growth-section-head"><div><h3>最近的小脚印</h3><p>最近的正式游戏记录。</p></div></div>
+          <div class="growth-recent-list" id="growth-recent-list"></div>
+        </section>
+        <section class="growth-card">
+          <div class="growth-section-head"><div><h3>小蛙的收藏</h3><p>获得过的装扮会一直留在图鉴里。</p></div><span class="growth-tag" id="growth-outfit-count">0 件</span></div>
+          <div class="growth-tags" id="growth-outfits"></div>
+        </section>
+      </div>
+
+      <div class="growth-collection-grid" style="margin-top:16px">
+        <section class="growth-card">
+          <div class="growth-section-head"><div><h3>已解锁成就</h3><p>慢慢收集，不需要赶时间。</p></div><span class="growth-tag" id="growth-achievement-count">0 / 0</span></div>
+          <div class="growth-tags" id="growth-achievements"></div>
+        </section>
+        <section class="growth-card">
+          <div class="growth-section-head"><div><h3>成长纪念</h3><p>那些第一次和累计的小里程碑。</p></div></div>
+          <div class="growth-recent-list" id="growth-milestones"></div>
+        </section>
+      </div>
+
+      <p class="parent-foot" style="text-align:center">
+        小蛙不会展示脑电分数，也不会用排名比较小朋友。<br>
+        家长可以打开 <a href="parent.html">成长报告</a> 查看客观记录与统计口径。
+      </p>
+    </div>
+  </main>
+
+  <script src="assets/profile-bridge.js"></script>
+  <script src="assets/achievements.js"></script>
+  <script src="assets/dressup.js"></script>
+  <script src="assets/growth-common.js"></script>
+  <script src="assets/growth-diary.js"></script>
+</body>
+</html>

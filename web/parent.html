@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-sky="day">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家长成长中心 · 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/sky.css">
+  <link rel="stylesheet" href="assets/growth.css">
+  <script src="assets/sky.js"></script>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
+
+  <main class="growth-page">
+    <header class="growth-top">
+      <div class="growth-brand">
+        <div class="frog-dot" aria-hidden="true">📊</div>
+        <div>
+          <h1>家长成长中心</h1>
+          <p>客观记录 · 统计口径 · 不把游戏数据当作临床评价</p>
+        </div>
+      </div>
+      <nav class="growth-nav" aria-label="家长中心导航">
+        <a class="growth-link growth-link--ghost" href="index.html">← 回池塘</a>
+        <a class="growth-link" href="growth.html">小蛙日记</a>
+        <a class="growth-link" href="settings.html">设置</a>
+        <a class="growth-link growth-link--ghost" href="dev.html">开发者工作台</a>
+      </nav>
+    </header>
+
+    <div id="parent-gate" class="parent-gate" role="dialog" aria-modal="true" aria-labelledby="parent-gate-title">
+      <div class="parent-gate__card">
+        <div class="icon" aria-hidden="true">👨‍👩‍👧</div>
+        <h2 id="parent-gate-title">家长查看</h2>
+        <p>这里包含孩子的使用记录、任务表现和脑电任务指标。请由家长或监护人打开；儿童游戏界面不会展示这些统计。</p>
+        <button id="parent-gate-ok" type="button">我是家长，查看报告</button>
+        <p class="parent-gate__note">这是使用场景分隔，不是可靠的身份认证；同一电脑账户仍可能访问本地数据。</p>
+      </div>
+    </div>
+
+    <div id="parent-loading" class="growth-card growth-empty">正在读取本地成长记录…</div>
+    <div id="parent-error" class="growth-card growth-empty hidden">
+      <strong>暂时打不开家长报告</strong><span id="parent-error-text">请稍后再试。</span>
+    </div>
+
+    <div id="parent-content" class="hidden">
+      <div class="parent-toolbar">
+        <div class="parent-range" id="parent-range" role="group" aria-label="日期范围">
+          <button type="button" data-range="7d" aria-pressed="true">近 7 天</button>
+          <button type="button" data-range="14d" aria-pressed="false">近 14 天</button>
+          <button type="button" data-range="30d" aria-pressed="false">近 30 天</button>
+          <button type="button" data-range="all" aria-pressed="false">全部</button>
+          <button type="button" data-range="custom" aria-pressed="false">自定义</button>
+        </div>
+        <div class="parent-date">
+          <label for="parent-start">从</label><input id="parent-start" type="date">
+          <label for="parent-end">到</label><input id="parent-end" type="date">
+          <button id="parent-apply" type="button">应用</button>
+        </div>
+        <div class="status" id="parent-status"></div>
+      </div>
+
+      <section class="growth-card">
+        <div class="parent-panel-title"><h3>使用情况</h3><span id="parent-range-label">近 7 天</span></div>
+        <div class="parent-grid" id="usage-kpis"></div>
+        <div class="parent-panel-title" style="margin-top:16px"><h3>记录分类</h3><span>正式游戏与测试/模拟分开统计</span></div>
+        <div class="parent-grid" id="category-kpis"></div>
+      </section>
+
+      <section class="growth-card">
+        <div class="parent-panel-title"><h3>游戏行为表现</h3><span>分母见指标说明；缺失不填 0</span></div>
+        <div class="parent-grid" id="behavior-kpis"></div>
+        <details class="growth-details">
+          <summary>更多行为统计与统计口径</summary>
+          <div class="inside">
+            <div class="parent-grid" id="behavior-extra"></div>
+            <div class="definition-list" id="behavior-definitions"></div>
+          </div>
+        </details>
+      </section>
+
+      <div class="chart-grid">
+        <section class="chart-box">
+          <h4>每日游玩时长</h4>
+          <div class="chart-shell"><canvas id="daily-chart" aria-label="每日游玩时长柱状图"></canvas></div>
+          <p class="chart-caption">只统计正式游戏；没有记录的日期显示为空白或 0，不填充估算值。</p>
+        </section>
+        <section class="chart-box">
+          <h4>游戏行为指标趋势</h4>
+          <div class="metric-tabs" id="behavior-tabs">
+            <button type="button" data-metric="click_success_rate" aria-pressed="true">点击成功率</button>
+            <button type="button" data-metric="reaction_median" aria-pressed="false">反应时间</button>
+            <button type="button" data-metric="net_charge_median" aria-pressed="false">净蓄力</button>
+            <button type="button" data-metric="valid_signal_ratio" aria-pressed="false">有效信号</button>
+          </div>
+          <div class="chart-shell chart-shell--small"><canvas id="behavior-chart" aria-label="游戏行为趋势图"></canvas></div>
+          <p class="chart-caption" id="behavior-caption">按日汇总；中间缺失的日期不连线。</p>
+        </section>
+      </div>
+
+      <section class="growth-card">
+        <div class="parent-panel-title"><h3>每日游玩日历</h3><span>颜色越深，表示当天正式游戏时长越长</span></div>
+        <div class="growth-week" id="parent-calendar"></div>
+        <p class="chart-caption">日历只展示所选范围内有记录的日期；不显示连续签到中断惩罚。</p>
+      </section>
+
+      <section class="growth-card" id="assessment-section">
+        <div class="parent-panel-title"><h3>长期表现与标准评估</h3><span>固定条件标准评估优先；日常积分不直接拼接</span></div>
+        <p class="chart-caption">S_reference 为长期参考映射后的任务指标；映射前算法输出放在折叠区。不同设备/算法/映射/参考/协议条件不连线。</p>
+        <div class="chart-shell"><canvas id="assessment-chart" aria-label="标准评估长期趋势图"></canvas></div>
+        <div id="assessment-segments"></div>
+        <details class="growth-details">
+          <summary>查看历次标准评估与映射前统计</summary>
+          <div class="inside">
+            <div style="overflow:auto"><table class="parent-table" id="assessment-table"></table></div>
+            <div id="assessment-notes" class="definition-list" style="margin-top:10px"></div>
+          </div>
+        </details>
+      </section>
+
+      <div class="chart-grid">
+        <section class="chart-box">
+          <h4>难度变化阶梯</h4>
+          <div class="chart-shell chart-shell--small"><canvas id="difficulty-chart" aria-label="难度变化阶梯图"></canvas></div>
+          <p class="chart-caption">只显示个人难度档案的历史变化；不是专注力分数。</p>
+        </section>
+        <section class="chart-box">
+          <h4>数据质量</h4>
+          <div class="definition-list" id="quality-summary"></div>
+        </section>
+      </div>
+
+      <section class="growth-card">
+        <div class="parent-panel-title"><h3>历史游戏记录</h3><span>点击“查看详情”可读取已回收 Session 的 SQLite 报告</span></div>
+        <div style="overflow:auto"><table class="parent-table" id="sessions-table"></table></div>
+        <div id="sessions-empty" class="growth-empty hidden">所选范围内没有正式游戏记录。</div>
+      </section>
+
+      <section class="growth-card">
+        <div class="parent-panel-title"><h3>导出个人报告</h3><span>默认保存到本地数据目录 reports/</span></div>
+        <div class="parent-export" id="export-buttons">
+          <button type="button" data-fmt="pdf">PDF（打印）</button>
+          <button type="button" data-fmt="xlsx">Excel（整理）</button>
+          <button type="button" data-fmt="json">JSON</button>
+          <button type="button" data-fmt="csv">CSV</button>
+        </div>
+        <div class="export-status" id="export-status">PDF 支持简体中文和多页；导出不包含原始高频 EEG。</div>
+        <details class="growth-details">
+          <summary>指标解释与隐私边界</summary>
+          <div class="inside">
+            <div class="definition-list" id="definitions"></div>
+            <div class="definition-list" id="limitations" style="margin-top:10px"></div>
+          </div>
+        </details>
+      </section>
+
+      <div class="parent-foot">
+        当前版本没有云同步，不会上传个人数据；SQLite 数据库和导出文件尚未静态加密。报告是描述性统计，不构成医学诊断或治疗建议。<br>
+        <a href="growth.html">返回小蛙成长日记</a> · <a href="settings.html">设置</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="assets/profile-bridge.js"></script>
+  <script src="assets/growth-common.js"></script>
+  <script src="assets/growth-charts.js"></script>
+  <script src="assets/growth-parent.js"></script>
+</body>
+</html>

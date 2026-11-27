@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="assets/dressup.css">
   <link rel="stylesheet" href="assets/shop.css">
   <link rel="stylesheet" href="assets/checkin.css">
+  <link rel="stylesheet" href="assets/growth.css">
   <script src="assets/sky.js"></script>
   <style>
     .logo-badge--frog {
@@ -57,6 +58,9 @@
     .step .t { font-weight: 800; font-size: 16.5px; }
     .step .d { color: var(--ink-soft); font-size: 13.5px; margin-top: 5px; line-height: 1.6; }
     @media (max-width: 700px) { .steps { grid-template-columns: 1fr; } }
+    .home-growth-nav { justify-content: center; margin-top: -2px; }
+    .home-growth-nav .growth-link { border: 0; cursor: pointer; font-family: inherit; }
+    .home-growth-nav .growth-link--primary { color: #fff; }
 
     /* ---- 时长选择弹窗 ---- */
     .duration-mask {
@@ -161,6 +165,14 @@
         <div id="dressup-entry" class="dress-entry"></div>
       </div>
     </div>
+
+    <nav class="growth-nav home-growth-nav" aria-label="主要功能">
+      <button type="button" class="growth-link growth-link--primary" onclick="document.getElementById('btn-start').click()">▶ 开始游戏</button>
+      <button type="button" class="growth-link" onclick="window.DressUp && window.DressUp.open()">🎩 小蛙装扮</button>
+      <a class="growth-link" href="growth.html">🌱 成长日记</a>
+      <a class="growth-link" href="parent.html">👨‍👩‍👧 家长报告</a>
+      <a class="growth-link growth-link--ghost" href="settings.html">⚙ 设置</a>
+    </nav>
 
     <!-- 英雄区 -->
     <div class="card hero-card">

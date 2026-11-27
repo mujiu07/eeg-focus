@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-sky="day">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>历史游戏详情 · 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/sky.css">
+  <link rel="stylesheet" href="assets/growth.css">
+  <script src="assets/sky.js"></script>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
+
+  <main class="growth-page">
+    <header class="growth-top">
+      <div class="growth-brand">
+        <div class="frog-dot" aria-hidden="true">🔎</div>
+        <div><h1 id="history-title">历史游戏详情</h1><p>从 SQLite 已保存报告读取，不依赖内存 Session</p></div>
+      </div>
+      <nav class="growth-nav">
+        <a class="growth-link growth-link--ghost" href="parent.html">← 家长报告</a>
+        <a class="growth-link" href="growth.html">小蛙日记</a>
+        <a class="growth-link growth-link--ghost" href="index.html">回池塘</a>
+      </nav>
+    </header>
+
+    <div id="history-loading" class="growth-card growth-empty">正在读取历史报告…</div>
+    <div id="history-error" class="growth-card growth-empty hidden">
+      <strong>这份历史报告暂时打不开</strong><span id="history-error-text">请稍后再试。</span>
+    </div>
+
+    <div id="history-content" class="hidden">
+      <section class="growth-card">
+        <div class="parent-panel-title"><h3>本次游戏概况</h3><span id="detail-flags"></span></div>
+        <div class="detail-grid" id="detail-summary"></div>
+      </section>
+
+      <section class="growth-card" style="margin-top:16px">
+        <div class="parent-panel-title"><h3>记录与校准</h3><span>报告不包含原始高频 EEG</span></div>
+        <div class="detail-grid" id="detail-meta"></div>
+      </section>
+
+      <section class="growth-card" style="margin-top:16px">
+        <div class="parent-panel-title"><h3>工程瓶颈诊断摘要</h3><span>只解释状态机与信号条件</span></div>
+        <div class="diag-list" id="detail-diagnostics"></div>
+      </section>
+
+      <details class="growth-details growth-card" style="margin-top:16px">
+        <summary>开发者 / 研究视图：完整逐轮数据</summary>
+        <div class="inside" id="detail-rounds"></div>
+      </details>
+
+      <p class="parent-foot">
+        该页面属于家长/开发者查看场景。游戏行为与脑电任务指标不能替代临床注意力评价；当前 SQLite 与导出文件尚未静态加密。<br>
+        <a href="parent.html">返回家长成长中心</a>
+      </p>
+    </div>
+  </main>
+
+  <script src="assets/profile-bridge.js"></script>
+  <script src="assets/growth-common.js"></script>
+  <script src="assets/growth-history.js"></script>
+</body>
+</html>

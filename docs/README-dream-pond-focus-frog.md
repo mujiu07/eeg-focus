@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 文档索引
 
 > 游戏名：**专注小蛙 · 梦境池塘**（Dream Pond Focus Frog）
-> 代码基线：v1.8.4（2026-11-27；上一基线 v1.8.3/v1.8.2/v1.8.1/v1.7.0）
+> 代码基线：v1.9.0（2026-11-27；上一基线 v1.8.4/v1.8.3/v1.8.2/v1.8.1/v1.7.0）
 > 本目录：`docs/`
 > 说明：本文件是 `docs/` 的入口。仓库根目录另有项目总 README。
 
@@ -22,7 +22,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `PRD-brain-focusing-game-MVP.md` | 原始产品需求（目标用户、问题、P0、范围边界）+「实现现状对照（v1.8.4）」 |
+| `PRD-brain-focusing-game-MVP.md` | 原始产品需求（目标用户、问题、P0、范围边界）+「实现现状对照（v1.9.0）」 |
 | `PROJECT-DOC-dream-pond-focus-frog.md` | **项目主文档**：提案 + MVP PRD 摘要 + 技术设计 + AI 协作约定（四合一） |
 | `research-request-brain-focusing-game.md` | 研究请求（问题清单，非研究结论）+ 当前研究缺口 |
 
@@ -36,6 +36,7 @@
 | `xmuse-hardware-integration.md` | Xmuse OSC/UDP 接入证据、端口约定、实测与后续 |
 | `denoise-artifacts.md` | **去噪与去伪迹**：流程、阈值与依据、接入点、自检与端到端证据、已知局限 |
 | `DEV-REPORT-v1.8.4.md` | 开发者工作台、双基线、瓶颈诊断、标准评估、导出与 Schema v4 |
+| `DEV-REPORT-v1.9.0.md` | 成长日记、家长中心、评估分段、历史详情、四格式报告与验收 |
 | `STABILITY-v1.8.4.md` | 30 分钟开发者模式稳定性、资源趋势与限制 |
 
 ### 2.3 使用与合规
@@ -59,7 +60,7 @@
 
 | 文档中的说法 | 可核验位置 |
 |---|---|
-| 版本号与功能变更 | `CHANGELOG.md`、Git tag `v1.8.4` |
+| 版本号与功能变更 | `CHANGELOG.md`、Git tag `v1.9.0` |
 | 模型指标 | `outputs/train_report.md` |
 | API 路径 | `app/server.py` 的 `@app.get/post` |
 | 本地存储键 | `web/assets/*.js` 中的 `localStorage` 调用 |

@@ -1,15 +1,15 @@
 # 专注小蛙 · 梦境池塘 — 简要技术设计（Brief Tech Design）
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 适用代码：`main` @ `v1.8.4`（开发者工作台/诊断/标准评估；历史基线 v1.8.3/v1.8.2/v1.8.1/v1.7.0）
+> 适用代码：`main` @ `v1.9.0`（成长中心/标准评估趋势/四格式报告；历史基线 v1.8.4/v1.8.3/v1.8.2/v1.8.1/v1.7.0）
 > 说明：本文是**一页可读的技术设计摘要**，用于评审与新人上手；完整细节见 `ARCHITECTURE.md` / `tech-stack.md` / `DECISIONS-AND-VERIFICATION-dream-pond-focus-frog.md`。
-> 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.8.3`。
+> 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.9.0`。
 
 ---
 
 ## 1. 一句话
 
-一个**本地运行**的脑波专注游戏：实时把 EEG（或回放/手动/心率）映射为 0–1 专注值，校准出个人基线后，专注才能蓄力、起跳；结束后生成本地报告与可导出文件，成长数据只存浏览器。
+一个**本地运行**的脑波专注游戏：实时把 EEG（或回放/手动/心率）映射为 0–1 专注值，校准出个人基线后，专注才能蓄力、起跳；结束后生成本地报告与可导出文件，成长数据写入本机 SQLite（浏览器 `localStorage` 仅作当前档案缓存）。
 
 ## 2. 目标与非目标
 
@@ -39,7 +39,7 @@
 
 | 层 | 组件 | 职责 | 关键接口 |
 |---|---|---|---|
-| 浏览器 | 7 个页面 `index/profiles/settings/calibrate/game/report/dev` | 首页、档案、数据设置、校准、玩法、报告、联调 | — |
+| 浏览器 | 10 个页面 `index/profiles/settings/calibrate/game/report/growth/parent/history/dev` | 首页、档案、数据设置、校准、玩法、报告、成长日记、家长中心、历史详情、联调 | — |
 | 浏览器 | `assets/api.js` | REST + SSE 封装，6 s 无数据自愈重连 | `openStream` |
 | 浏览器 | `assets/wallet/checkin/achievements/shop/dressup` | 成长系统（SQLite 权威 + localStorage 缓存） | `settleRound` / `Wallet.replace` / `record*` / `owned` |
 | 浏览器 | `assets/sky.js`、`music.js`、`hero-*`、`pond-*` | 天空、音乐、首页池塘与音效 | `SkyTheme.palette()` |

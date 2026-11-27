@@ -1,7 +1,7 @@
 # 技术设计：专注判定、蓄力与单轮计分
 
 > 面向本仓库维护者的判定链路说明。系统结构、选型、数据模型与完整实测记录见工作区 `docs/Tech Design.md`；本文只收录“专注 → 分数 → 蓄力 → 子弹时间 → 跳跃 → 计分”这条链路上容易被误读、且改动风险最高的部分。
-> 最后更新：2026-11-27（v1.8.4）
+> 最后更新：2026-11-27（v1.9.0）
 
 ## 1. 判定链路
 
@@ -397,3 +397,29 @@ python tests/selfcheck_denoise.py          # 去噪：既有回归
 
 - `SCHEMA_VERSION=4`；新增 `assessments`、`sessions.purpose/assessment_id`、`rounds` 过程列。
 - 仍使用 `_ensure_columns()` 原地 `ALTER TABLE`；迁移不重建用户/历史表。
+
+
+## 15. v1.9.0 成长中心口径（实现约束）
+
+### 9.1 记录分类
+
+- 正式游戏：`purpose=game`、`demo=0`、`source.name in {hardware, heart}`；
+- 标准评估：`purpose=assessment` 且 `assessment.simulation=0`；
+- 模拟/回放：`demo=1`、`source.name in {manual, replay}` 或 `assessment.simulation=1`；
+- 校准教学：来自 `calibrations`，不当作游戏局数。
+
+### 9.2 缺失与分母
+
+- 不用 0 代替缺失指标；无有效分母时显示“数据不足”；
+- 点击成功率 = 成功 ÷（成功 + 未成功完成）；
+- 反应时间中位数只取成功且有 `reaction_sec > 0` 的轮次；
+- 净蓄力中位数只取完整轮次的 `eval_sec`；未完成轮次单列；
+- 有效信号比例只在同时有 `n_valid_frames` 和 `n_frames` 的正式硬件局上汇总。
+
+### 9.3 标准评估条件键
+
+同段比较要求 `device_key`、`algorithm_version`、`mapping_version`、`reference_baseline_id/version`、`protocol_version`、`planned_sec`、`fixed_factor` 和难度参数版本一致；当前没有跨设备兼容映射，因此不同设备键直接分段。seed 不作为条件键，只记录随机任务序列；同一协议下不同 seed 属于正常差异。
+
+### 9.4 导出
+
+`growth.build_report()` 为唯一数据源；`growth_export.build_pdf/xlsx/json/csv()` 不得各自重新计算指标。PDF/Excel 写出到 `reports/` 的临时文件，完成后原子替换；没有记录时返回 409，不生成空白文件。PDF 使用本机中文字体回退，测试以 pypdf 检查页数与中文文本；Excel 以 openpyxl 检查工作表。

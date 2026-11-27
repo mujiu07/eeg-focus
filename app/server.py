@@ -35,6 +35,7 @@ from . import sources
 from . import monitor as monitor_data
 from .heart import heart
 from .accounts import router as accounts_router
+from .growth_api import router as growth_router
 from .storage import StorageError, storage
 from . import difficulty
 from . import diagnostics
@@ -51,7 +52,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.4")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.9.0")
 
 # 已完成会话在内存中保留的宽限时间；报告/逐轮数据先写入 SQLite，
 # 到期后释放 EDF 原始数组和监测批次，历史报告仍可从数据库读取。
@@ -1864,6 +1865,7 @@ def dev_current():
 
 
 app.include_router(accounts_router)
+app.include_router(growth_router)
 
 
 # ---------------------------------------------------------------------------
