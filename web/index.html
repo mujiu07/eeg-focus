@@ -506,7 +506,7 @@
       return false;
     }
 
-    // 校准只在 1 小时内有效：过期需重新校准，页面上的提示实时刷新
+    // 每日校准：同一天、同一设备可复用，换设备/跨日/超时需重校
     const defaultCalibStatus = document.getElementById("calib-status").innerHTML;
     function renderCalibStatus() {
       const el = document.getElementById("calib-status");
@@ -514,9 +514,9 @@
       const info = Store.playerCalibInfo();
       if (info.calib) {
         const min = Math.max(1, Math.ceil(info.remainMs / 60000));
-        el.innerHTML = `校准基线有效，剩余约 <strong>${min} 分钟</strong>，期间刷新或关闭页面都无需重新校准`;
+        el.innerHTML = `今日校准有效，剩余约 <strong>${min} 分钟</strong>；同一天、同一设备可连续使用`;
       } else if (info.expired) {
-        el.innerHTML = `校准已超过 <strong>1 小时</strong>，请重新校准后再开始`;
+        el.innerHTML = `今日校准需要重做，请重新校准后再开始`;
       } else {
         el.innerHTML = defaultCalibStatus;
       }
@@ -564,8 +564,8 @@
       const info = Store.playerCalibInfo();
       if (!info.calib) {
         if (info.expired) {
-          toast("校准已超过 1 小时，需要重新校准");
-          location.href = "calibrate.html?reason=expired";
+          toast("今天的校准需要重新做一次");
+          location.href = "calibrate.html?reason=daily";
         } else {
           toast("先建立专注基线吧！");
           location.href = "calibrate.html";

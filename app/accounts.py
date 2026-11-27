@@ -1,4 +1,4 @@
-"""本地档案、数据目录与备份 API（v1.8.1）。"""
+"""本地档案、每日校准状态、长期参考与备份 API（v1.8.2）。"""
 
 from __future__ import annotations
 
@@ -55,6 +55,11 @@ class RestoreBody(BaseModel):
     confirm: bool = False
 
 
+class ReferenceBody(BaseModel):
+    calibration_id: str = Field(min_length=1)
+    label: Optional[str] = None
+
+
 @router.get("/storage/status")
 def storage_status():
     status = storage.status()
@@ -102,8 +107,16 @@ def storage_location(body: LocationBody):
 
 @router.get("/profiles")
 def profiles():
-    return {"profiles": storage.list_users(), "max": 12,
-            "storage": storage.status()}
+    items = storage.list_users()
+    for p in items:
+        try:
+            hist = storage.calibration_history(p["user_id"], 20)
+            hardware = next((c for c in hist if c.get("source_name") == "hardware"), None)
+            device = (hardware or {}).get("device_key")
+            p["calibration_status"] = storage.calibration_status(p["user_id"], device=device)
+        except StorageError:
+            p["calibration_status"] = {"valid": False, "status_text": "需要重新校准"}
+    return {"profiles": items, "max": 12, "storage": storage.status()}
 
 
 @router.post("/profiles")
@@ -146,6 +159,37 @@ def select_profile(user_id: str):
 def bootstrap(user_id: str):
     try:
         return storage.bootstrap(user_id)
+    except StorageError as exc:
+        _fail(exc)
+
+
+@router.get("/profiles/{user_id}/calibration-status")
+def calibration_status(user_id: str, mode: str = Query("hardware"),
+                       device: Optional[str] = Query(None),
+                       tz_offset_min: Optional[int] = Query(None)):
+    try:
+        return {"ok": True, **storage.calibration_status(
+            user_id, mode=mode, device=device, tz_offset_min=tz_offset_min)}
+    except StorageError as exc:
+        _fail(exc)
+
+
+@router.get("/profiles/{user_id}/reference-baselines")
+def reference_baselines(user_id: str):
+    try:
+        storage.ensure_user(user_id)
+        return {"baseline": storage.reference_baseline(user_id),
+                "history": storage.reference_baselines(user_id)}
+    except StorageError as exc:
+        _fail(exc)
+
+
+@router.post("/profiles/{user_id}/reference-baselines")
+def create_reference_baseline(user_id: str, body: ReferenceBody):
+    try:
+        storage.ensure_user(user_id)
+        return {"ok": True, "baseline": storage.add_reference_baseline(
+            user_id, body.calibration_id, body.label)}
     except StorageError as exc:
         _fail(exc)
 

@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.8.1（2026-11-27）
+> 版本：v1.8.2（2026-11-27）
 > 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
@@ -52,6 +52,7 @@
   - `web/profiles.html` + `web/assets/profile-bridge.js`：档案选择/编辑/删除、当前档案缓存、离页同步、旧 LocalStorage 导入
   - `web/settings.html`：数据目录、Schema、磁盘、云同步提示、备份/恢复/迁移与隐私说明
   - `app/storage.py`：SQLite `profiles.db`、目录解析、备份、迁移、报告；`app/accounts.py`：`/api/profiles/*`、`/api/storage/*`
+  - `app/calibration.py`：v1.8.2 每日校准配置、P15/P85、阶段有效时间、日状态、双基线工具
 - 数据通道：浏览器 `EventSource` 消费 SSE；`assets/api.js` 封装 REST + SSE，含 6 s 无数据自愈重连（最多 4 次）与 `onStatus("live"/"reconnecting")`
 
 适用人群（儿童）要求低刺激、无安装、秒开 → 原生方案零依赖、零构建开销。
@@ -206,5 +207,6 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
 2. **脑电本地**：无外部 AI 服务、脑电数据不出本机；仅可选背景音乐联网
 3. **儿童友好**：低刺激视觉、无账号、数据不出本机
 4. **成长系统可离线、可备份**：积分/签到/商城/装扮/成就以系统文档目录 `专注小蛙/profiles.db` 为准，断网可用，支持备份/迁移；SQLite 未加密（隐私说明已明示）
+5. **每日校准参数锁定**：真实硬件 game Session 必须当日校准；服务端锁定 L/H 与参考快照；S_reference 只做后台趋势。
 5. **可复现**：依赖收敛到 venv + requirements；模型指标可追溯到 `outputs/train_report.md`
 6. **接入可逆**：`hardware` / `heart` 源失败时回退 `replay` / `manual`，SSE 帧结构与报告格式不变；通道不匹配时算法自动回退频段指标

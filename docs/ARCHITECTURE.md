@@ -1,6 +1,6 @@
 # 专注小蛙 · 梦境池塘 — 架构设计
 
-> 版本：v1.8.1（2026-11-27）
+> 版本：v1.8.2（2026-11-27）
 > 适用代码：`eeg-focus/`（`app/` + `web/`）
 > 定位：本地运行的脑电专注游戏 MVP，教学演示用途，不构成注意力评估或医疗诊断。
 
@@ -27,7 +27,8 @@
 │ app/（FastAPI 后端）                                          │
 │  server.py      会话 / 校准 / 报告 / 导出 / 音乐 / 静态托管      │
 │  storage.py     SQLite、数据目录、档案/校准/游戏/资产/备份/迁移  │
-│  accounts.py    档案与存储 API（bootstrap/sync/backup/location）  │
+│  calibration.py 每日校准配置、分位、阶段统计、日状态               │
+│  accounts.py    档案/校准状态/参考基线/存储 API                   │
 │  sources.py     信号源：replay · manual · hardware · heart       │
 │  xmuse_osc.py   Xmuse OSC/UDP 多端口接收（2 s 出窗）            │
 │  focus_engine.py 231 维模型推理 + 4/6 通道频段回退 + EMA        │
@@ -102,7 +103,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 
 | 键 | 内容 | 写入方 |
 |---|---|---|
-| `bf-calib` | 校准基线缓存（含时间戳，1 小时有效） | calibrate |
+| `bf-calib` | 当日/同设备校准缓存（4h，跨日失效；服务端复验） | calibrate |
 | `bf-sky-mode` | 天空模式（黎明/白天/傍晚/黑夜/跟随系统） | sky.js |
 | `bf-music-*` | 播放状态、曲目、音量 | music.js |
 | `bf-wallet` | 积分余额、局数、累计入账、消费 | wallet.js |
@@ -115,10 +116,10 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 
 - 默认 40 秒：前 20 秒安静放松，后 20 秒心算任务（可跟随 60 秒引导视频，最长 600 秒）
 - 基线 = 校准期专注指数中位数（P50），同时记录 P10/P90 与有效帧数
-- 每日校准写入 `calibrations`（按 `user_id`、日期、来源、算法版本追加，不覆盖历史）；前端缓存 `bf-calib-*` 仍用于快速恢复，但服务端记录是权威历史。`reference_baselines` 为长期参考基线预留，本阶段不计算
+- 每日校准写入 `calibrations`（按 `user_id`、日期、来源、设备、协议追加，不覆盖历史）；`reference_baselines` 保存首个有效硬件校准建立的 v1 及显式版本化长期参考；每日校准不覆盖长期参考。前端 `bf-calib-*` 只是同一天/同设备缓存，服务端在开局时重新校验并锁定量程
 - 校准失败（无有效帧 / 信号中断）会给出明确提示，不会写入伪基线
 
-## 5. API 一览（v1.7.0）
+## 5. API 一览（v1.8.2）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -132,11 +133,13 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 | GET | `/api/dev/info` | 引擎信息、训练报告、EDF 文件列表、会话 |
 | GET | `/api/dev/current` | 当前信号源配置与最近会话 |
 | POST | `/api/dev/source` | 切换全局默认信号源（含 OSC 参数） |
-| POST | `/api/session` | 创建会话 `{mode, file, baseline, osc_*, heart_*}` |
+| POST | `/api/session` | 创建会话 `{mode, purpose, file, baseline, osc_*, heart_*}`；硬件 `purpose=game` 需当日校准，否则 409 |
+| GET | `/api/profiles/{id}/calibration-status` | 当日校准状态/设备/过期原因 |
+| GET/POST | `/api/profiles/{id}/reference-baselines` | 长期参考版本列表/显式新增 |
 | GET | `/api/session/{id}/stream` | 游戏分数 SSE（hello / frame / end） |
 | GET | `/api/session/{id}/monitor` | 开发者高频监测 SSE（hello / monitor / unavailable / end） |
 | POST | `/api/session/{id}/manual` | 手动模式设置专注度 |
-| POST | `/api/session/{id}/calibrate` | 采样并建立基线 |
+| POST | `/api/session/{id}/calibrate` | `daily_v2` 阶段窗口采样；游戏 Session 返回 409 |
 | POST | `/api/session/{id}/finish` | 结束会话，生成报告 |
 | GET | `/api/report/{id}` | 读取报告（内存/磁盘） |
 | GET/POST | `/api/report/{id}/export/{fmt}` | 导出 `pdf` / `xlsx` / `docx` / `csv` / `json` |
@@ -145,20 +148,21 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 
 > v1.4.16 起，`hardware` 会话的 SSE `frame` 新增可选字段 `artifact`（信号质量报告，字段见 `docs/denoise-artifacts.md` §5）；
 > `valid=false, reason="artifact"` 表示该窗伪迹过重、不出分且不入 history；`/calibrate` 与 `finish` 的结果新增 `signal_quality`。
+> v1.8.2 起 `/calibrate` 请求增加 `protocol=daily_v2, stage_windows, tutorial_events, device_key, timezone_offset_min`；`stream`/`monitor` 增加 `calibration_id`、`reference_baseline_id`、`daily_score`、`reference_score`。
 
 ## 6. 会话与并发模型
 
 - `_sessions: dict` 全局会话表；每会话独立信号源 + 专注引擎实例（引擎状态重置，避免跨被试污染）
 - 后台 asyncio 任务按 0.5 s 步长推进信号源 → 计算 focus → 写入队列（容量 1，丢弃旧帧）+ 历史列表
 - SSE 端点从队列取帧；校准端点按时间窗口从历史列表聚合
-- 报告快照写入 `sessions.report_json`，并写数据目录 `reports/{id}.json`；同时保留逐轮记录、`focus/focus_fused/score` 与起跳事件。Session 完成 900 秒后回收内存数组，报告仍从 SQLite 读取
+- 报告快照写入 `sessions.report_json`，并写数据目录 `reports/{id}.json`；同时保留逐轮记录、`focus/focus_fused/score/S_daily/S_reference` 与起跳事件。Session 完成 900 秒后回收内存数组，报告仍从 SQLite 读取。正式游戏创建时锁定校准/参考快照，游戏内禁止重校
 - 硬件/仅心率会话互斥：新建硬件会话会自动结束旧的未完成硬件会话，避免 UDP 端口争抢；会话结束释放端口与采集进程
 
 ## 7. 关键权衡（MVP 演示定位）
 
 1. **真实数据回放 + 真机双通道**：无硬件时可回放本机配对 EDF 复现端到端"校准→游戏→报告"；hardware 源已通过 Xmuse OSC/UDP 真机接入
 2. **单被试基线**：模型对陌生被试仍有区分度（LOSO 验证），但演示时建议校准/游戏用同一被试
-3. **数据隐私**：脑电与档案默认全程本地，无联网账号、无上传；数据目录在系统文档目录，SQLite 未加密（文件权限/OS 账户/磁盘加密为边界）；仅可选背景音乐访问网易云。详见 `docs/DEV-REPORT-v1.8.1.md`
+3. **数据隐私**：脑电与档案默认全程本地，无联网账号、无上传；数据目录在系统文档目录，SQLite 未加密（文件权限/OS 账户/磁盘加密为边界）；仅可选背景音乐访问网易云。详见 `docs/DEV-REPORT-v1.8.1.md` 与 `docs/DEV-REPORT-v1.8.2.md`
 4. **前端零构建**：无需 Node/npm，静态托管即可；7 个页面共用一套 `assets/`
 5. **成长系统本地化**：积分、签到、商城、装扮、成就都不依赖服务端，断网也能完整使用；清缓存会重置成长进度，需在隐私说明中明示
 
@@ -198,3 +202,4 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 | v1.6.0 | 金色区域前 0.6 s 满分、之后最多折损 10%；无效点击 0.5 s 冷却；儿童端隐藏实时分数/百分比/潜在分，只显示本局积分与 +N；逐轮新增点击倍率与冷却数据 |
 | v1.7.0 | 开发者三栏监测：真实原始/处理后多通道波形、频段与算法中间值、30 s 分数/事件；独立 `/monitor` SSE，儿童模式零订阅；原始窗仅内存有限缓存 |
 | v1.8.1 | 本机 SQLite 主存储与多用户档案：数据目录/迁移/备份恢复、后端用户归属、钱包幂等、旧报告/旧 LocalStorage 迁移、Session 900 s 回收 |
+| v1.8.2 | 每日游戏化校准：自然观察 + 教学阶段、P15/P85、当日/长期双基线、每日状态/设备指纹、正式游戏锁定、Schema v2 原地迁移 |

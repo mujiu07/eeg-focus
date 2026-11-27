@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 使用与隐私说明
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.8.1（2026-11-27）
+> 版本：v1.8.2（2026-11-27）
 > 隐私承诺：**脑电数据全部在本地处理，不上传任何脑电数据**——本承诺基于代码实现，详见第 6 节。
 
 ---
@@ -76,13 +76,14 @@ python3 -m venv .venv
 - "最近训练"展示最近几局的校准基线
 - 左下角黑胶唱片机可播放/暂停背景音乐（见 3.7）
 
-### 3.2 校准（calibrate.html）
-- 默认 40 秒：前 20 秒安静放松，后 20 秒跟着心算引导做题（也可开 60 秒引导视频，最长 600 秒）
-- 可选信号源：EDF 回放 / 手动 / Xmuse 脑电波仪 / 仅心率；选 Xmuse 时填写 OSC 端口（默认 7000,8000）
-- 心率辅助默认关闭，只有本次显式选择才启用（仅 macOS）
-- 每日校准写入本机数据库 `calibrations`，按档案、日期、来源和算法版本追加，不覆盖历史；当前每日基线约 1 小时内用于游戏，超出后引导重新校准
-- 浏览器 `bf-calib-*` 只作为当前档案的快速缓存；服务端数据库是校准历史权威来源。后续长期基线会在 `reference_baselines` 中扩展，本版不计算
-- 校准失败（信号中断 / 有效帧不足）会明确提示，不会写入伪基线
+### 3.2 每日校准（calibrate.html）
+- 真实硬件 EEG 每天首次正式游戏前必须校准：设备/信号检查 → 自然观察（目标 30 秒有效）→ 游戏教学（目标 30 秒有效）→ 结果
+- 可选信号源：Xmuse 脑电波仪 / 仅心率；EDF 回放与手动模拟只在开发者模式用于测试，不建立真实长期参考
+- 有效时间按有效帧累计，异常帧暂停；样本不足、信号可用率 <50% 或区间过窄会提示重试，不写入伪校准
+- 当日校准按用户、日期、设备、协议保存到 `calibrations`；同日、同设备、4 小时内可连续游戏，跨日/换设备/超时需重校
+- 首个通过质量检查的真实硬件校准建立长期参考 v1；每日校准不覆盖长期参考。游戏用当日 P15/P85，`S_reference` 只做后台趋势，不参与蓄力/得分/商城
+- 游戏创建 Session 时服务端重新校验并锁定量程/快照；游戏进行中禁止重新校准
+- 浏览器 `bf-calib-*` 只是同日/同设备缓存；服务端数据库是权威来源
 
 ### 3.3 游戏（game.html）
 - 开始后每 0.5 秒收到一帧专注度（`focus` 0–1），画面随专注度变化
@@ -148,7 +149,9 @@ python3 -m venv .venv
 | GET | `/api/session/{id}/stream` | **游戏分数 SSE**（首帧 `hello`，之后每 0.5s `frame`） |
 | GET | `/api/session/{id}/monitor` | **开发者高频监测 SSE**（原始/处理后窗口、频段、算法、质量；仅开发者页订阅） |
 | POST | `/api/session/{id}/manual` | 手动模式设置专注度 |
-| POST | `/api/session/{id}/calibrate` | 校准采样并建立基线 |
+| GET | `/api/profiles/{id}/calibration-status` | 当日校准状态/设备/过期原因 |
+| GET/POST | `/api/profiles/{id}/reference-baselines` | 长期参考版本列表/显式新增 |
+| POST | `/api/session/{id}/calibrate` | `daily_v2` 阶段采样；正式游戏 Session 返回 409 |
 | POST | `/api/session/{id}/finish` | 结束会话并落盘报告 |
 | GET | `/api/report/{id}` | 会话报告（内存/本地 JSON） |
 | GET/POST | `/api/report/{id}/export/{fmt}` | 导出 `pdf` / `xlsx` / `docx` / `csv` / `json` |
@@ -175,6 +178,12 @@ python3 -m venv .venv
 
 **Q：为什么心率选项是灰的？**
 心率辅助与仅心率模式只在 macOS 上可用（依赖 `hrd` 读取 AirPods Pro 3）。Windows/Linux 上会显示不可用原因，脑电玩法和回放不受影响。
+
+**Q：为什么今天还要重新校准？**
+不同日期、睡眠/疲劳、设备佩戴都会改变当天脑电分布。v1.8.2 每天首次真实硬件游戏前重建当日 L/H；同日同设备可连续使用，不是每局都要求校准。
+
+**Q：长期参考基线会被每日校准改掉吗？**
+不会。每日校准只追加当日记录；长期参考基线 v1 只由首个有效硬件校准建立，后续只能在明确操作下新增版本，旧版本保留。
 
 **Q：积分 / 成就 / 装扮会同步到别的设备吗？**
 不会，也不会上传。它们保存在本机 `专注小蛙/profiles.db`，按档案隔离；换电脑、换操作系统账户或删除数据目录才会得到新的本地进度。浏览器缓存不是权威数据。
@@ -219,7 +228,9 @@ python3 -m venv .venv
 | 开发者监测原始窗 | 进程内存有限队列（最多 12 批） | 仅开发者订阅 `/monitor` 时存在；不落盘，页面关闭/会话结束后释放 |
 | 训练报告 | `outputs/train_report.md` | 模型指标 |
 | 个人档案 | `专注小蛙/profiles.db` 的 `users` 表 | 昵称/头像/钱包/最近使用；不上传 |
-| 校准历史 | `profiles.db` 的 `calibrations` / `reference_baselines` | 按档案追加；前端 `bf-calib-*` 仅为缓存 |
+| 每日校准 | `profiles.db` 的 `calibrations` | 按档案/日期/设备/协议追加；含阶段统计与有效时长，不含原始高频波形 |
+| 长期参考 | `profiles.db` 的 `reference_baselines` | 首个有效硬件校准 v1；显式版本化；每日不覆盖 |
+| 校准缓存 | 浏览器 `bf-calib-*` | 仅同一天/同设备快速恢复；服务端开局复验 |
 | 成长数据 | `profiles.db` 的 `wallet_transactions / inventories / achievements / user_settings` | 积分、签到、成就、装扮，按档案隔离 |
 | 备份 | `专注小蛙/backups/*.db` | 一致性快照；删除档案不自动删备份 |
 | 视觉与音频偏好 | `localStorage: bf-sky-mode / bf-music-* / bf-pond-audio` | 天空模式、音乐状态、音量 |
@@ -268,3 +279,4 @@ SSE 推送（127.0.0.1 回环）→ 浏览器渲染
 - Xmuse 硬件接入方案与实现：`docs/xmuse-hardware-integration.md`
 - 项目主文档 / 证据 / 反思 / Vibe Coding：`docs/` 下带 `dream-pond-focus-frog` 的文档
 - 本地存储与多用户档案开发报告：`docs/DEV-REPORT-v1.8.1.md`
+- 每日校准与双基线开发报告：`docs/DEV-REPORT-v1.8.2.md`

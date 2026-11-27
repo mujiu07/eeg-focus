@@ -2,7 +2,7 @@
 
 > 文档类型：Proposal + MVP PRD + Technical Design + AI Workflow（四合一，对应课程 Project Documentation Guidelines Part 1–4）
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 代码版本：v1.8.1（2026-11-27）
+> 代码版本：v1.8.2（2026-11-27）
 > 仓库：`eeg-focus/`（GitHub: `mujiu07/eeg-focus`）
 > 说明：本文件是评审入口；更细的架构、技术栈、隐私与硬件内容见 `docs/` 下对应文档。
 
@@ -49,7 +49,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 **明确不做：**
 
 - 医疗诊断、处方、疗效承诺
-- 账号体系、云端同步、多孩子档案（路线图）
+- 联网账号体系、云端同步（路线图；本机多档案已实现）
 - 移动端适配（仅桌面浏览器）
 - 产品内 AI 功能（AI 仅用于辅助开发）
 
@@ -80,7 +80,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 ```
 首页（选天空/时长）
   → 校准（40 s：安静 20 s + 心算 20 s；可跟 60 s 视频）
-  → 生成个人基线（1 小时有效，存本机）
+  → 生成当日校准 + 长期参考（同日/同设备 4h，存本机）
   → 游戏（专注→蓄力→起跳；中断暂停）
   → 结算（得分入积分；可能解锁成就/装扮）
   → 报告（曲线回放 + 给家长的话 + 导出）
@@ -93,7 +93,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 |---|---|---|
 | 校准时长 | 默认 40 s，可跟 60 s 视频，最长 600 s | `web/calibrate.html` |
 | 基线 | 校准期 focus 中位数（P50），另记 P10/P90 | `app/server.py` `/calibrate` |
-| 基线有效期 | 每日校准按档案写入 SQLite；前端 `bf-calib-*` 约 1 小时缓存 | `app/storage.py`、`web/assets/api.js` |
+| 基线有效期 | 同一天、同设备 4h；跨日/换设备/超时重校；服务端开局复验 | `app/calibration.py`、`app/storage.py` |
 | 专注判定 | 平滑后 45/38 分滞回；高于蓄力零点 42 分才蓄力 | `web/game.html`、`assets/focus-round.js` |
 | 宽容与衰减 | 低于阈值 1.5 s 内不掉进度，超过后按基准速度 30% 衰减至 0 | `assets/focus-round.js` |
 | 金色区域 | 每轮随机生成一次，进入后锁定脑电基础分 | `assets/focus-round.js` |
@@ -106,7 +106,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | 商城 | 装扮 5–18 积分；成就专属不售卖 | `web/assets/shop.js`、`dressup.js` |
 | 成就 | 4 组 15 枚：首次校准、单局 1/3/5/10 分钟、累计 30/60/150/300/600 分钟、连续 3/5/7/15/30 天 | `web/assets/achievements.js` |
 | 档案 | 每个档案独立 `user_id`；校准/游戏/钱包/装扮/成就按档案隔离 | `app/storage.py`、`web/profiles.html` |
-| 数据边界 | 脑电/档案/报告均在本机系统文档目录 `专注小蛙/`；SQLite 未加密；仅可选音乐联网 | `docs/usage-and-privacy.md` §6、`docs/DEV-REPORT-v1.8.1.md` |
+| 数据边界 | 脑电/档案/校准/参考均在本机 `专注小蛙/`；SQLite 未加密；仅可选音乐联网 | `docs/usage-and-privacy.md` §6、`docs/DEV-REPORT-v1.8.2.md` |
 
 ### 2.4 可测试的验收标准
 
@@ -114,7 +114,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 |---|---|---|---|
 | AC1 | 无设备时可通过 EDF 回放完成校准→游戏→报告 | 通过 | 手动 E2E + 本地会话 JSON |
 | AC2 | 校准失败（无有效帧）不会写入基线并给出提示 | 通过 | 断流场景手动验证 |
-| AC3 | 基线 1 小时内刷新页面无需重新校准，超时后引导重校 | 通过 | 篡改 `bf-calib` 时间戳验证 |
+| AC3 | 同一天、同设备、4h 内刷新无需重校；跨日/换设备/超时引导重校 | 通过 | `selfcheck_v182.py` 日状态/设备/过期用例 |
 | AC4 | 专注高于蓄力零点可蓄力；短暂走神进度保持，超过 1.5 s 才缓慢衰减；信号异常/暂停冻结（v1.6.0） | 通过 | `node tests/selfcheck_round_logic.js` + 手动滑块 |
 | AC5 | 开发者三栏监测显示真实原始/处理后波形、频段、算法、分数与事件；儿童模式零订阅（v1.7.0） | 通过（无真机） | `tests/selfcheck_monitor.py`、`tests/selfcheck_ui_static.js`、Playwright |
 | AC5 | 蓄力越快脑电基础分越高；前 0.6 s 点击满分、之后最多折损 10%，错过 0 分；提前点击触发 0.5 s 冷却；积分按 30:1 折算 | 通过 | 模拟脑电回归 + `bf-wallet` 检查 |
@@ -125,7 +125,8 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | AC10 | 装扮/商城购买扣积分且刷新后保留 | 通过 | `bf-wallet` / `bf-owned` 验证 |
 | AC11 | Android/iOS 手机端不作为支持范围，布局不崩即可 | 部分通过 | 窄屏手动检查 |
 | AC12 | 多档案隔离：A 不能完成/读取 B 的 Session/报告/资产；重复结算不重复加积分；SQLite 重启持久化；备份可恢复（v1.8.1） | 通过 | `tests/selfcheck_v181.py`、`tests/selfcheck_ui_static.js` |
-| AC12 | 全站不加载外部静态资源；断网（除音乐）可玩 | 通过 | DevTools Network 检查 |
+| AC13 | 每日校准：硬件首局必须当日校准；同日同设备复用；跨日/换设备/超时重校；游戏 Session 锁定且禁止重校；回放不建真实参考 | 通过（模拟） | `tests/selfcheck_v182.py` |
+| AC14 | 全站不加载外部静态资源；断网（除音乐）可玩 | 通过 | DevTools Network 检查 |
 
 > 未完成项：真实儿童用户的可用性测试、长时间连续使用稳定性、4 通道模型精度验证。
 
@@ -160,7 +161,7 @@ outputs/models/*.joblib ← scripts/preprocess.py + train.py ← data/eegmat/
 | 原生 HTML/CSS/JS + Canvas | 零构建、儿童场景秒开、无 CDN | 没有组件化框架，代码组织靠约定 |
 | LogisticRegression（231 维） | 小样本、可解释、训练快 | 泛化有限；跨被试波动大（Subject02 仅 0.32） |
 | 频段回退 `β/(θ+α)` | 4/6 通道设备无需重训即可玩 | 只表达相对变化，不是临床分数 |
-| 基线=个人中位数 | 简单、可解释、家长能理解 | 受校准状态影响；1 小时有效期是折中 |
+| 基线=当日 P15/P85 + 长期参考 | 适应当天状态且不抹去长期变化 | 受阶段质量影响；4h/设备指纹是折中 |
 | SQLite 本地主存储 | 多档案隔离、可备份/迁移、断网可用；无新增依赖 | 无静态加密；需维护迁移/事务；同 OS 账户可读 |
 | 报告导出在本机 | 隐私；家长可直接拿走文件 | 依赖 reportlab/openpyxl/python-docx |
 | OSC 而非 LSL | Xmuse Direct 原生支持，Windows 部署简单 | 无科研级时间戳；后续可补 LSL |
@@ -177,10 +178,12 @@ outputs/models/*.joblib ← scripts/preprocess.py + train.py ← data/eegmat/
 | `app/export.py` | 报告渲染为文件 | `render_pdf/xlsx/docx/csv/json` |
 | `web/assets/api.js` | REST/SSE 封装与自愈 | `API.get/post`、`openStream` |
 | `app/storage.py` | SQLite/数据目录/备份/迁移 | `bootstrap/sync_state/backup/restore` |
-| `app/accounts.py` | 档案与存储 API | `/api/profiles/*`、`/api/storage/*` |
+| `app/calibration.py` | 每日校准配置/分位/阶段/状态 | `compute_daily_range/daily_status` |
+| `app/accounts.py` | 档案/校准状态/存储 API | `/api/profiles/*`、`/api/storage/*` |
 | `web/profiles.html` | 档案选择与管理 | 新建/选择/编辑/删除/旧数据导入 |
 | `web/settings.html` | 数据目录/备份/隐私 | 状态、备份、恢复、迁移 |
 | `web/assets/profile-bridge.js` | 档案缓存与后端同步 | `getUser/select/syncNow` |
+| `web/calibrate.html` | 四阶段儿童校准 + 内嵌教学 | 自然观察/教学/结果 |
 | `web/assets/wallet.js` | 积分账本 | `settleRound/add/spend/replace` |
 | `web/assets/achievements.js` | 成就判定与播报队列 | `record*`、`pending` |
 | `web/assets/dressup.js` | 装扮数据、图鉴、穿戴 | `owned/equip`、`ITEMS` |
@@ -189,7 +192,7 @@ outputs/models/*.joblib ← scripts/preprocess.py + train.py ← data/eegmat/
 
 **服务端（本机文件/数据库）：**
 
-- 系统文档目录 `专注小蛙/profiles.db`：档案、校准、游戏/逐轮、钱包、装扮、成就、设置、导入标记
+- 系统文档目录 `专注小蛙/profiles.db`：档案、每日校准、长期参考、游戏/逐轮、钱包、装扮、成就、设置、导入标记
 - 系统文档目录 `专注小蛙/reports/{id}.json`：会话报告可读副本；`sessions.report_json` 为主索引
 - 系统文档目录 `专注小蛙/backups/*.db`：一致性快照
 - `outputs/models/LogisticRegression.joblib`：模型

@@ -31,6 +31,8 @@
     }
     .profile-name { font-size: 18px; font-weight: 900; }
     .profile-meta { font-size: 12px; color: var(--ink-soft); }
+    .profile-calib { font-size: 11.5px; padding: 3px 8px; border-radius: 999px; background: #fff8e8; color: #8a5a12; }
+    .profile-calib.ok { background: #e4f8e9; color: #287d4b; }
     .profile-current { position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 800;
       padding: 3px 8px; border-radius: 999px; background: #e4f8e9; color: #287d4b; }
     .profile-actions { display: flex; gap: 8px; margin-top: 6px; }
@@ -82,6 +84,7 @@
       <div id="profiles" class="hint">正在读取本地档案……</div>
       <div class="profile-footer">
         <button class="btn btn-primary" id="btn-new">＋ 新建档案</button>
+        <a class="btn btn-ghost" href="calibrate.html?reason=daily">重新校准</a>
         <a class="btn btn-ghost" href="settings.html">数据与隐私设置</a>
       </div>
       <div class="profile-note">
@@ -151,11 +154,13 @@
       box.innerHTML = profiles.map(p => {
         const a = avatarOf(p.avatar);
         const isCurrent = current && current.user_id === p.user_id;
+        const cs = p.calibration_status || {};
         return `<div class="profile-card${isCurrent ? " is-current" : ""}" data-id="${p.user_id}" role="button" tabindex="0" aria-label="选择 ${p.nickname}">
           ${isCurrent ? '<span class="profile-current">当前</span>' : ""}
           <div class="profile-avatar">${a.emoji}</div>
           <div class="profile-name">${escapeHtml(p.nickname)}</div>
           <div class="profile-meta">${p.is_system ? "历史档案 · 未归属" : fmtDate(p.last_used_at)}</div>
+          ${p.is_system ? "" : `<div class="profile-calib${cs.valid ? " ok" : ""}">${cs.valid ? "✓ " + (cs.status_text || "今日校准有效") : (cs.status_text || "今日尚未校准")}</div>`}
           <div class="profile-actions">
             ${p.is_system ? "" : `<button class="btn btn-ghost" data-edit="${p.user_id}" type="button">编辑</button>
             <button class="btn btn-ghost" data-delete="${p.user_id}" type="button">删除</button>`}

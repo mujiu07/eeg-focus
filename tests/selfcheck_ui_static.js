@@ -91,7 +91,7 @@ check("报告与导出区分脑电基础分、实际分和冷却数据", () => {
 });
 
 check("后端版本与逐轮字段已同步", () => {
-  assert.ok(serverPy.includes('version="1.8.1"'));
+  assert.ok(serverPy.includes('version="1.8.2"'));
   assert.ok(serverPy.includes("multiplier: Optional[float]"));
   assert.ok(serverPy.includes("cooldown_count: Optional[NonNegativeInt]"));
   assert.ok(serverPy.includes("cooldown_sec: Optional[float]"));
@@ -168,6 +168,17 @@ check("用户归属、结算幂等与 Session TTL 留在后端", () => {
   assert.ok(storagePy.includes("session:{session_id}"));
   assert.ok(storagePy.includes("load_report"));
   assert.ok(!serverPy.includes("SESSIONS_DIR, f\"{s.id}.json\", \"w\""));
+});
+
+check("v1.8.2 每日校准与双基线入口", () => {
+  const calibrate = read("web/calibrate.html");
+  const profilesPage = read("web/profiles.html");
+  assert.ok(calibrate.includes("daily_v2") && calibrate.includes("stage_windows"));
+  assert.ok(calibrate.includes("tutorialEvents") && calibrate.includes("自然观察"));
+  assert.ok(calibrate.includes('purpose = "calibration"') || calibrate.includes("purpose = 'calibration'"));
+  assert.ok(game.includes('purpose: "game"') && game.includes("daily_calibration_required"));
+  assert.ok(profilesPage.includes("calibration_status") && profilesPage.includes("今日校准"));
+  assert.ok(read("web/assets/api.js").includes("4 * 60 * 60 * 1000"));
 });
 
 console.log("");

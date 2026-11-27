@@ -140,13 +140,13 @@ function describeSignal(source = {}) {
 }
 
 // 跨页共享：会话参数与校准基线都存 localStorage。
-// 校准基线有效期 1 小时：期间刷新、关闭页面/标签页甚至浏览器都无需重新校准；
-// 超过 1 小时自动失效，必须回到校准页重新校准。
+// v1.8.2：同一天、同设备、4 小时内可复用；跨本地日期或换设备必须重新校准。
+// 服务端会再次校验每日校准，不能只靠这份缓存。
 const Store = {
   CALIB_KEY: "bf-calib",
   SESSION_KEY: "bf-session",
   storage: localStorage,
-  CALIB_TTL_MS: 60 * 60 * 1000,   // 1 小时
+  CALIB_TTL_MS: 4 * 60 * 60 * 1000,   // 4 小时；跨本地日期仍强制重校
 
   forDeveloperTest() {
     return { ...this, CALIB_KEY: "bf-dev-calib", SESSION_KEY: "bf-dev-session", storage: sessionStorage };
@@ -195,13 +195,18 @@ const Store = {
     if (!raw || raw.baseline == null) return { calib: null, expired: false, remainMs: 0 };
     const at = Number(raw.at);
     if (!Number.isFinite(at)) return { calib: null, expired: true, remainMs: 0 };
+    const oldDate = new Date(at);
+    const nowDate = new Date();
+    if (oldDate.toDateString() !== nowDate.toDateString()) {
+      return { calib: null, expired: true, remainMs: 0, reason: "date_changed" };
+    }
     const remainMs = this.CALIB_TTL_MS - (Date.now() - at);
-    if (remainMs <= 0) return { calib: null, expired: true, remainMs: 0 };
+    if (remainMs <= 0) return { calib: null, expired: true, remainMs: 0, reason: "expired" };
     return { calib: raw, expired: false, remainMs };
   },
 
-  saveCalib(baseline, quantiles, range, calibrationId) {
-    const payload = { baseline, quantiles, range: range || null, at: Date.now() };
+  saveCalib(baseline, quantiles, range, calibrationId, meta) {
+    const payload = { baseline, quantiles, range: range || null, at: Date.now(), ...(meta || {}) };
     if (calibrationId) payload.calibration_id = calibrationId;
     this.storage.setItem(this.CALIB_KEY, JSON.stringify(payload));
     if (this.storage === localStorage) {

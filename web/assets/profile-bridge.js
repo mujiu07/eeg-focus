@@ -78,6 +78,11 @@
         range: data.calibration.range,
         at: data.calibration.at,
         calibration_id: data.calibration.id,
+        calibration_date: data.calibration.calibration_date,
+        device_key: data.calibration.device_key,
+        protocol_version: data.calibration.protocol_version,
+        status: data.calibration.status,
+        reference_baseline_id: data.calibration.reference_baseline_id,
       });
     } else {
       try { localStorage.removeItem("bf-calib"); } catch (_) {}

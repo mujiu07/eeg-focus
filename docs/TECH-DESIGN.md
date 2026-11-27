@@ -1,7 +1,7 @@
 # 技术设计：专注判定、蓄力与单轮计分
 
 > 面向本仓库维护者的判定链路说明。系统结构、选型、数据模型与完整实测记录见工作区 `docs/Tech Design.md`；本文只收录“专注 → 分数 → 蓄力 → 子弹时间 → 跳跃 → 计分”这条链路上容易被误读、且改动风险最高的部分。
-> 最后更新：2026-11-27（v1.8.1）
+> 最后更新：2026-11-27（v1.8.2）
 
 ## 1. 判定链路
 
@@ -284,3 +284,30 @@ python tests/selfcheck_denoise.py          # 去噪：既有回归
 - 旧 `outputs/sessions` 仅导入 `hardware/heart`、非 demo、`played_sec > 0` 的报告；导入系统历史档案，不猜真实儿童归属。
 - 旧 LocalStorage 必须由操作者选择目标档案并确认，导入前备份；不要自动复制给所有档案。
 - 备份用 SQLite `backup()` 一致性快照；恢复前自动 `before-restore` 备份。数据库、报告、备份是不同的数据，删除档案不自动删除备份。
+
+
+## 12. v1.8.2 每日校准与双基线实现
+
+完整报告：`docs/DEV-REPORT-v1.8.2.md`。
+
+### 12.1 阶段与有效时间
+
+- 阶段：设备/信号检查 → `natural` 30s → `tutorial` 30s → 计算。
+- 校准页只发阶段窗口和点击事件；服务端从 `Session.history` 按窗口重新过滤 `valid` 帧，`effective_seconds()` 用有效帧时间戳估计有效秒数。
+- 样本 `<30` 或有效 `<20s`，或硬件 `artifact_summary.usable_ratio <0.50` → `CalibrationDataError`，API 422，不写有效校准。
+- 两阶段各抽稀至最多 240 帧后合并，P15/P85 为 L/H；不按“自然=低、教学=高”强推。
+- `range_quality=stretched` 时保留 0.10 最小跨度并显式提示；不静默放大。
+
+### 12.2 日状态和锁定
+
+- `calibration_date` + `timezone_offset_min` + `device_key` + `source_name` + `is_valid` + 4h TTL。
+- 硬件 game 创建 Session：`calibration_status()` 有效 → 记录 id；无效 → 409。
+- Session 使用记录中的 L/H，忽略前端 `score_low/high`；`purpose=game` 调 `/calibrate` → 409。
+- `Session.apply_calibration()` 同时写入 `calibration_snapshot` 与 `reference_snapshot`；`S_reference` 只写统计/曲线。
+
+### 12.3 参考基线与 Schema v2
+
+- 首个 `source_name=hardware` 且 `status in (ok, stretched)` 的校准自动建 `reference_baselines` v1（`is_initial=1`）。
+- 每日校准不会改动已有 active 参考；`POST /reference-baselines` 显式版本化，旧记录 `superseded` 保留。
+- Schema v2 使用 `_ensure_columns()` + `ALTER TABLE ADD COLUMN` 原地补列；不重建 users/sessions/inventories。
+- 新增字段见报告 §7；迁移测试在 `tests/selfcheck_v182.py`。

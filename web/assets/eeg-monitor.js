@@ -825,7 +825,14 @@
       }
       add("平滑前专注值", pct(a.raw_focus));
       add("平滑后专注值", pct(a.smooth_focus), true);
-      add("游戏驱动分数", num(a.game_score, 1) + " / 100", true);
+      add("游戏驱动分数 S_daily", num(a.game_score, 1) + " / 100", true);
+      const cal = b?.calibration || {};
+      add("当日校准", cal.id ? `${cal.id} · ${cal.status || "unknown"}` : "N/A");
+      add("长期参考基线", cal.reference_baseline_id
+        ? `${cal.reference_baseline_id} · ${cal.reference_version || "?"}` : "N/A");
+      add("参考映射 S_reference", num(cal.reference_score, 1) + " / 100",
+        false, "仅后台趋势记录，不参与蓄力/得分/商城");
+      add("有效采集", cal.effective_sec != null ? `${num(cal.effective_sec, 1)}s` : "N/A");
       add("平滑系数 α", num(a.ema_alpha, 2));
       add("个人校准区间", a.score_range ? `${a.score_range.low.toFixed(3)} – ${a.score_range.high.toFixed(3)}` : "N/A");
       add("蓄力阈值（零点/进/出）",

@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 简要技术设计（Brief Tech Design）
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 适用代码：`main` @ `v1.8.1`（本地 SQLite 与多用户档案；历史基线 v1.7.0）
+> 适用代码：`main` @ `v1.8.2`（每日游戏化校准与双基线；历史基线 v1.8.1/v1.7.0）
 > 说明：本文是**一页可读的技术设计摘要**，用于评审与新人上手；完整细节见 `ARCHITECTURE.md` / `tech-stack.md` / `DECISIONS-AND-VERIFICATION-dream-pond-focus-frog.md`。
 > 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.8.1`。
 
@@ -45,6 +45,7 @@
 | 浏览器 | `assets/sky.js`、`music.js`、`hero-*`、`pond-*` | 天空、音乐、首页池塘与音效 | `SkyTheme.palette()` |
 | 服务 | `app/server.py` | 会话生命周期、校准、报告、导出、静态托管、用户归属/TTL | `POST /api/session`、`/calibrate`、`/finish` |
 | 服务 | `app/storage.py` / `app/accounts.py` | SQLite 档案/校准/游戏/资产、备份迁移与存储 API | `/api/profiles/*`、`/api/storage/*` |
+| 服务 | `app/calibration.py` | 每日 P15/P85、阶段有效时间、日状态/双基线 | `/api/session` 硬件门槛、`/calibration-status` |
 | 服务 | `app/sources.py` | 信号源抽象与工厂 | `start()` / `next_window()` / `stop()` |
 | 服务 | `app/xmuse_osc.py` | OSC/UDP 接收、环形缓冲、质量/电量 | `next_window()` |
 | 服务 | `app/focus_engine.py` | 特征→模型/频段回退→EMA | `update(seg, fs)` |
@@ -77,6 +78,7 @@ GET /api/session/{id}/stream (SSE, 0.5 s/帧)
 **报告与成长**
 
 ```
+校准：自然 30s + 教学 30s 有效帧 → 当日 L/H + 长期参考 v1；Session 创建锁定
 服务端写 profiles.db 的 sessions/report_json + 数据目录 reports/{id}.json（curve、逐轮、统计）
   → report.html 按 user_id 读取 + 生成「给家长的话」
   → 导出：本机生成 PDF/XLSX/DOCX/CSV/JSON

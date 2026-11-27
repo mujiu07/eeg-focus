@@ -711,8 +711,7 @@
     })();
 
     // ---- 会话与基线 ----
-    // 校准基线有效期 1 小时：有效期内刷新/关闭页面都无需重新校准；
-    // 过期（或从未校准）时不允许用旧基线开局，先回校准页。
+    // v1.8.2：同一天、同设备、4 小时内可复用；跨日/换设备/超时由服务端拦截。
     const params = new URLSearchParams(location.search);
     const demoRequested = params.get("demo") === "1";
     const requestedTest = params.get("test");
@@ -737,10 +736,10 @@
       location.replace("index.html");
     } else if (!calib) {
       if (calibExpired) calibrationStore.clearCalib();
-      toast(calibExpired ? "校准已超过 1 小时，需要再校准一次" : "先做一次校准，让青蛙认识你的状态");
+      toast(calibExpired ? "今天的校准需要重新做一次" : "先做一次校准，让青蛙认识你的状态");
       setTimeout(() => {
         const query = new URLSearchParams();
-        if (calibExpired) query.set("reason", "expired");
+        if (calibExpired) query.set("reason", "daily");
         if (testMode) query.set("test", testMode);
         location.replace("calibrate.html" + (query.size ? "?" + query : ""));
       }, 1200);
@@ -904,12 +903,13 @@
       const heartWeight = Number(localStorage.getItem("bf-heart-weight")) || 0.15;
       // baseline 必须随会话一起上报：报告页的橙色虚线与"高于基线占比"都依赖它
       const profileUser = Profile.userId();
-      let body = { mode, baseline: calib.baseline };
+      let body = { mode, baseline: calib.baseline, purpose: "game" };
       if (profileUser) {
         body.user_id = profileUser;
         if (calib.calibration_id) body.calibration_id = calib.calibration_id;
       }
-      // 动态定标区间随会话带上：校准页把「最放松/最专注」映射成 20/80
+      body.timezone_offset_min = new Date().getTimezoneOffset();
+      // 区间仅作兼容；服务端有当日校准记录时以记录为准，避免旧缓存覆盖
       if (calib.range && calib.range.low != null && calib.range.high != null) {
         body.score_low = calib.range.low;
         body.score_high = calib.range.high;
@@ -928,7 +928,20 @@
       } else if (mode === "hardware") {
         body.osc_ports = (prev && prev.source && prev.source.osc_ports) || null;
       }
-      const res = await API.post("/api/session", body);
+      body.device_key = mode === "hardware"
+        ? ["hardware", body.osc_ports || "", "", ""].join("|") : mode;
+      if (calib.device_key) body.device_key = calib.device_key;
+      let res;
+      try {
+        res = await API.post("/api/session", body);
+      } catch (e) {
+        if (String(e && e.message || "").includes("daily_calibration_required")) {
+          toast("今天还没有完成校准");
+          setTimeout(() => location.replace("calibrate.html?reason=daily"), 900);
+          return;
+        }
+        throw e;
+      }
       if (state.leaving) {
         API.endAbandonedSession(res.session_id);
         return;

@@ -98,7 +98,7 @@ def main():
     check("首次启动创建 SQLite 与 settings", (DATA / "profiles.db").is_file() and (DATA / "settings.json").is_file())
     check("目录结构包含 reports/recordings/backups",
           all((DATA / n).is_dir() for n in ("reports", "recordings", "backups")))
-    check("Schema 版本记录", m.status()["schema_version"] == 1)
+    check("Schema 版本记录", m.status()["schema_version"] >= 1)
 
     u1 = m.create_user("小宇", "frog")
     u2 = m.create_user("小安", "fish")

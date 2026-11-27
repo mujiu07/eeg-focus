@@ -25,12 +25,16 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from .calibration import (
+    PROTOCOL_VERSION, daily_status, device_key as calibration_device_key, local_date,
+)
+
 APP_NAME = "专注小蛙"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_PROFILES = 12
 AVATARS = ("frog", "tadpole", "lotus", "fish", "dragonfly", "snail")
 AVATAR_LABELS = {
@@ -290,13 +294,23 @@ class StorageManager:
                     range_low REAL, range_high REAL,
                     calibrated_at TEXT NOT NULL,
                     calibrated_at_ms INTEGER NOT NULL,
+                    calibration_date TEXT,
+                    timezone_offset_min INTEGER,
+                    device_key TEXT,
                     method TEXT,
                     source_name TEXT,
                     source_info TEXT NOT NULL DEFAULT '{}',
                     n_frames INTEGER NOT NULL DEFAULT 0,
                     signal_quality TEXT NOT NULL DEFAULT '{}',
+                    protocol_version TEXT NOT NULL DEFAULT 'legacy',
+                    mapping_version TEXT NOT NULL DEFAULT 'legacy',
+                    stages_json TEXT NOT NULL DEFAULT '{}',
+                    effective_sec REAL NOT NULL DEFAULT 0,
+                    elapsed_sec REAL NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'legacy',
+                    reference_baseline_id TEXT,
                     algorithm_version TEXT NOT NULL DEFAULT 'unknown',
-                    params_version TEXT NOT NULL DEFAULT 'v1.8.1',
+                    params_version TEXT NOT NULL DEFAULT 'v1.8.2',
                     is_valid INTEGER NOT NULL DEFAULT 1
                 );
                 CREATE TABLE IF NOT EXISTS reference_baselines (
@@ -309,6 +323,15 @@ class StorageManager:
                     valid_until TEXT,
                     source_info TEXT NOT NULL DEFAULT '{}',
                     algorithm_version TEXT NOT NULL DEFAULT 'unknown',
+                    version TEXT NOT NULL DEFAULT 'v1',
+                    q15 REAL, q85 REAL, n_frames INTEGER NOT NULL DEFAULT 0,
+                    protocol_version TEXT NOT NULL DEFAULT 'legacy',
+                    mapping_version TEXT NOT NULL DEFAULT 'legacy',
+                    device_key TEXT,
+                    stages_json TEXT NOT NULL DEFAULT '{}',
+                    is_initial INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    superseded_by TEXT,
                     is_active INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL
                 );
@@ -320,6 +343,9 @@ class StorageManager:
                     duration_sec REAL,
                     played_sec REAL,
                     calibration_id TEXT,
+                    reference_baseline_id TEXT,
+                    calibration_snapshot_json TEXT NOT NULL DEFAULT '{}',
+                    reference_snapshot_json TEXT NOT NULL DEFAULT '{}',
                     algorithm_version TEXT NOT NULL DEFAULT 'unknown',
                     params_json TEXT NOT NULL DEFAULT '{}',
                     source_json TEXT NOT NULL DEFAULT '{}',
@@ -418,10 +444,44 @@ class StorageManager:
                 CREATE INDEX IF NOT EXISTS idx_wallet_user ON wallet_transactions(user_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_rounds_session ON rounds(session_id);
             """)
+            # v1.8.2：在 v1.8.1 数据库上原地补列；不重建表，不触碰用户/积分/历史数据。
+            self._ensure_columns(conn, "calibrations", {
+                "calibration_date": "TEXT", "timezone_offset_min": "INTEGER",
+                "device_key": "TEXT", "protocol_version": "TEXT NOT NULL DEFAULT 'legacy'",
+                "mapping_version": "TEXT NOT NULL DEFAULT 'legacy'",
+                "stages_json": "TEXT NOT NULL DEFAULT '{}'", "effective_sec": "REAL NOT NULL DEFAULT 0",
+                "elapsed_sec": "REAL NOT NULL DEFAULT 0", "status": "TEXT NOT NULL DEFAULT 'legacy'",
+                "reference_baseline_id": "TEXT",
+            })
+            self._ensure_columns(conn, "reference_baselines", {
+                "version": "TEXT NOT NULL DEFAULT 'v1'", "q15": "REAL", "q85": "REAL",
+                "n_frames": "INTEGER NOT NULL DEFAULT 0",
+                "protocol_version": "TEXT NOT NULL DEFAULT 'legacy'",
+                "mapping_version": "TEXT NOT NULL DEFAULT 'legacy'", "device_key": "TEXT",
+                "stages_json": "TEXT NOT NULL DEFAULT '{}'",
+                "is_initial": "INTEGER NOT NULL DEFAULT 1", "status": "TEXT NOT NULL DEFAULT 'active'",
+                "superseded_by": "TEXT",
+            })
+            self._ensure_columns(conn, "sessions", {
+                "reference_baseline_id": "TEXT",
+                "calibration_snapshot_json": "TEXT NOT NULL DEFAULT '{}'",
+                "reference_snapshot_json": "TEXT NOT NULL DEFAULT '{}'",
+            })
             conn.execute(
                 "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES(?, ?)",
                 (SCHEMA_VERSION, _now()),
             )
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_version(version, applied_at) VALUES(1, ?)",
+                (_now(),),
+            )
+
+    @staticmethod
+    def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        for name, decl in columns.items():
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
     # ------------------------------------------------------------------
     # 状态 / 路径 / 备份
@@ -776,41 +836,72 @@ class StorageManager:
     # 校准 / 设置 / 资产
     # ------------------------------------------------------------------
     def add_calibration(self, user_id: str, data: dict, session_id: Optional[str] = None,
-                        source: Optional[dict] = None) -> dict:
+                        source: Optional[dict] = None, kind: Optional[str] = None) -> dict:
         self.ensure_user(user_id)
         cid = "cal_" + uuid.uuid4().hex[:12]
         at_ms = int(data.get("calibrated_at_ms") or _now_ms())
-        at = datetime.fromtimestamp(at_ms / 1000).astimezone().isoformat(timespec="seconds")
+        tz_offset = data.get("timezone_offset_min")
+        at = (datetime.fromtimestamp(at_ms / 1000, tz=timezone(timedelta(minutes=-int(tz_offset)))).isoformat(timespec="seconds")
+              if tz_offset is not None else
+              datetime.fromtimestamp(at_ms / 1000).astimezone().isoformat(timespec="seconds"))
         range_ = data.get("range") or {}
         quantiles = data.get("quantiles") or {}
+        source = source or {}
+        q10 = quantiles.get("q10", quantiles.get("q15"))
+        q90 = quantiles.get("q90", quantiles.get("q85"))
+        source_name = source.get("name") or str(data.get("source_name") or "")
+        dev_key = str(data.get("device_key") or calibration_device_key(source_name, source))
+        cal_date = str(data.get("calibration_date") or local_date(at_ms, tz_offset))
+        status = str(data.get("status") or ("legacy" if data.get("protocol_version") != PROTOCOL_VERSION else "ok"))
         with self.lock, self._db() as conn:
             conn.execute(
                 "INSERT INTO calibrations(calibration_id,user_id,session_id,kind,baseline,q10,q50,q90,"
-                "range_low,range_high,calibrated_at,calibrated_at_ms,method,source_name,source_info,"
-                "n_frames,signal_quality,algorithm_version,params_version)"
-                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (cid, str(user_id), session_id, "daily", float(data.get("baseline") or 0.5),
-                 _num(quantiles.get("q10")), _num(quantiles.get("q50")), _num(quantiles.get("q90")),
-                 _num(range_.get("low")), _num(range_.get("high")), at, at_ms,
-                 str(data.get("range_mode") or data.get("method") or "unknown"),
-                 (source or {}).get("name") or str(data.get("source_name") or ""),
-                 _json(source or {}), int(data.get("n_frames") or 0),
+                "range_low,range_high,calibrated_at,calibrated_at_ms,calibration_date,timezone_offset_min,"
+                "device_key,method,source_name,source_info,n_frames,signal_quality,protocol_version,"
+                "mapping_version,stages_json,effective_sec,elapsed_sec,status,algorithm_version,params_version)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (cid, str(user_id), session_id, str(kind or data.get("kind") or "daily"),
+                 float(data.get("baseline") or 0.5),
+                 _num(q10), _num(quantiles.get("q50")), _num(q90),
+                 _num(range_.get("low")), _num(range_.get("high")), at, at_ms, cal_date, tz_offset,
+                 dev_key, str(data.get("range_mode") or data.get("method") or "daily_v2"),
+                 source_name, _json(source), int(data.get("n_frames") or 0),
                  _json(data.get("signal_quality") or {}),
-                 str(data.get("algorithm_version") or "unknown"), "v1.8.1"),
+                 str(data.get("protocol_version") or "legacy"),
+                 str(data.get("mapping_version") or "legacy"),
+                 _json(data.get("stages") or {}), float(data.get("effective_sec") or 0),
+                 float(data.get("elapsed_sec") or 0), status,
+                 str(data.get("algorithm_version") or "focus_engine_v1.8.2"), "v1.8.2"),
             )
             row = conn.execute("SELECT * FROM calibrations WHERE calibration_id = ?", (cid,)).fetchone()
-        return self._calibration_row(row)
+            ref_row = None
+            if source_name == "hardware" and status in ("ok", "stretched") and data.get("is_valid", True):
+                ref_row = self._ensure_initial_reference(conn, str(user_id), row)
+                # 参考基线创建时会回填 calibrations.reference_baseline_id；重新取行，
+                # 否则返回给前端的校准对象会少这个指针。
+                row = conn.execute("SELECT * FROM calibrations WHERE calibration_id = ?", (cid,)).fetchone()
+        result = self._calibration_row(row)
+        if ref_row:
+            result["reference_baseline_id"] = ref_row["baseline_id"]
+        return result
 
     def _calibration_row(self, row: sqlite3.Row) -> dict:
         return {
             "id": row["calibration_id"], "user_id": row["user_id"], "session_id": row["session_id"],
             "kind": row["kind"], "baseline": row["baseline"],
-            "quantiles": {"q10": row["q10"], "q50": row["q50"], "q90": row["q90"]},
+            "quantiles": {"q15": row["q10"], "q50": row["q50"], "q85": row["q90"],
+                          "q10": row["q10"], "q90": row["q90"]},
             "range": {"low": row["range_low"], "high": row["range_high"]},
             "at": row["calibrated_at_ms"], "calibrated_at": row["calibrated_at"],
-            "method": row["method"], "source_name": row["source_name"],
+            "calibration_date": row["calibration_date"], "timezone_offset_min": row["timezone_offset_min"],
+            "device_key": row["device_key"], "method": row["method"], "source_name": row["source_name"],
             "source": _load_json(row["source_info"], {}), "n_frames": row["n_frames"],
             "signal_quality": _load_json(row["signal_quality"], {}),
+            "protocol_version": row["protocol_version"], "mapping_version": row["mapping_version"],
+            "stages": _load_json(row["stages_json"], {}), "effective_sec": row["effective_sec"],
+            "elapsed_sec": row["elapsed_sec"], "status": row["status"],
+            "reference_baseline_id": row["reference_baseline_id"],
+            "is_valid": bool(row["is_valid"]),
             "algorithm_version": row["algorithm_version"], "params_version": row["params_version"],
         }
 
@@ -822,6 +913,14 @@ class StorageManager:
             ).fetchone()
         return self._calibration_row(row) if row else None
 
+    def calibration_history(self, user_id: str, limit: int = 50) -> list[dict]:
+        with self._db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM calibrations WHERE user_id = ? ORDER BY calibrated_at_ms DESC LIMIT ?",
+                (str(user_id), max(1, min(int(limit), 200))),
+            ).fetchall()
+        return [self._calibration_row(r) for r in rows]
+
     def get_calibration(self, user_id: str, calibration_id: str) -> Optional[dict]:
         with self._db() as conn:
             row = conn.execute(
@@ -829,6 +928,110 @@ class StorageManager:
                 (str(calibration_id), str(user_id)),
             ).fetchone()
         return self._calibration_row(row) if row else None
+
+    def calibration_status(self, user_id: str, *, mode: str = "hardware",
+                           device: Optional[str] = None, tz_offset_min: Optional[int] = None,
+                           now_ms: Optional[int] = None) -> dict:
+        self.ensure_user(user_id)
+        now = int(now_ms if now_ms is not None else _now_ms())
+        history = self.calibration_history(user_id, 80)
+        result = daily_status(history, now_ms=now, mode=mode,
+                              device=device or calibration_device_key(mode),
+                              tz_offset_min=tz_offset_min)
+        result["calibration"] = result.get("calibration") or None
+        result["history_count"] = len(history)
+        result["mode"] = mode
+        result["status_text"] = ("今日校准有效" if result["valid"] else {
+            "date_changed": "今日尚未校准", "expired": "校准已过期，需要重新校准",
+            "device_changed": "设备/信号源已变化，需要重新校准", "missing": "今日尚未校准",
+        }.get(result.get("reason"), "需要重新校准"))
+        return result
+
+    def _reference_row(self, row: sqlite3.Row) -> dict:
+        return {
+            "id": row["baseline_id"], "user_id": row["user_id"], "label": row["label"],
+            "version": row["version"], "baseline": row["baseline"],
+            "range": {"low": row["range_low"], "high": row["range_high"]},
+            "q15": row["q15"], "q85": row["q85"], "n_frames": row["n_frames"],
+            "source": _load_json(row["source_info"], {}), "source_name": None,
+            "protocol_version": row["protocol_version"], "mapping_version": row["mapping_version"],
+            "device_key": row["device_key"], "stages": _load_json(row["stages_json"], {}),
+            "is_initial": bool(row["is_initial"]), "status": row["status"],
+            "superseded_by": row["superseded_by"], "is_active": bool(row["is_active"]),
+            "algorithm_version": row["algorithm_version"], "created_at": row["created_at"],
+        }
+
+    def reference_baselines(self, user_id: str) -> list[dict]:
+        with self._db() as conn:
+            rows = conn.execute(
+                "SELECT * FROM reference_baselines WHERE user_id = ? ORDER BY created_at DESC, rowid DESC",
+                (str(user_id),),
+            ).fetchall()
+        return [self._reference_row(r) for r in rows]
+
+    def reference_baseline(self, user_id: str) -> Optional[dict]:
+        with self._db() as conn:
+            row = conn.execute(
+                "SELECT * FROM reference_baselines WHERE user_id = ? AND is_active = 1 "
+                "ORDER BY created_at DESC, rowid DESC LIMIT 1", (str(user_id),)
+            ).fetchone()
+        return self._reference_row(row) if row else None
+
+    @staticmethod
+    def _ensure_initial_reference(conn: sqlite3.Connection, user_id: str, cal: sqlite3.Row) -> Optional[sqlite3.Row]:
+        exists = conn.execute(
+            "SELECT * FROM reference_baselines WHERE user_id = ? AND is_active = 1 LIMIT 1", (str(user_id),)
+        ).fetchone()
+        if exists:
+            return exists
+        bid = "ref_" + uuid.uuid4().hex[:12]
+        conn.execute(
+            "INSERT INTO reference_baselines(baseline_id,user_id,label,baseline,range_low,range_high,"
+            "valid_from,source_info,algorithm_version,version,q15,q85,n_frames,protocol_version,"
+            "mapping_version,device_key,stages_json,is_initial,status,is_active,created_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (bid, str(user_id), "初始长期参考基线", cal["baseline"], cal["range_low"], cal["range_high"],
+             cal["calibrated_at"], cal["source_info"], cal["algorithm_version"], "v1",
+             cal["q10"], cal["q90"], cal["n_frames"], cal["protocol_version"],
+             cal["mapping_version"], cal["device_key"], cal["stages_json"], 1, "active", 1, _now()),
+        )
+        conn.execute("UPDATE calibrations SET reference_baseline_id = ? WHERE calibration_id = ?",
+                     (bid, cal["calibration_id"]))
+        return conn.execute("SELECT * FROM reference_baselines WHERE baseline_id = ?", (bid,)).fetchone()
+
+    def add_reference_baseline(self, user_id: str, calibration_id: str, label: Optional[str] = None) -> dict:
+        cal = self.get_calibration(user_id, calibration_id)
+        if not cal:
+            raise StorageError("校准记录不存在或不属于当前档案")
+        if cal.get("source_name") != "hardware":
+            raise StorageError("只有通过质量检查的真实硬件 EEG 校准才能建立长期参考基线")
+        if cal.get("status") not in ("ok", "stretched") or not cal.get("is_valid"):
+            raise StorageError("该校准不是有效质量记录，不能建立长期参考基线")
+        with self.lock, self._db() as conn:
+            rows = conn.execute(
+                "SELECT version FROM reference_baselines WHERE user_id = ?", (str(user_id),)
+            ).fetchall()
+            version = "v" + str(len(rows) + 1)
+            bid = "ref_" + uuid.uuid4().hex[:12]
+            conn.execute(
+                "UPDATE reference_baselines SET is_active = 0, status = 'superseded', superseded_by = ? "
+                "WHERE user_id = ? AND is_active = 1", (bid, str(user_id)),
+            )
+            conn.execute(
+                "INSERT INTO reference_baselines(baseline_id,user_id,label,baseline,range_low,range_high,"
+                "valid_from,source_info,algorithm_version,version,q15,q85,n_frames,protocol_version,"
+                "mapping_version,device_key,stages_json,is_initial,status,is_active,created_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (bid, str(user_id), label or f"长期参考基线 {version}", cal["baseline"],
+                 cal["range"]["low"], cal["range"]["high"], cal["calibrated_at"], _json(cal["source"]),
+                 cal["algorithm_version"], version, cal["quantiles"].get("q15"),
+                 cal["quantiles"].get("q85"), cal["n_frames"], cal["protocol_version"],
+                 cal["mapping_version"], cal["device_key"], _json(cal["stages"]), 0, "active", 1, _now()),
+            )
+            conn.execute("UPDATE calibrations SET reference_baseline_id = ? WHERE calibration_id = ?",
+                         (bid, calibration_id))
+            row = conn.execute("SELECT * FROM reference_baselines WHERE baseline_id = ?", (bid,)).fetchone()
+        return self._reference_row(row)
 
     def wallet(self, user_id: str) -> dict:
         with self._db() as conn:
@@ -965,7 +1168,11 @@ class StorageManager:
         source = report.get("source") or {}
         started = report.get("created_at")
         ended = _now()
-        params = {"score_range": report.get("score_range"), "baseline": report.get("baseline")}
+        params = {"score_range": report.get("score_range"), "baseline": report.get("baseline"),
+                  "reference_score_range": report.get("reference_score_range")}
+        reference_baseline_id = report.get("reference_baseline_id")
+        calibration_snapshot = report.get("calibration_snapshot") or report.get("calibration") or {}
+        reference_snapshot = report.get("reference_snapshot") or {}
         quality = report.get("signal_quality") or {}
         valid_ratio = None
         if report.get("n_frames"):
@@ -975,14 +1182,19 @@ class StorageManager:
             already_points = int(row["wallet_points"]) if row else 0
             conn.execute(
                 "INSERT INTO sessions(session_id,user_id,started_at,ended_at,duration_sec,played_sec,"
-                "calibration_id,algorithm_version,params_json,source_json,demo,total_score,wallet_points,"
+                "calibration_id,reference_baseline_id,calibration_snapshot_json,reference_snapshot_json,"
+                "algorithm_version,params_json,source_json,demo,total_score,wallet_points,"
                 "jumps,successful_jumps,missed_jumps,eeg_base_score,actual_score,valid_signal_ratio,"
-                "difficulty_snapshot_json,report_json,finished,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                "difficulty_snapshot_json,report_json,finished,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                 "ON CONFLICT(session_id) DO UPDATE SET ended_at=excluded.ended_at, played_sec=excluded.played_sec, "
                 "duration_sec=excluded.duration_sec, report_json=excluded.report_json, finished=1, "
-                "total_score=COALESCE(excluded.total_score, sessions.total_score), notes=excluded.notes",
+                "total_score=COALESCE(excluded.total_score, sessions.total_score), notes=excluded.notes, "
+                "reference_baseline_id=COALESCE(excluded.reference_baseline_id, sessions.reference_baseline_id), "
+                "calibration_snapshot_json=excluded.calibration_snapshot_json, "
+                "reference_snapshot_json=excluded.reference_snapshot_json",
                 (sid, user_id, started, ended, report.get("duration_sec"), report.get("played_sec"),
-                 calibration_id, str(report.get("algorithm_version") or "unknown"), _json(params), _json(source),
+                 calibration_id, reference_baseline_id, _json(calibration_snapshot), _json(reference_snapshot),
+                 str(report.get("algorithm_version") or "unknown"), _json(params), _json(source),
                  1 if demo else 0, int(score) if score is not None else None, already_points,
                  actions.get("timed_jumps"), actions.get("successful_jumps"), actions.get("missed_jumps"),
                  report.get("eeg_base_score"), report.get("actual_score"), valid_ratio,
@@ -1175,6 +1387,9 @@ class StorageManager:
             "owned": owned,
             "achievements": achievements,
             "calibration": self.latest_calibration(user_id),
+            "calibration_status": self.calibration_status(user_id),
+            "reference_baseline": self.reference_baseline(user_id),
+            "calibration_history": self.calibration_history(user_id, 12),
             "recent_sessions": self.list_sessions(user_id, 6),
             "data_dir": str(self.root),
             "encrypted": False,

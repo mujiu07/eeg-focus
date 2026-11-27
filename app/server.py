@@ -36,6 +36,7 @@ from . import monitor as monitor_data
 from .heart import heart
 from .accounts import router as accounts_router
 from .storage import StorageError, storage
+from . import calibration as calib_engine
 
 # 心率采集链路依赖 macOS 专属的 AirPods 心率进程（hrd），其他系统没有对应实现，
 # 因此不暴露这块功能：接口直接拒绝，前端也不渲染入口。
@@ -47,7 +48,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.1")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.2")
 
 # 已完成会话在内存中保留的宽限时间；报告/逐轮数据先写入 SQLite，
 # 到期后释放 EDF 原始数组和监测批次，历史报告仍可从数据库读取。
@@ -137,6 +138,12 @@ class Session:
         self.config = config
         self.user_id = config.get("user_id") if isinstance(config, dict) else None
         self.calibration_id = config.get("calibration_id") if isinstance(config, dict) else None
+        self.purpose = (config.get("purpose") or "game") if isinstance(config, dict) else "game"
+        self.reference_baseline_id = config.get("reference_baseline_id") if isinstance(config, dict) else None
+        self.calibration_snapshot = None
+        self.reference_snapshot = None
+        self.reference_low = 0.35
+        self.reference_high = 0.75
         # 模型只加载一次，每个会话独立维护平滑和回退状态。
         self.engine = copy(_engine)
         self.created_at = time.time()
@@ -170,12 +177,45 @@ class Session:
         lo, hi = self.score_low, self.score_high
         if hi - lo < 1e-6:
             hi = lo + 0.15
-        v = 20.0 + 60.0 * (float(x) - lo) / (hi - lo)
+        low_score = float(calib_engine.CONFIG["low_score"])
+        high_score = float(calib_engine.CONFIG["high_score"])
+        v = low_score + (high_score - low_score) * (float(x) - lo) / (hi - lo)
+        return round(max(0.0, min(100.0, v)), 1)
+
+    def score_reference(self, x):
+        """长期参考映射：后台趋势记录，绝不参与蓄力/得分/商城。"""
+        if x is None or self.reference_low is None or self.reference_high is None:
+            return None
+        lo, hi = self.reference_low, self.reference_high
+        if hi - lo < 1e-6:
+            hi = lo + 0.15
+        v = calib_engine.CONFIG["low_score"] + (
+            calib_engine.CONFIG["high_score"] - calib_engine.CONFIG["low_score"]
+        ) * (float(x) - lo) / (hi - lo)
         return round(max(0.0, min(100.0, v)), 1)
 
     def raw50(self):
         """50 分线对应的原始专注值，用于 focused 判定与报告基线。"""
         return round((self.score_low + self.score_high) / 2.0, 3)
+
+    def apply_calibration(self, cal: Optional[dict], reference: Optional[dict] = None) -> None:
+        """固定本局使用的当日校准与长期参考快照。"""
+        if cal:
+            self.calibration_id = cal.get("id")
+            self.calibration_snapshot = cal
+            rng = cal.get("range") or {}
+            if rng.get("low") is not None and rng.get("high") is not None:
+                self.score_low = round(float(rng["low"]), 4)
+                self.score_high = round(float(rng["high"]), 4)
+            if cal.get("baseline") is not None:
+                self.baseline = round(float(cal["baseline"]), 4)
+        if reference:
+            self.reference_baseline_id = reference.get("id")
+            self.reference_snapshot = reference
+            rng = reference.get("range") or {}
+            if rng.get("low") is not None and rng.get("high") is not None:
+                self.reference_low = round(float(rng["low"]), 4)
+                self.reference_high = round(float(rng["high"]), 4)
 
     async def start(self):
         # 预热模型状态
@@ -329,6 +369,18 @@ class Session:
             fs=fs, ch_names=self.source.ch_names or sample_meta.get("ch_names"),
             t_offset=self.created_at,
         )
+        batch["calibration"] = {
+            "id": self.calibration_id,
+            "low": self.score_low,
+            "high": self.score_high,
+            "status": (self.calibration_snapshot or {}).get("status") or "legacy",
+            "reference_baseline_id": self.reference_baseline_id,
+            "reference_version": (self.reference_snapshot or {}).get("version"),
+            "effective_sec": (self.calibration_snapshot or {}).get("effective_sec"),
+            "stage_samples": (self.calibration_snapshot or {}).get("stage_samples"),
+            "daily_score": score,
+            "reference_score": self.score_reference(fused),
+        }
         if self.source.name == "replay":
             batch["replay"] = {
                 "window": (meta or {}).get("window"),
@@ -372,6 +424,9 @@ class Session:
         scores = [self.score_of(e.get("focus_fused") if e.get("focus_fused") is not None else e.get("focus"))
                   for e in valid]
         scores = [x for x in scores if x is not None]
+        reference_scores = [self.score_reference(e.get("focus_fused") if e.get("focus_fused") is not None else e.get("focus"))
+                            for e in valid]
+        reference_scores = [x for x in reference_scores if x is not None]
         hr_vals = [e["hr"]["bpm"] for e in valid
                    if e.get("hr") and e["hr"].get("valid") and e["hr"].get("bpm") is not None]
         n_invalid = len(self.history) - len(valid)
@@ -413,11 +468,20 @@ class Session:
             "above_mid_ratio": (round(float(sum(x >= 50 for x in scores)) / len(scores), 3)
                                 if scores else None),
             "score_range": {"low": self.score_low, "high": self.score_high},
+            "reference_score_range": {"low": self.reference_low, "high": self.reference_high},
+            "reference_score_mean": round(float(np_mean(reference_scores)), 1) if reference_scores else None,
+            "reference_score_max": round(float(max(reference_scores)), 1) if reference_scores else None,
+            "reference_score_min": round(float(min(reference_scores)), 1) if reference_scores else None,
+            "reference_baseline_id": self.reference_baseline_id,
+            "calibration_snapshot": self.calibration_snapshot,
+            "reference_snapshot": self.reference_snapshot,
             "heart": hr_summary,
             "hr_curve": heart.curves(self._mono0),
             "curve": [{"t": e["t"], "focus": e["focus"], "raw": e["raw"],
                        "focus_fused": e.get("focus_fused"),
                        "score": self.score_of(e.get("focus_fused")
+                                              if e.get("focus_fused") is not None else e.get("focus")),
+                       "reference_score": self.score_reference(e.get("focus_fused")
                                               if e.get("focus_fused") is not None else e.get("focus"))}
                       for e in valid[::2]],
         }
@@ -457,6 +521,10 @@ class Session:
             "created_at": self.created_at,
             "user_id": self.user_id,
             "calibration_id": self.calibration_id,
+            "purpose": self.purpose,
+            "reference_baseline_id": self.reference_baseline_id,
+            "calibration_snapshot": self.calibration_snapshot,
+            "reference_snapshot": self.reference_snapshot,
             "finished": self.finished,
             "monitor_available": self.source.name in ("hardware", "replay"),
         }
@@ -485,6 +553,9 @@ class SessionCreate(BaseModel):
     score_high: Optional[float] = None       # 校准得到的“最专注”端（对应 80 分）
     user_id: Optional[str] = None            # v1.8.1：档案归属
     calibration_id: Optional[str] = None     # v1.8.1：使用的校准记录
+    purpose: str = "game"                   # game | calibration
+    device_key: Optional[str] = None        # v1.8.2：设备/信号源指纹
+    timezone_offset_min: Optional[int] = None  # v1.8.2：浏览器本地时区偏移
 
 
 class HeartStart(BaseModel):
@@ -497,8 +568,14 @@ class HeartStart(BaseModel):
 
 
 class CalibrateStart(BaseModel):
-    duration: float = 20.0        # 校准采样秒数
-    video_full: bool = False      # true = 整段视频当校准，不分“放松/心算”两段
+    duration: float = 20.0        # 校准采样秒数（新协议为实际经过秒数）
+    video_full: bool = False      # legacy：整段视频当校准
+    protocol: str = "legacy"      # v1.8.2：daily_v2
+    stage_windows: Optional[dict] = None
+    tutorial_events: list[dict] = Field(default_factory=list)
+    device_key: Optional[str] = None
+    timezone_offset_min: Optional[int] = None
+    elapsed_sec: Optional[float] = None
 
 
 class ManualSet(BaseModel):
@@ -720,6 +797,9 @@ async def create_session(body: SessionCreate):
     if body.mode == "heart" and (not body.heart_mode or body.heart_mode == "off"):
         body.heart_mode = "hrd"
     user_id = (body.user_id or "").strip() or None
+    purpose = (body.purpose or "game").strip()
+    if purpose not in ("game", "calibration"):
+        raise HTTPException(400, "purpose 必须是 game 或 calibration")
     if user_id:
         try:
             storage.ensure_user(user_id)
@@ -734,6 +814,21 @@ async def create_session(body: SessionCreate):
                 raise HTTPException(403, "校准记录不属于当前档案")
         except StorageError as exc:
             raise HTTPException(400, str(exc))
+    # v1.8.2：真实 EEG 正式游戏必须拥有当天有效校准。校准会话本身不拦截；
+    # 测试/回放/手动/仅心率也不被这条规则误伤。
+    daily = None
+    if user_id and purpose == "game" and body.mode == "hardware":
+        dev_key = body.device_key or calib_engine.device_key(body.mode, {
+            "osc_ports": body.osc_ports, "osc_fs": body.osc_fs, "osc_channels": body.osc_channels,
+        })
+        daily = storage.calibration_status(user_id, mode=body.mode, device=dev_key,
+                                            tz_offset_min=body.timezone_offset_min)
+        if not daily.get("valid"):
+            raise HTTPException(
+                409,
+                "daily_calibration_required: " + str(daily.get("status_text") or "今日尚未校准"),
+            )
+        calibration_id = (daily.get("calibration") or {}).get("id") or calibration_id
     config = {
         "mode": body.mode,
         "file": body.file,
@@ -743,6 +838,9 @@ async def create_session(body: SessionCreate):
         "osc_channels": body.osc_channels,
         "user_id": user_id,
         "calibration_id": calibration_id,
+        "purpose": purpose,
+        "device_key": body.device_key,
+        "timezone_offset_min": body.timezone_offset_min,
     }
     # 心率源：会话请求里声明了就自动接入；同一模式已在运行则复用，保留已采集样本。
     if body.heart_mode and body.heart_mode != "off":
@@ -774,33 +872,37 @@ async def create_session(body: SessionCreate):
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, f"信号源创建失败: {e}")
     s = Session(source, config)
-    # 游戏会话由前端带着校准基线创建（校准会话本身在后面 /calibrate 里写入），
-    # 若前端没有带 calibration_id，则绑定该档案最近一条校准记录（报告可追溯）。
-    if user_id and not s.calibration_id:
+    # 游戏会话使用服务端当日校准记录，而不是信任前端缓存里的旧区间。
+    if user_id and purpose == "game":
         try:
-            latest = storage.latest_calibration(user_id)
-            if latest:
-                s.calibration_id = latest["id"]
+            cal = (daily or {}).get("calibration") if daily else None
+            if not cal and calibration_id:
+                cal = storage.get_calibration(user_id, calibration_id)
+            if cal:
+                s.apply_calibration(cal, storage.reference_baseline(user_id) if body.mode == "hardware" else None)
         except StorageError:
             pass
+    elif user_id and purpose == "calibration":
+        s.calibration_id = None
     # 否则报告页拿不到基线，橙色虚线与"高于基线占比"都会是空值。
-    if body.baseline is not None:
+    if body.baseline is not None and not s.calibration_snapshot:
         try:
             b = float(body.baseline)
         except (TypeError, ValueError):
             b = None
         if b is not None and 0.0 <= b <= 1.0:
             s.baseline = round(b, 3)
-    # 动态定标区间：校准页算好后随会话带过来，游戏/报告都用同一套 20–80 映射。
-    try:
-        lo = float(body.score_low) if body.score_low is not None else None
-        hi = float(body.score_high) if body.score_high is not None else None
-    except (TypeError, ValueError):
-        lo = hi = None
-    if lo is not None and hi is not None and 0.0 <= lo < hi <= 1.0:
-        s.score_low, s.score_high = round(lo, 3), round(hi, 3)
-        if body.baseline is None:
-            s.baseline = s.raw50()
+    # 旧前端兼容：没有服务端校准时才使用前端区间；有校准记录时已固定为记录值。
+    if not s.calibration_snapshot:
+        try:
+            lo = float(body.score_low) if body.score_low is not None else None
+            hi = float(body.score_high) if body.score_high is not None else None
+        except (TypeError, ValueError):
+            lo = hi = None
+        if lo is not None and hi is not None and 0.0 <= lo < hi <= 1.0:
+            s.score_low, s.score_high = round(lo, 3), round(hi, 3)
+            if body.baseline is None:
+                s.baseline = s.raw50()
     _sessions[s.id] = s
     try:
         await s.start()
@@ -823,6 +925,8 @@ def set_manual(sid: str, body: ManualSet, x_user_id: Optional[str] = Header(None
 async def calibrate(sid: str, body: CalibrateStart,
                     x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
     s = _session_for(sid, x_user_id)
+    if s.purpose != "calibration":
+        raise HTTPException(409, "正式游戏期间禁止重新校准；请结束本局后重新校准")
     duration = max(3.0, min(float(body.duration), 600.0))
     t_start = time.time()
     # 采样窗口从会话创建时开始计时：前端倒计时结束（t>=duration）后才发起请求，
@@ -830,6 +934,93 @@ async def calibrate(sid: str, body: CalibrateStart,
     remaining = duration - (time.time() - s.created_at)
     if remaining > 0 and not s.finished:
         await asyncio.sleep(min(remaining, duration))
+
+    # v1.8.2：自然观察 + 游戏教学两阶段。阶段边界由儿童端上报，但有效样本、
+    # 有效秒数和统计均由服务端按历史帧重新计算，不能只信页面停留时间。
+    if body.protocol == calib_engine.PROTOCOL_VERSION and body.stage_windows:
+        windows = body.stage_windows or {}
+        try:
+            nw = windows.get("natural") or {}
+            tw = windows.get("tutorial") or {}
+            n0, n1 = float(nw["start"]), float(nw["end"])
+            t0, t1 = float(tw["start"]), float(tw["end"])
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(422, "校准阶段窗口不完整")
+        if not (0 <= n0 < n1 <= t0 < t1):
+            raise HTTPException(422, "校准阶段窗口顺序不合法")
+        if t1 - n0 > 180:
+            raise HTTPException(422, "校准阶段总时长过长")
+        natural = [e for e in s.history if n0 <= float(e.get("t") or 0) < n1]
+        tutorial = [e for e in s.history if t0 <= float(e.get("t") or 0) < t1]
+        sq = s.source.artifact_summary() if hasattr(s.source, "artifact_summary") else None
+        try:
+            computed = calib_engine.compute_daily_range(natural, tutorial, signal_quality=sq)
+        except calib_engine.CalibrationDataError as exc:
+            raise HTTPException(422, str(exc))
+        actual_elapsed = max(float(body.elapsed_sec or 0), time.time() - s.created_at)
+        stages = computed["stages"]
+        status = computed["range_quality"]
+        result = {
+            **computed,
+            "duration_sec": round(min(actual_elapsed, 600.0), 1),
+            "elapsed_sec": round(min(actual_elapsed, 600.0), 1),
+            "n_frames": computed.get("n_total_valid") or 0,
+            "baseline": round((computed["range"]["low"] + computed["range"]["high"]) / 2.0, 4),
+            "stage_effective_sec": {k: stages[k]["effective_sec"] for k in stages},
+            "stage_samples": {k: stages[k]["n"] for k in stages},
+            "signal_quality": sq,
+            "status": status,
+            "quality_warning": status != "ok",
+            "uses_fused": True,
+            "heart_only": s.source.name == "heart",
+            "source_name": s.source.name,
+            "device_key": body.device_key or calib_engine.device_key(
+                s.source.name, s.source.describe()),
+            "timezone_offset_min": body.timezone_offset_min,
+        }
+        s.score_low = computed["range"]["low"]
+        s.score_high = computed["range"]["high"]
+        s.baseline = result["baseline"]
+        s.calibration = result
+        s.calibration_snapshot = result
+        s.calibration_id = None
+        reference = None
+        if s.user_id:
+            try:
+                saved_cal = storage.add_calibration(
+                    s.user_id,
+                    {
+                        **result,
+                        "calibrated_at_ms": int(time.time() * 1000),
+                        "algorithm_version": "focus_engine_v1.8.2",
+                        "status": status,
+                        "kind": "daily" if s.source.name == "hardware" else "test",
+                    },
+                    session_id=s.id,
+                    source=s.source.describe(),
+                    kind="daily" if s.source.name == "hardware" else "test",
+                )
+                s.calibration_id = saved_cal["id"]
+                s.calibration["calibration_id"] = saved_cal["id"]
+                s.calibration_snapshot = saved_cal
+                result["calibration_id"] = saved_cal["id"]
+                result["calibration_date"] = saved_cal.get("calibration_date")
+                result["device_key"] = saved_cal.get("device_key") or result.get("device_key")
+                result["reference_baseline_id"] = saved_cal.get("reference_baseline_id")
+                if s.source.name == "hardware":
+                    reference = storage.reference_baseline(s.user_id)
+                    s.reference_baseline_id = saved_cal.get("reference_baseline_id") or (
+                        reference or {}).get("id")
+                    s.reference_snapshot = reference
+            except StorageError as exc:
+                raise HTTPException(500, f"校准记录保存失败：{exc}")
+        return {"ok": True, "baseline": s.baseline, "calibration": result,
+                "score_range": computed["range"], "stages": stages,
+                "effective_sec": computed["effective_sec"], "status": status,
+                "calibration_id": s.calibration_id,
+                "reference_baseline": reference,
+                "signal_quality": sq}
+
     # 取校准期间产生的有效帧（异常帧不含 focus，须排除；frames 按时间 t 递增）
     frames = [e for e in s.history
               if e["t"] <= duration + 0.5 and e.get("valid", True) and e["focus"] is not None]
@@ -866,7 +1057,7 @@ async def calibrate(sid: str, body: CalibrateStart,
     # 校准分两段：前半段闭眼放松，后半段心算任务。放松段取偏低分位当低端、
     # 任务段取偏高分位当高端，分数随这个人自己的动态范围走，而不是所有人套同一个基线。
     half_t = duration / 2.0
-    MIN_SPAN = 0.10
+    MIN_SPAN = float(calib_engine.CONFIG["min_span"])
 
     def _pick(vals, p):
         if len(vals) < 3:
@@ -991,7 +1182,10 @@ async def stream(sid: str, request: Request):
     async def gen():
         yield {"event": "hello", "data": json.dumps({"session_id": s.id,
                                                       "source": s.source.describe(),
-                                                      "baseline": s.baseline})}
+                                                      "baseline": s.baseline,
+                                                      "purpose": s.purpose,
+                                                      "calibration_id": s.calibration_id,
+                                                      "reference_baseline_id": s.reference_baseline_id})}
         last_frame = None
         while not s.finished:
             entry = s._latest_frame
@@ -1010,6 +1204,13 @@ async def stream(sid: str, request: Request):
             payload["score_smooth"] = s.score_of(payload.get("focus"))
             payload["score_low"] = s.score_low
             payload["score_high"] = s.score_high
+            payload["daily_score"] = payload["score"]
+            payload["reference_score"] = s.score_reference(
+                payload.get("focus_fused") if payload.get("focus_fused") is not None else payload.get("focus"))
+            payload["calibration_id"] = s.calibration_id
+            payload["calibration_status"] = (s.calibration_snapshot or {}).get("status") or "legacy"
+            payload["reference_baseline_id"] = s.reference_baseline_id
+            payload["reference_version"] = (s.reference_snapshot or {}).get("version")
             yield {"event": "frame", "data": json.dumps(payload)}
         yield {"event": "end", "data": json.dumps({"session_id": s.id})}
 
