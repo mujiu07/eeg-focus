@@ -254,7 +254,14 @@
       if (this.monitorEs) this.monitorEs.close();
       this.streamState = "连接中";
       this.renderStreamState();
-      const es = new EventSource(`/api/session/${encodeURIComponent(this.sessionId)}/monitor`);
+      let uid = null;
+      try {
+        const profile = JSON.parse(localStorage.getItem("bf-active-user") || "null");
+        uid = profile && profile.user_id;
+      } catch (_) { uid = null; }
+      const url = `/api/session/${encodeURIComponent(this.sessionId)}/monitor`
+        + (uid ? `?user_id=${encodeURIComponent(uid)}` : "");
+      const es = new EventSource(url);
       this.monitorEs = es;
       es.addEventListener("hello", ev => {
         try { this.hello = JSON.parse(ev.data); } catch (_) { this.hello = null; }

@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.4.17（2026-11-19）
+> 版本：v1.8.1（2026-11-27）
 > 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
@@ -10,7 +10,7 @@
 
 | 层 | 技术 | 声明版本（`requirements.txt`） | 职责 |
 |---|---|---|---|
-| 前端 | HTML + CSS + 原生 JavaScript（零构建） | — | 5 个页面 + `assets/` 公共层与成长系统 |
+| 前端 | HTML + CSS + 原生 JavaScript（零构建） | — | 7 个页面 + `assets/` 公共层、档案桥与成长系统 |
 | 服务 | FastAPI | `>=0.115,<1.0` | REST 接口 + 静态托管 |
 | 服务 | uvicorn | `>=0.30,<1.0` | ASGI 服务器（`127.0.0.1:8000`） |
 | 实时通道 | sse-starlette | `>=2.1,<4.0` | 会话实时数据推送（`EventSourceResponse`） |
@@ -34,7 +34,7 @@
 
 **无 `package.json`、无 npm、无框架、无打包**——这是刻意的产品约束：
 
-- 5 个页面：`index.html`（首页）、`calibrate.html`（校准）、`game.html`（游戏）、`report.html`（报告）、`dev.html`（联调/监视）
+- 7 个页面：`index.html`（首页）、`profiles.html`（档案）、`settings.html`（数据设置）、`calibrate.html`（校准）、`game.html`（游戏）、`report.html`（报告）、`dev.html`（联调/监视）
 - 游戏核心逻辑：
   - `assets/focus-round.js`：不依赖 DOM 的单轮状态机（蓄力 → 宽容期/衰减 → 唯一金色区域 → 子弹时间 → 脑电基础分/点击时机结算 → 无效点击冷却），参数集中在 `CONFIG`，浏览器与 Node 测试共用
 - 视觉与环境层：
@@ -42,12 +42,16 @@
   - `assets/sky.css` + `assets/sky.js`：全站天空模式（黎明/白天/傍晚/黑夜/跟随系统时间），按日出日落估算自动切换，`localStorage` 跨页保存；模式切换走 1.2 s 颜色渐变；`sky.js` 导出 `window.SkyTheme` 色板，首页 SVG 与游戏 Canvas 共用同一套天空 / 水面 / 远山 / 日月星配色
   - `assets/hero-pond.js`、`hero-water.js`、`pond-effects.js`、`pond-audio.js`：首页动态池塘（青蛙跳跃、荷叶弹簧、水花、鱼群、环境音效），游戏落地水花与转场卡片复用 `PondEffects`
   - `assets/music.js` + `assets/vinyl.css`：黑胶唱片机，结构由脚本注入，跨页保留曲目与进度
-- 成长系统（全部本地 `localStorage`，无服务端）：
-  - `achievements.js` + `achievements.css` + `achievement-cinematic.js/.css`：15 枚成就、解锁动画与待播队列
-  - `wallet.js`：积分钱包（本局累计积分按 30:1 折算，一局结束一次性入账）
-  - `checkin.js` + `checkin.css`：每日签到（+2 积分，0 点刷新）
+- 成长系统（v1.8.1 起以本机 SQLite 为权威，`localStorage` 为当前档案缓存）：
+  - `achievements.js` + `achievements.css` + `achievement-cinematic.js/.css`：15 枚成就、解锁动画与待播队列，按 `user_id` 存 `achievements`
+  - `wallet.js`：积分钱包（本局累计积分按 30:1 折算，后端按 `session_id` 幂等入账；`Wallet.replace` 同步服务端）
+  - `checkin.js` + `checkin.css`：每日签到（+2 积分，0 点刷新），写 `user_settings`
   - `shop.js` + `shop.css`：积分商城（装扮 5–18 积分）
-  - `dressup.js` + `dressup.css`：图鉴 / 装扮 / 商城三页，肤色、头饰、面饰、手持等自由搭配，同一类别同时只穿一件
+  - `dressup.js` + `dressup.css`：图鉴 / 装扮 / 商城三页，肤色、头饰、面饰、手持等自由搭配，同一类别同时只穿一件，写 `inventories`
+- 本地档案与存储（v1.8.1）：
+  - `web/profiles.html` + `web/assets/profile-bridge.js`：档案选择/编辑/删除、当前档案缓存、离页同步、旧 LocalStorage 导入
+  - `web/settings.html`：数据目录、Schema、磁盘、云同步提示、备份/恢复/迁移与隐私说明
+  - `app/storage.py`：SQLite `profiles.db`、目录解析、备份、迁移、报告；`app/accounts.py`：`/api/profiles/*`、`/api/storage/*`
 - 数据通道：浏览器 `EventSource` 消费 SSE；`assets/api.js` 封装 REST + SSE，含 6 s 无数据自愈重连（最多 4 次）与 `onStatus("live"/"reconnecting")`
 
 适用人群（儿童）要求低刺激、无安装、秒开 → 原生方案零依赖、零构建开销。
@@ -201,6 +205,6 @@ LSL 管道（阶段 1 原方案）暂未落地，当前采用 OSC/UDP；若后�
 1. **零构建**：前端无 npm/打包，打开即用
 2. **脑电本地**：无外部 AI 服务、脑电数据不出本机；仅可选背景音乐联网
 3. **儿童友好**：低刺激视觉、无账号、数据不出本机
-4. **成长系统可离线**：积分/签到/商城/装扮/成就全部 localStorage，断网可用；清缓存即重置（隐私说明已明示）
+4. **成长系统可离线、可备份**：积分/签到/商城/装扮/成就以系统文档目录 `专注小蛙/profiles.db` 为准，断网可用，支持备份/迁移；SQLite 未加密（隐私说明已明示）
 5. **可复现**：依赖收敛到 venv + requirements；模型指标可追溯到 `outputs/train_report.md`
 6. **接入可逆**：`hardware` / `heart` 源失败时回退 `replay` / `manual`，SSE 帧结构与报告格式不变；通道不匹配时算法自动回退频段指标

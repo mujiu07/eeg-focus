@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 决策与验证记录
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 记录范围：`main` @ `98b5b2a`（基线 v1.4.15 + 1 个未升版光效提交）
+> 记录范围：`main` @ v1.8.1（2026-11-27）；历史记录自 v1.4.15 起
 > 用途：把"为什么这样做"（ADR 摘要）与"怎么确认做到了"（验证流水）分开留痕，便于评审追溯与后续交接
 > 原则：**决策写代价，验证写方法；没做的写"未开始"，失败/不一致照实记录**
 
@@ -90,7 +90,7 @@
 - **决策**：全部写 `localStorage`（`bf-` 前缀）；无服务端接口；清缓存即重置。
 - **代价**：无跨端同步；家长可能误以为"数据丢了"；需在隐私说明中明确。
 - **证据**：`wallet.js` / `checkin.js` / `achievements.js` / `shop.js` / `dressup.js`；`usage-and-privacy.md` §6。
-- **状态**：已采纳。
+- **状态**：已修订（v1.8.1 起由 D-022 的 SQLite 权威存储取代；`localStorage` 仅保留当前档案缓存）。
 
 ### D-011 报告在本机导出五种格式
 
@@ -179,6 +179,14 @@
 - **证据**：`app/monitor.py`、`app/server.py`、`web/assets/eeg-monitor.js`、`tests/selfcheck_monitor.py`、`docs/DEV-REPORT-v1.7.0.md`。
 - **状态**：已采纳；真机验证未完成。
 
+### D-022 本地 SQLite 作为多档案权威存储（v1.8.1）
+
+- **背景**：v1.7 之前的成长/校准/报告分散在 `localStorage`、内存 Session 和 `outputs/sessions`，无法稳定支持一个家庭多个孩子，也不能可靠备份/迁移。
+- **决策**：以系统文档目录 `专注小蛙/profiles.db` 为权威存储，`users` 下按 `user_id` 隔离校准、游戏/逐轮、钱包、装扮、成就、设置；Session 创建时固定用户，后端 `finish/calibrate/manual/stream/monitor/report/export` 校验归属；钱包以 `session_id` 幂等；完成 Session 900 s 后回收内存但保留数据库报告；旧 JSON/LocalStorage 只在用户明确目标后迁移；浏览器 `bf-*` 仅作当前档案缓存。数据目录支持迁移/备份/恢复，SQLite 未加密需明确说明。
+- **代价**：需要维护 Schema/事务；同 OS 账户可读数据库；无静态加密；单机单进程为主；离页同步失败时最后一次浏览器缓存可能丢失。
+- **证据**：`app/storage.py`、`app/accounts.py`、`app/server.py`、`web/profiles.html`、`web/settings.html`、`tests/selfcheck_v181.py`、`docs/DEV-REPORT-v1.8.1.md`。
+- **状态**：已采纳；macOS 实机通过，Windows 实机未验收。
+
 ---
 
 ## 2. 验证记录（Verification Log）
@@ -209,6 +217,7 @@
 | V-020 | 2026-11-19 | 运动伪迹 | `python tests/selfcheck_denoise.py` 用例 11–14 | 通过：50 µV 台阶修复后残留 12.1 µV 且 β/(θ+α) 0.26→0.24（未虚高）；200 µV 台阶拒绝出分；0.8 Hz/100 µV 慢摆被判不可用且未修复；150 µV 共模减到 3.3 µV。过程中修复两个缺陷：边缘眨眼被误判为台阶、慢摆滑动窗过短 | `tests/selfcheck_denoise.py` |
 
 | V-021 | 2026-11-27 | 开发者监测链路 | `python tests/selfcheck_monitor.py`；EDF/合成 OSC Playwright；儿童模式网络监听 | 通过（无真机）：9 项数据一致性；EDF 21 ch 与合成 4 ch 三栏显示；儿童模式 `/monitor` 请求 0；原始/处理后、窗口、暂停、折叠通过 | `tests/selfcheck_monitor.py`；`docs/DEV-REPORT-v1.7.0.md` |
+| V-022 | 2026-11-27 | 本地存储/多档案/隔离 | 临时数据目录运行 `tests/selfcheck_v181.py`；静态检查；FastAPI API 跨用户请求；真实 macOS 路径 `/Users/fan/Documents/专注小蛙` 初始化 | 通过（33+13 项）：目录/重复启动/中文路径/档案 CRUD/校准追加/逐轮/幂等结算/跨用户报告与资产 403/重启持久化/备份恢复/迁移幂等/TTL 回收/报告保留/Git 忽略；Windows 未实机 | `tests/selfcheck_v181.py`；`tests/selfcheck_ui_static.js`；`docs/DEV-REPORT-v1.8.1.md` |
 
 ### 2.1 失败与不一致（保留，不掩盖）
 
@@ -216,6 +225,8 @@
 2. **V-014 版本漂移**：改版本时容易只改 tag/CHANGELOG，忘记 `FastAPI(version=...)`；建议纳入发布检查清单。
 3. **模型被试差异**：Subject02 准确率 0.320，说明单次分数不能跨人比较；已在报告中保留基线对照，不输出"能力评级"。
 4. **用户验证空缺**：所有"通过"都只代表本机手测，不代表目标儿童可用。
+5. **Windows 未验收**：`SHGetFolderPathW` 和 OneDrive 中文路径仅代码层设计；macOS 路径已实测。不得把 macOS 结果外推为 Windows 通过。
+6. **SQLite 未加密**：文件权限/OS 账户/磁盘加密是当前边界；设置页已明示，不能宣传为“加密数据库”。
 
 ---
 
@@ -242,4 +253,4 @@
 ---
 
 *创建：2026-11-17*
-*快照：`main` @ `98b5b2a`*
+*快照：`main` @ v1.8.1（2026-11-27，待提交）*

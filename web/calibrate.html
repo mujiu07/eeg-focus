@@ -220,6 +220,7 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/profile-bridge.js"></script>
   <script src="assets/achievements.js"></script>
   <script>
     const $ = id => document.getElementById(id);
@@ -230,6 +231,10 @@
     const testMode = DeveloperTools.canTest && ["replay", "manual"].includes(requestedTest) ? requestedTest : null;
     if (requestedTest && !testMode) location.replace("calibrate.html");
     const calibrationStore = testMode ? Store.forDeveloperTest() : Store;
+    if (!testMode && !Profile.userId()) {
+      const next = "calibrate.html" + location.search;
+      location.replace("profiles.html?next=" + encodeURIComponent(next));
+    }
 
     // 心率辅助源默认关闭：只有这次显式选了（或 URL 指定）才启用。
     // 不读上次的选择，避免旧配置在用户不知情的情况下自动打开心率。
@@ -287,9 +292,11 @@
       const mode = sourceSelect.value;
       try {
         const pair = mode === "replay" ? (await replayPairs)[0] : null;
+        const profileUser = testMode ? null : Profile.userId();
         const body = mode === "replay"
           ? { mode, file: pair.rest.path }
           : { mode, osc_ports: mode === "hardware" ? localStorage.getItem("bf-osc-ports") : null };
+        if (profileUser) body.user_id = profileUser;
         // 心率辅助：页面下拉框选择，并持久化给游戏页沿用
         let heartMode = testMode ? "off" : $("heart-select").value || "off";
         if (mode === "heart" && heartMode === "off") {
@@ -519,7 +526,7 @@
         const baseline = res.baseline;
         if (!testMode) localStorage.setItem("bf-heart", state.session.heartMode);
         const saved = calibrationStore.saveCalib(baseline, res.calibration.quantiles,
-          res.score_range || res.calibration.range);
+          res.score_range || res.calibration.range, res.calibration_id);
         // 静息心率基线：校准期间心率样本足够时由服务端写入 rest_bpm，
         // 游戏页据此把心率映射成“平静/专注”分量。
         if (!testMode && res.heart && res.heart.used_as_rest && res.heart.mean != null) {

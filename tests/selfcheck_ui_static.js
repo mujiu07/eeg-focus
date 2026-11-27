@@ -19,6 +19,11 @@ const serverPy = read("app/server.py");
 const engine = read("web/assets/focus-round.js");
 const monitorJs = read("web/assets/eeg-monitor.js");
 const monitorCss = read("web/assets/eeg-monitor.css");
+const profilesHtml = read("web/profiles.html");
+const settingsHtml = read("web/settings.html");
+const profileBridge = read("web/assets/profile-bridge.js");
+const storagePy = read("app/storage.py");
+const accountsPy = read("app/accounts.py");
 
 let passed = 0;
 function check(name, fn) {
@@ -86,7 +91,7 @@ check("报告与导出区分脑电基础分、实际分和冷却数据", () => {
 });
 
 check("后端版本与逐轮字段已同步", () => {
-  assert.ok(serverPy.includes('version="1.7.0"'));
+  assert.ok(serverPy.includes('version="1.8.1"'));
   assert.ok(serverPy.includes("multiplier: Optional[float]"));
   assert.ok(serverPy.includes("cooldown_count: Optional[NonNegativeInt]"));
   assert.ok(serverPy.includes("cooldown_sec: Optional[float]"));
@@ -127,6 +132,42 @@ check("监测面板覆盖频段、算法、分数、事件与状态", () => {
   assert.ok(monitorJs.includes('signal_lost'));
   assert.ok(monitorJs.includes('score_settle'));
   assert.ok(monitorJs.includes('canvas'));
+});
+
+check("个人档案页、编辑、删除与最近使用入口", () => {
+  assert.ok(profilesHtml.includes("今天谁来陪小蛙玩？"));
+  assert.ok(profilesHtml.includes("新建档案"));
+  assert.ok(profilesHtml.includes("data-edit"));
+  assert.ok(profilesHtml.includes("data-delete"));
+  assert.ok(profilesHtml.includes("bf-active-user"));
+  assert.ok(profileBridge.includes("applyBootstrap"));
+  assert.ok(profileBridge.includes("/sync"));
+  assert.ok(profileBridge.includes("legacySnapshot"));
+});
+
+check("本地目录、备份恢复与隐私提示", () => {
+  assert.ok(settingsHtml.includes("数据目录"));
+  assert.ok(settingsHtml.includes("立即备份"));
+  assert.ok(settingsHtml.includes("恢复"));
+  assert.ok(settingsHtml.includes("SQLite 未做静态加密"));
+  assert.ok(storagePy.includes("Documents"));
+  assert.ok(storagePy.includes("cloud_sync_hint"));
+  assert.ok(storagePy.includes("PRAGMA foreign_keys = ON"));
+  assert.ok(storagePy.includes("wallet_transactions"));
+  assert.ok(storagePy.includes("schema_version"));
+  assert.ok(accountsPy.includes("/storage/backup"));
+  assert.ok(accountsPy.includes("/profiles/{user_id}/sync"));
+});
+
+check("用户归属、结算幂等与 Session TTL 留在后端", () => {
+  assert.ok(serverPy.includes("def _session_for"));
+  assert.ok(serverPy.includes("SESSION_RETENTION_SEC"));
+  assert.ok(serverPy.includes("_reap_sessions"));
+  assert.ok(storagePy.includes("idempotency_key"));
+  assert.ok(serverPy.includes("user_id"));
+  assert.ok(storagePy.includes("session:{session_id}"));
+  assert.ok(storagePy.includes("load_report"));
+  assert.ok(!serverPy.includes("SESSIONS_DIR, f\"{s.id}.json\", \"w\""));
 });
 
 console.log("");

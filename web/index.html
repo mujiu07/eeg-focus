@@ -154,6 +154,7 @@
       </div>
       <!-- 右侧入口：签到居左，成就其次，商城居中，装扮占最右侧 -->
       <div class="hero-entries">
+        <a class="btn btn-ghost" id="profile-entry" href="profiles.html" title="切换个人档案" style="padding:9px 13px;font-size:13px">👤 <span id="profile-entry-name">选择档案</span></a>
         <div id="checkin-entry" class="checkin-entry"></div>
         <div id="achievement-entry" class="ach-entry"></div>
         <div id="shop-entry" class="shop-entry"></div>
@@ -478,6 +479,7 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/profile-bridge.js"></script>
   <script src="assets/achievements.js"></script>
   <script>
     DeveloperTools.disable();
@@ -487,6 +489,22 @@
     });
 
     const btnStart = document.getElementById("btn-start");
+
+    function renderProfileEntry() {
+      const p = window.Profile && Profile.active();
+      const el = document.getElementById("profile-entry-name");
+      if (el) el.textContent = p ? p.nickname : "选择档案";
+      const link = document.getElementById("profile-entry");
+      if (link) link.setAttribute("aria-label", p ? "当前档案 " + p.nickname + "，点击切换" : "选择个人档案");
+    }
+    renderProfileEntry();
+    window.addEventListener("bf:profile", renderProfileEntry);
+
+    function ensureProfile(next) {
+      if (Profile.userId()) return true;
+      location.href = "profiles.html?next=" + encodeURIComponent(next);
+      return false;
+    }
 
     // 校准只在 1 小时内有效：过期需重新校准，页面上的提示实时刷新
     const defaultCalibStatus = document.getElementById("calib-status").innerHTML;
@@ -541,6 +559,7 @@
     }
 
     function openDurationDialog() {
+      if (!ensureProfile("index.html?pick=1")) return;
       // 每次点击都重新校验有效期（页面可能停留很久才点开始）
       const info = Store.playerCalibInfo();
       if (!info.calib) {
@@ -600,6 +619,7 @@
 
     btnStart.addEventListener("click", openDurationDialog);
     document.getElementById("btn-calib").addEventListener("click", () => {
+      if (!ensureProfile("calibrate.html")) return;
       location.href = "calibrate.html";
     });
     const developerKeys = [
@@ -631,7 +651,9 @@
         for (const report of reports) {
           const link = document.createElement("a");
           link.className = "stat";
-          link.href = "report.html?id=" + encodeURIComponent(report.session_id);
+          const uid = Profile.userId();
+          link.href = "report.html?id=" + encodeURIComponent(report.session_id)
+            + (uid ? "&user_id=" + encodeURIComponent(uid) : "");
           const source = document.createElement("div");
           source.className = "label";
           source.textContent = describeSignal(report.source);

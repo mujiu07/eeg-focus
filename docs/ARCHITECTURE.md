@@ -1,6 +1,6 @@
 # 专注小蛙 · 梦境池塘 — 架构设计
 
-> 版本：v1.7.0（2026-11-27）
+> 版本：v1.8.1（2026-11-27）
 > 适用代码：`eeg-focus/`（`app/` + `web/`）
 > 定位：本地运行的脑电专注游戏 MVP，教学演示用途，不构成注意力评估或医疗诊断。
 
@@ -9,10 +9,12 @@
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ web/（浏览器，零构建：原生 HTML/CSS/JS + Canvas）              │
-│  index.html      首页：池塘、天空、签到/成就/商城/装扮入口       │
-│  calibrate.html  校准：信号源、心率辅助、安静期 + 心算期          │
-│  game.html       游戏：3D 感池塘、蓄力→起跳、积分结算            │
-│  report.html     报告：曲线回放、给家长的话、PDF/Excel/Word 导出 │
+│  index.html      首页：池塘、天空、当前档案、签到/成就/商城入口   │
+│  profiles.html   档案：今天谁来陪小蛙玩？新建/选择/编辑/迁移      │
+│  settings.html   设置：数据目录、备份恢复、隐私与存储状态         │
+│  calibrate.html  校准：档案 gate、信号源、心率辅助、安静+心算期   │
+│  game.html       游戏：档案 gate、3D 感池塘、蓄力→起跳、结算      │
+│  report.html     报告：归属读取、曲线回放、PDF/Excel/Word 导出    │
 │  dev.html        开发者：无设备试玩、EDF 回放验证、OSC 监视      │
 │  assets/  api.js · sky.js/css · music.js + vinyl.css            │
 │           eeg-monitor.js/css（开发者三栏监测）                   │
@@ -24,6 +26,8 @@
 ┌───────────────┴──────────────────────────────────────────────┐
 │ app/（FastAPI 后端）                                          │
 │  server.py      会话 / 校准 / 报告 / 导出 / 音乐 / 静态托管      │
+│  storage.py     SQLite、数据目录、档案/校准/游戏/资产/备份/迁移  │
+│  accounts.py    档案与存储 API（bootstrap/sync/backup/location）  │
 │  sources.py     信号源：replay · manual · hardware · heart       │
 │  xmuse_osc.py   Xmuse OSC/UDP 多端口接收（2 s 出窗）            │
 │  focus_engine.py 231 维模型推理 + 4/6 通道频段回退 + EMA        │
@@ -38,7 +42,9 @@
 │ outputs/models/LogisticRegression.joblib                     │
 │   ← scripts/preprocess.py ← scripts/train.py                  │
 │   ← data/eegmat/（PhysioNet EEGMAT，36 名被试真实脑电）         │
-│ outputs/sessions/*.json（每局报告，本地落盘）                   │
+│ ~/Documents/专注小蛙/（或平台文档目录；可用 FOCUS_FROG_DATA_DIR 覆盖）│
+│  profiles.db · settings.json · reports/ · recordings/ · backups/ │
+│ outputs/sessions/*.json（仅兼容读取旧报告，新报告不再写入）       │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -92,11 +98,11 @@ Xmuse OSC 窗 / EDF 窗
 
 ## 3. 前端本地状态（不上传、不联网）
 
-除校准基线与会话外，v1.4.x 的成长系统全部保存在浏览器 `localStorage`，没有服务端账号体系：
+v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成就和用户设置以本机 SQLite 为主存储；浏览器 `localStorage` 仅作为当前档案缓存与旧版兼容层，没有联网账号体系：
 
 | 键 | 内容 | 写入方 |
 |---|---|---|
-| `bf-calib` | 校准基线（含时间戳，1 小时有效） | calibrate |
+| `bf-calib` | 校准基线缓存（含时间戳，1 小时有效） | calibrate |
 | `bf-sky-mode` | 天空模式（黎明/白天/傍晚/黑夜/跟随系统） | sky.js |
 | `bf-music-*` | 播放状态、曲目、音量 | music.js |
 | `bf-wallet` | 积分余额、局数、累计入账、消费 | wallet.js |
@@ -109,7 +115,7 @@ Xmuse OSC 窗 / EDF 窗
 
 - 默认 40 秒：前 20 秒安静放松，后 20 秒心算任务（可跟随 60 秒引导视频，最长 600 秒）
 - 基线 = 校准期专注指数中位数（P50），同时记录 P10/P90 与有效帧数
-- 基线只写浏览器 `localStorage`，1 小时内有效；过期后进入游戏会引导重新校准
+- 每日校准写入 `calibrations`（按 `user_id`、日期、来源、算法版本追加，不覆盖历史）；前端缓存 `bf-calib-*` 仍用于快速恢复，但服务端记录是权威历史。`reference_baselines` 为长期参考基线预留，本阶段不计算
 - 校准失败（无有效帧 / 信号中断）会给出明确提示，不会写入伪基线
 
 ## 5. API 一览（v1.7.0）
@@ -145,15 +151,15 @@ Xmuse OSC 窗 / EDF 窗
 - `_sessions: dict` 全局会话表；每会话独立信号源 + 专注引擎实例（引擎状态重置，避免跨被试污染）
 - 后台 asyncio 任务按 0.5 s 步长推进信号源 → 计算 focus → 写入队列（容量 1，丢弃旧帧）+ 历史列表
 - SSE 端点从队列取帧；校准端点按时间窗口从历史列表聚合
-- 报告落盘 `outputs/sessions/{id}.json`，同时保留逐帧 `focus`、`focus_fused`、`score` 与起跳事件
+- 报告快照写入 `sessions.report_json`，并写数据目录 `reports/{id}.json`；同时保留逐轮记录、`focus/focus_fused/score` 与起跳事件。Session 完成 900 秒后回收内存数组，报告仍从 SQLite 读取
 - 硬件/仅心率会话互斥：新建硬件会话会自动结束旧的未完成硬件会话，避免 UDP 端口争抢；会话结束释放端口与采集进程
 
 ## 7. 关键权衡（MVP 演示定位）
 
 1. **真实数据回放 + 真机双通道**：无硬件时可回放本机配对 EDF 复现端到端"校准→游戏→报告"；hardware 源已通过 Xmuse OSC/UDP 真机接入
 2. **单被试基线**：模型对陌生被试仍有区分度（LOSO 验证），但演示时建议校准/游戏用同一被试
-3. **数据隐私**：脑电全程本地，无账号、无上传（儿童敏感数据合规）；成长系统也只用 localStorage；仅可选背景音乐访问网易云
-4. **前端零构建**：无需 Node/npm，静态托管即可；5 个页面共用一套 `assets/`
+3. **数据隐私**：脑电与档案默认全程本地，无联网账号、无上传；数据目录在系统文档目录，SQLite 未加密（文件权限/OS 账户/磁盘加密为边界）；仅可选背景音乐访问网易云。详见 `docs/DEV-REPORT-v1.8.1.md`
+4. **前端零构建**：无需 Node/npm，静态托管即可；7 个页面共用一套 `assets/`
 5. **成长系统本地化**：积分、签到、商城、装扮、成就都不依赖服务端，断网也能完整使用；清缓存会重置成长进度，需在隐私说明中明示
 
 ## 8. 扩展路径
@@ -191,3 +197,4 @@ Xmuse OSC 窗 / EDF 窗
 | v1.5.0 | 单轮核心机制独立为 `assets/focus-round.js`：宽容期/衰减、唯一金色区域、2.5 s 子弹时间、归一化脑电基础分、逐轮研究数据；游戏积分与商城货币分离（30:1） |
 | v1.6.0 | 金色区域前 0.6 s 满分、之后最多折损 10%；无效点击 0.5 s 冷却；儿童端隐藏实时分数/百分比/潜在分，只显示本局积分与 +N；逐轮新增点击倍率与冷却数据 |
 | v1.7.0 | 开发者三栏监测：真实原始/处理后多通道波形、频段与算法中间值、30 s 分数/事件；独立 `/monitor` SSE，儿童模式零订阅；原始窗仅内存有限缓存 |
+| v1.8.1 | 本机 SQLite 主存储与多用户档案：数据目录/迁移/备份恢复、后端用户归属、钱包幂等、旧报告/旧 LocalStorage 迁移、Session 900 s 回收 |

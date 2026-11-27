@@ -22,7 +22,7 @@ from copy import copy
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, NonNegativeInt
@@ -34,6 +34,8 @@ from . import export as report_export
 from . import sources
 from . import monitor as monitor_data
 from .heart import heart
+from .accounts import router as accounts_router
+from .storage import StorageError, storage
 
 # 心率采集链路依赖 macOS 专属的 AirPods 心率进程（hrd），其他系统没有对应实现，
 # 因此不暴露这块功能：接口直接拒绝，前端也不渲染入口。
@@ -45,7 +47,11 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.7.0")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.1")
+
+# 已完成会话在内存中保留的宽限时间；报告/逐轮数据先写入 SQLite，
+# 到期后释放 EDF 原始数组和监测批次，历史报告仍可从数据库读取。
+SESSION_RETENTION_SEC = float(os.environ.get("FOCUS_FROG_SESSION_TTL_SEC", "900"))
 
 # ---------------------------------------------------------------------------
 # 全局状态
@@ -63,6 +69,64 @@ _sessions: dict[str, "Session"] = {}
 _source_config = dict(DEFAULT_SOURCE_CONFIG)
 
 
+def _reap_sessions():
+    """回收已结束且超过宽限期的内存会话；历史报告已在 SQLite 中。"""
+    now = time.time()
+    removed = 0
+    for sid, session in list(_sessions.items()):
+        if not session.finished or session.monitor_clients > 0:
+            continue
+        finished_at = session.finished_at or now
+        if now - finished_at < SESSION_RETENTION_SEC:
+            continue
+        try:
+            session.release()
+        except Exception:
+            pass
+        _sessions.pop(sid, None)
+        removed += 1
+    return removed
+
+
+async def _session_reaper():
+    while True:
+        await asyncio.sleep(60)
+        try:
+            _reap_sessions()
+        except Exception:
+            pass
+
+
+@app.on_event("startup")
+async def _startup_local_data():
+    # v1.8.1：旧 outputs/sessions JSON 只迁移到“历史记录（未归属）”系统档案，
+    # 不自动分配给孩子档案，避免测试/回放记录污染真实用户。
+    if os.environ.get("FOCUS_FROG_IMPORT_LEGACY", "1") != "0":
+        try:
+            storage.import_legacy_reports(Path(SESSIONS_DIR))
+        except Exception:
+            pass
+    asyncio.create_task(_session_reaper())
+
+
+def _session_for(sid: str, user_id: Optional[str] = None, require_user: bool = False):
+    session = _sessions.get(sid)
+    if not session:
+        raise HTTPException(404, "会话不存在")
+    owner = getattr(session, "user_id", None)
+    if owner and user_id != owner:
+        raise HTTPException(403, "无权访问其他用户的会话")
+    if require_user and owner and not user_id:
+        raise HTTPException(403, "缺少用户归属")
+    return session
+
+
+def _check_report_owner(report: dict, user_id: Optional[str]):
+    owner = report.get("user_id")
+    if owner and user_id != owner:
+        raise HTTPException(403, "无权访问其他用户的报告")
+
+
 # ---------------------------------------------------------------------------
 # 会话
 # ---------------------------------------------------------------------------
@@ -71,6 +135,8 @@ class Session:
         self.id = uuid.uuid4().hex[:8]
         self.source = source
         self.config = config
+        self.user_id = config.get("user_id") if isinstance(config, dict) else None
+        self.calibration_id = config.get("calibration_id") if isinstance(config, dict) else None
         # 模型只加载一次，每个会话独立维护平滑和回退状态。
         self.engine = copy(_engine)
         self.created_at = time.time()
@@ -355,9 +421,32 @@ class Session:
                                               if e.get("focus_fused") is not None else e.get("focus"))}
                       for e in valid[::2]],
         }
+        self.stats["user_id"] = self.user_id
+        self.stats["calibration_id"] = self.calibration_id
         if self._task:
             self._task.cancel()
         return self
+
+    def release(self):
+        """释放已完成会话占用的内存；不删除已持久化的报告。"""
+        try:
+            if self._task:
+                self._task.cancel()
+        except Exception:
+            pass
+        try:
+            self.source.stop()
+        except Exception:
+            pass
+        self.history.clear()
+        self._monitor_batches.clear()
+        self._latest_frame = None
+        self._monitor_latest = None
+        if isinstance(getattr(self.source, "_raw", None), object):
+            try:
+                self.source._raw = None
+            except Exception:
+                pass
 
     def to_public(self):
         return {
@@ -366,6 +455,9 @@ class Session:
             "baseline": self.baseline,
             "calibration": self.calibration,
             "created_at": self.created_at,
+            "user_id": self.user_id,
+            "calibration_id": self.calibration_id,
+            "finished": self.finished,
             "monitor_available": self.source.name in ("hardware", "replay"),
         }
 
@@ -391,6 +483,8 @@ class SessionCreate(BaseModel):
     heart_weight: Optional[float] = None     # 心率融合权重（0..0.5，默认 0.15）
     score_low: Optional[float] = None        # 校准得到的“最放松”端（对应 20 分）
     score_high: Optional[float] = None       # 校准得到的“最专注”端（对应 80 分）
+    user_id: Optional[str] = None            # v1.8.1：档案归属
+    calibration_id: Optional[str] = None     # v1.8.1：使用的校准记录
 
 
 class HeartStart(BaseModel):
@@ -538,7 +632,28 @@ def player_replay():
 
 
 @app.get("/api/player/recent")
-def player_recent():
+def player_recent(request: Request):
+    user_id = request.query_params.get("user_id") or request.headers.get("x-user-id")
+    if user_id:
+        try:
+            rows = storage.list_sessions(user_id, 6)
+        except StorageError:
+            rows = []
+        reports = []
+        for row in rows:
+            report = row.get("report") or {}
+            if not report.get("played_sec") or report.get("demo"):
+                continue
+            reports.append({
+                "session_id": row["session_id"],
+                "source": row.get("source") or report.get("source") or {},
+                "score": row.get("total_score"),
+                "played_sec": row.get("played_sec") or report.get("played_sec"),
+            })
+            if len(reports) == 3:
+                break
+        return {"reports": reports}
+    # 兼容 v1.7 旧页面的未归属历史入口；新流程始终带 user_id。
     reports = []
     files = sorted(Path(SESSIONS_DIR).glob("*.json"), key=os.path.getmtime, reverse=True)
     for path in files:
@@ -594,6 +709,7 @@ def dev_switch_source(body: SourceSwitch):
 
 @app.post("/api/session")
 async def create_session(body: SessionCreate):
+    _reap_sessions()
     # 非 macOS 没有心率采集实现；纯心率玩法不能改用一段录好的脑电。
     if not HEART_SUPPORTED:
         if body.heart_mode and body.heart_mode != "off":
@@ -603,6 +719,21 @@ async def create_session(body: SessionCreate):
     # 仅心率模式没有脑电信号，必须接一个心率源；未显式指定时默认 AirPods 自动读取。
     if body.mode == "heart" and (not body.heart_mode or body.heart_mode == "off"):
         body.heart_mode = "hrd"
+    user_id = (body.user_id or "").strip() or None
+    if user_id:
+        try:
+            storage.ensure_user(user_id)
+        except StorageError as exc:
+            raise HTTPException(400, str(exc))
+    calibration_id = (body.calibration_id or "").strip() or None
+    if calibration_id and not user_id:
+        raise HTTPException(400, "指定校准记录时必须同时指定 user_id")
+    if calibration_id and user_id:
+        try:
+            if not storage.get_calibration(user_id, calibration_id):
+                raise HTTPException(403, "校准记录不属于当前档案")
+        except StorageError as exc:
+            raise HTTPException(400, str(exc))
     config = {
         "mode": body.mode,
         "file": body.file,
@@ -610,6 +741,8 @@ async def create_session(body: SessionCreate):
         "osc_ports": body.osc_ports,
         "osc_fs": body.osc_fs,
         "osc_channels": body.osc_channels,
+        "user_id": user_id,
+        "calibration_id": calibration_id,
     }
     # 心率源：会话请求里声明了就自动接入；同一模式已在运行则复用，保留已采集样本。
     if body.heart_mode and body.heart_mode != "off":
@@ -642,6 +775,14 @@ async def create_session(body: SessionCreate):
         raise HTTPException(400, f"信号源创建失败: {e}")
     s = Session(source, config)
     # 游戏会话由前端带着校准基线创建（校准会话本身在后面 /calibrate 里写入），
+    # 若前端没有带 calibration_id，则绑定该档案最近一条校准记录（报告可追溯）。
+    if user_id and not s.calibration_id:
+        try:
+            latest = storage.latest_calibration(user_id)
+            if latest:
+                s.calibration_id = latest["id"]
+        except StorageError:
+            pass
     # 否则报告页拿不到基线，橙色虚线与"高于基线占比"都会是空值。
     if body.baseline is not None:
         try:
@@ -670,10 +811,8 @@ async def create_session(body: SessionCreate):
 
 
 @app.post("/api/session/{sid}/manual")
-def set_manual(sid: str, body: ManualSet):
-    s = _sessions.get(sid)
-    if not s:
-        raise HTTPException(404, "会话不存在")
+def set_manual(sid: str, body: ManualSet, x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    s = _session_for(sid, x_user_id)
     if s.source.name != "manual":
         raise HTTPException(400, "当前会话不是手动模拟模式")
     s.source.set_focus(body.focus)
@@ -681,10 +820,9 @@ def set_manual(sid: str, body: ManualSet):
 
 
 @app.post("/api/session/{sid}/calibrate")
-async def calibrate(sid: str, body: CalibrateStart):
-    s = _sessions.get(sid)
-    if not s:
-        raise HTTPException(404, "会话不存在")
+async def calibrate(sid: str, body: CalibrateStart,
+                    x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    s = _session_for(sid, x_user_id)
     duration = max(3.0, min(float(body.duration), 600.0))
     t_start = time.time()
     # 采样窗口从会话创建时开始计时：前端倒计时结束（t>=duration）后才发起请求，
@@ -819,18 +957,37 @@ async def calibrate(sid: str, body: CalibrateStart):
         hi_bpm = ordered[int(len(ordered) * 0.9)]
         heart.set_span(max(6.0, hi_bpm - lo_bpm))
 
+    # v1.8.1：每次校准追加一条记录，旧记录永不覆盖。开发者测试会话也可能
+    # 没有 user_id，这种情况保留旧前端缓存行为，不写入个人档案。
+    if s.user_id:
+        try:
+            saved_cal = storage.add_calibration(
+                s.user_id,
+                {
+                    **s.calibration,
+                    "calibrated_at_ms": int(time.time() * 1000),
+                    "algorithm_version": "focus_engine_v1.8.1",
+                },
+                session_id=s.id,
+                source=s.source.describe(),
+            )
+            s.calibration_id = saved_cal["id"]
+            s.calibration["calibration_id"] = saved_cal["id"]
+        except StorageError as exc:
+            raise HTTPException(500, f"校准记录保存失败：{exc}")
+
     return {"ok": True, "baseline": s.baseline, "calibration": s.calibration,
             "score_range": {"low": s.score_low, "high": s.score_high},
             "heart": hr_sum,
             "signal_quality": sq,
+            "calibration_id": s.calibration_id,
             "hr_span": round(heart._hr_span, 2)}
 
 
 @app.get("/api/session/{sid}/stream")
-async def stream(sid: str):
-    s = _sessions.get(sid)
-    if not s:
-        raise HTTPException(404, "会话不存在")
+async def stream(sid: str, request: Request):
+    user_id = request.query_params.get("user_id") or request.headers.get("x-user-id")
+    s = _session_for(sid, user_id)
     async def gen():
         yield {"event": "hello", "data": json.dumps({"session_id": s.id,
                                                       "source": s.source.describe(),
@@ -860,15 +1017,14 @@ async def stream(sid: str):
 
 
 @app.get("/api/session/{sid}/monitor")
-async def monitor_stream(sid: str):
+async def monitor_stream(sid: str, request: Request):
     """开发者高频监测流：与游戏分数 SSE 分离，避免波形阻塞控制帧。
 
     只有该端点被订阅时才捕获/序列化窗口；儿童模式不会请求它。
     数据只保存在内存中的有限队列里，不新增原始脑电持久化。
     """
-    s = _sessions.get(sid)
-    if not s:
-        raise HTTPException(404, "会话不存在")
+    user_id = request.query_params.get("user_id") or request.headers.get("x-user-id")
+    s = _session_for(sid, user_id)
     available = s.source.name in ("hardware", "replay")
     s.monitor_clients += 1
 
@@ -922,42 +1078,63 @@ async def monitor_stream(sid: str):
 
 
 @app.post("/api/session/{sid}/finish")
-async def finish_session(sid: str, body: SessionFinish):
-    s = _sessions.get(sid)
-    if not s:
-        raise HTTPException(404, "会话不存在")
+async def finish_session(sid: str, body: SessionFinish,
+                         x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    s = _session_for(sid, x_user_id)
     await s.finish(
         score=body.score, played_sec=body.played_sec, notes=body.notes,
         actions=body.actions.model_dump(exclude_none=True) if body.actions else None, demo=body.demo,
     )
-    os.makedirs(SESSIONS_DIR, exist_ok=True)
-    with open(os.path.join(SESSIONS_DIR, f"{s.id}.json"), "w", encoding="utf-8") as f:
-        json.dump(s.stats, f, ensure_ascii=False, indent=2)
-    return {"ok": True, "report": s.stats}
+    wallet = None
+    earned = 0
+    try:
+        saved = storage.persist_session(
+            s.stats, user_id=s.user_id, calibration_id=s.calibration_id,
+        )
+        wallet, earned = saved.get("wallet"), saved.get("earned_points", 0)
+    except StorageError as exc:
+        # 游戏结果已经生成；明确报错，不静默假装已经结算。
+        raise HTTPException(500, f"本局记录保存失败：{exc}")
+    # 兼容旧版本的 outputs/sessions 仅供本地旧报告迁移读取；新报告以 SQLite 为主。
+    # 不再重复写入仓库目录，避免个人数据出现在源码工作区。
+    return {"ok": True, "report": s.stats, "wallet": wallet, "earned_points": earned,
+            "user_id": s.user_id}
 
 
 @app.get("/api/report/{sid}")
-def get_report(sid: str):
-    return _load_report(sid)
+def get_report(sid: str, request: Request):
+    user_id = request.query_params.get("user_id") or request.headers.get("x-user-id")
+    return _load_report(sid, user_id)
 
 
 # ---------------------------------------------------------------------------
 # 报告导出：PDF / Excel / Word / CSV / JSON + 分享链接
 # ---------------------------------------------------------------------------
-def _load_report(sid: str) -> dict:
-    """优先读结束态的内存会话，其次读落盘的 outputs/sessions/<sid>.json。"""
+def _load_report(sid: str, user_id: Optional[str] = None) -> dict:
+    """优先读 SQLite 已完成记录；会话被 TTL 回收后仍可读取。"""
+    try:
+        stored = storage.load_report(sid, user_id)
+    except StorageError as exc:
+        raise HTTPException(403, str(exc))
+    if stored:
+        return stored
     s = _sessions.get(sid)
     if s and s.finished:
+        _check_report_owner(s.stats, user_id)
         return s.stats
+    # 旧版本 outputs/sessions 仅作兼容；新报告不会写入这里。
     p = os.path.join(SESSIONS_DIR, f"{sid}.json")
     if os.path.exists(p):
         with open(p, encoding="utf-8") as f:
-            return json.load(f)
+            report = json.load(f)
+        _check_report_owner(report, user_id)
+        return report
     raise HTTPException(404, "报告不存在或会话未结束")
 
 
-async def _export_response(sid: str, fmt: str, body: Optional[ExportRequest]):
-    report = _load_report(sid)
+async def _export_response(sid: str, fmt: str, body: Optional[ExportRequest],
+                           user_id: Optional[str] = None):
+    report = _load_report(sid, user_id)
     parent_note = body.parent_note if body else None
     try:
         payload, filename, media_type = report_export.export_report(report, fmt, parent_note)
@@ -972,13 +1149,16 @@ async def _export_response(sid: str, fmt: str, body: Optional[ExportRequest]):
 
 
 @app.get("/api/report/{sid}/export/{fmt}")
-async def export_report_get(sid: str, fmt: str):
-    return await _export_response(sid, fmt, None)
+async def export_report_get(sid: str, fmt: str, request: Request):
+    user_id = request.query_params.get("user_id") or request.headers.get("x-user-id")
+    return await _export_response(sid, fmt, None, user_id)
 
 
 @app.post("/api/report/{sid}/export/{fmt}")
-async def export_report_post(sid: str, fmt: str, body: Optional[ExportRequest] = None):
-    return await _export_response(sid, fmt, body)
+async def export_report_post(sid: str, fmt: str, request: Request,
+                             body: Optional[ExportRequest] = None):
+    user_id = request.query_params.get("user_id") or request.headers.get("x-user-id")
+    return await _export_response(sid, fmt, body, user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1010,6 +1190,9 @@ def dev_current():
         "source_config": _source_config,
         "recent_sessions": [s.to_public() for s in recent],
     }
+
+
+app.include_router(accounts_router)
 
 
 # ---------------------------------------------------------------------------

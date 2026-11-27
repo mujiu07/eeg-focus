@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-sky="day">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>选择档案 - 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/vinyl.css">
+  <link rel="stylesheet" href="assets/sky.css">
+  <style>
+    .profiles-hero { text-align: center; padding: 28px 26px 18px; }
+    .profiles-hero h1 { font-size: 30px; letter-spacing: 1px; }
+    .profiles-hero .sub { margin-top: 8px; color: var(--ink-soft); font-size: 15px; }
+    .profile-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px; margin-top: 22px;
+    }
+    .profile-card {
+      position: relative; display: flex; flex-direction: column; align-items: center;
+      gap: 8px; padding: 22px 14px 16px; border-radius: 22px; cursor: pointer;
+      border: 1.5px solid rgba(58,167,160,.18); background: linear-gradient(180deg,#fff,#f4fbf6);
+      box-shadow: 0 8px 22px rgba(47,110,128,.09); transition: transform .16s, border-color .16s;
+      font-family: inherit; color: var(--ink); text-align: center;
+    }
+    .profile-card:hover { transform: translateY(-3px); border-color: rgba(58,167,160,.55); }
+    .profile-card.is-current { border: 2px solid #55b981; box-shadow: 0 10px 24px rgba(68,170,112,.18); }
+    .profile-avatar {
+      width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%;
+      font-size: 38px; background: linear-gradient(145deg,#d8f5dd,#a8e2c5);
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.9);
+    }
+    .profile-name { font-size: 18px; font-weight: 900; }
+    .profile-meta { font-size: 12px; color: var(--ink-soft); }
+    .profile-current { position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 800;
+      padding: 3px 8px; border-radius: 999px; background: #e4f8e9; color: #287d4b; }
+    .profile-actions { display: flex; gap: 8px; margin-top: 6px; }
+    .profile-actions button { font-size: 12px; padding: 5px 9px; }
+    .profile-footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .profile-note { margin-top: 16px; text-align: center; font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; }
+    .profile-empty { text-align: center; padding: 18px 8px 8px; }
+    .profile-empty .big { font-size: 44px; }
+    .local-banner {
+      margin-top: 18px; padding: 12px 14px; border-radius: 16px;
+      background: #fff8e8; border: 1px solid #f0d8a8; color: #745526; font-size: 13px;
+      display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    }
+    .avatar-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .avatar-opt { width: 44px; height: 44px; border-radius: 50%; border: 2px solid transparent;
+      background: #eef9f0; font-size: 22px; cursor: pointer; }
+    .avatar-opt[aria-pressed="true"] { border-color: #47a96c; background: #ddf6e4; }
+    .modal-mask { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+      padding: 18px; background: rgba(35,70,79,.34); backdrop-filter: blur(4px); }
+    .modal-mask.hidden { display: none; }
+    .modal-card { width: min(430px,100%); background: #fff; border-radius: 24px; padding: 24px;
+      box-shadow: 0 24px 60px rgba(35,70,79,.3); }
+    .modal-card h2 { font-size: 21px; margin-bottom: 6px; }
+    .modal-card .field { margin-top: 14px; }
+    .modal-card input { width: 100%; font: inherit; font-size: 16px; padding: 11px 13px;
+      border-radius: 12px; border: 1.5px solid rgba(58,167,160,.3); outline: none; }
+    .modal-card input:focus { border-color: #47a96c; }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    #profile-status { min-height: 24px; margin-top: 14px; text-align: center; font-size: 13px; color: #b45309; }
+    .tiny { font-size: 12px; color: var(--ink-soft); }
+    @media (max-width: 600px) { .profiles-hero h1 { font-size: 24px; } .profile-grid { grid-template-columns: repeat(2,1fr); } }
+  </style>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="card profiles-hero">
+      <div class="logo-badge" style="margin:0 auto 10px;width:58px;height:58px;font-size:30px;display:grid;place-items:center">🐸</div>
+      <h1>今天谁来陪小蛙玩？</h1>
+      <p class="sub">选择一个档案，小蛙会记住你的专注成长和宝贝装扮。</p>
+      <div id="profile-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="card" id="profiles-card">
+      <div class="section-title"><span class="dot"></span>个人档案</div>
+      <div id="profiles" class="hint">正在读取本地档案……</div>
+      <div class="profile-footer">
+        <button class="btn btn-primary" id="btn-new">＋ 新建档案</button>
+        <a class="btn btn-ghost" href="settings.html">数据与隐私设置</a>
+      </div>
+      <div class="profile-note">
+        档案只保存在当前设备的本地数据目录；不需要手机号、邮箱或真实姓名。<br>
+        SQLite 未做静态加密，请使用自己的电脑账户并妥善保管备份。
+      </div>
+    </div>
+
+    <div class="local-banner hidden" id="legacy-banner">
+      <span id="legacy-text">检测到本机旧版存档。旧数据不会自动分配给任何孩子。</span>
+      <button class="btn btn-warm" id="btn-import-legacy">导入当前选中的档案</button>
+    </div>
+  </div>
+
+  <div class="modal-mask hidden" id="profile-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <h2 id="modal-title">新建档案</h2>
+      <p class="tiny">只填昵称和头像即可，不需要真实身份信息。</p>
+      <label class="field"><span>昵称</span>
+        <input id="profile-name" maxlength="20" placeholder="例如：小宇" autocomplete="off">
+      </label>
+      <div class="field"><span>头像</span><div class="avatar-pick" id="avatar-pick"></div></div>
+      <div class="modal-btns">
+        <button class="btn btn-ghost" id="btn-modal-cancel">取消</button>
+        <button class="btn btn-primary" id="btn-modal-save">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/api.js"></script>
+  <script src="assets/profile-bridge.js"></script>
+  <script>
+    const AVATARS = [
+      ["frog", "🐸", "小蛙"], ["tadpole", "🐟", "小蝌蚪"], ["lotus", "🪷", "荷花"],
+      ["fish", "🐠", "小鱼"], ["dragonfly", "🪰", "蜻蜓"], ["snail", "🐌", "蜗牛"],
+    ];
+    const AVATAR_MAP = Object.fromEntries(AVATARS.map(([id, emoji, label]) => [id, { emoji, label }]));
+    const $ = id => document.getElementById(id);
+    const next = new URLSearchParams(location.search).get("next") || "index.html";
+    let profiles = [];
+    let editing = null;
+    let pickedAvatar = "frog";
+    let legacy = null;
+
+    function avatarOf(id) { return AVATAR_MAP[id] || AVATAR_MAP.frog; }
+    function status(text, bad) {
+      const el = $("profile-status");
+      el.textContent = text || "";
+      el.style.color = bad ? "#b45309" : "";
+    }
+    function fmtDate(iso) {
+      if (!iso) return "尚未使用";
+      const d = new Date(iso);
+      if (!Number.isFinite(d.getTime())) return "尚未使用";
+      return (d.getMonth() + 1) + " 月 " + d.getDate() + " 日使用";
+    }
+
+    function render() {
+      const current = Profile.active();
+      const box = $("profiles");
+      if (!profiles.length) {
+        box.innerHTML = `<div class="profile-empty"><div class="big">🌱</div>
+          <p>还没有个人档案。先给小蛙起一个昵称吧。</p></div>`;
+        return;
+      }
+      box.className = "profile-grid";
+      box.innerHTML = profiles.map(p => {
+        const a = avatarOf(p.avatar);
+        const isCurrent = current && current.user_id === p.user_id;
+        return `<div class="profile-card${isCurrent ? " is-current" : ""}" data-id="${p.user_id}" role="button" tabindex="0" aria-label="选择 ${p.nickname}">
+          ${isCurrent ? '<span class="profile-current">当前</span>' : ""}
+          <div class="profile-avatar">${a.emoji}</div>
+          <div class="profile-name">${escapeHtml(p.nickname)}</div>
+          <div class="profile-meta">${p.is_system ? "历史档案 · 未归属" : fmtDate(p.last_used_at)}</div>
+          <div class="profile-actions">
+            ${p.is_system ? "" : `<button class="btn btn-ghost" data-edit="${p.user_id}" type="button">编辑</button>
+            <button class="btn btn-ghost" data-delete="${p.user_id}" type="button">删除</button>`}
+          </div>
+        </div>`;
+      }).join("");
+      box.querySelectorAll(".profile-card").forEach(card => {
+        card.addEventListener("click", e => {
+          if (e.target.closest("button")) return;
+          choose(card.dataset.id);
+        });
+        card.addEventListener("keydown", e => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(card.dataset.id); }
+        });
+      });
+      box.querySelectorAll("[data-edit]").forEach(btn => btn.addEventListener("click", () => openModal(btn.dataset.edit)));
+      box.querySelectorAll("[data-delete]").forEach(btn => btn.addEventListener("click", () => removeProfile(btn.dataset.delete)));
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+
+    async function load() {
+      try {
+        const data = await API.get("/api/profiles");
+        profiles = data.profiles || [];
+        render();
+        const storage = data.storage || {};
+        if (storage.ok === false) status("本地数据目录不可用：" + (storage.error || "权限不足"), true);
+      } catch (e) {
+        $("profiles").className = "hint";
+        $("profiles").textContent = "读取档案失败：" + e.message;
+      }
+    }
+
+    async function choose(id) {
+      const selected = profiles.find(x => x.user_id === id);
+      if (selected && selected.is_system) {
+        status("这是系统保留的未归属历史档案，不能作为游戏档案；请新建或选择孩子档案", true);
+        return;
+      }
+      const live = Profile.liveGame();
+      if (live && live.user_id !== id) {
+        status("还有一局游戏正在进行，请先结束那一局再切换档案", true);
+        return;
+      }
+      status("正在加载档案……");
+      try {
+        const data = await API.get(`/api/profiles/${encodeURIComponent(id)}/bootstrap`);
+        Profile.applyBootstrap(data);
+        await API.post(`/api/profiles/${encodeURIComponent(id)}/select`, {});
+        if (legacy && legacy.has_data) {
+          const ok = confirm(`检测到本机旧版存档。把它导入「${data.user.nickname}」吗？只导入当前选中的档案，不会复制给其他孩子。`);
+          if (ok) {
+            try {
+              const res = await API.post(`/api/profiles/${encodeURIComponent(id)}/import-legacy`, legacy);
+              if (res.already_imported) console.info("legacy data already imported");
+            } catch (e) { console.warn("旧数据导入失败", e); }
+          }
+        }
+        location.href = next.startsWith("http") ? "index.html" : next;
+      } catch (e) {
+        status("加载档案失败：" + e.message, true);
+      }
+    }
+
+    function openModal(id) {
+      editing = id ? profiles.find(p => p.user_id === id) : null;
+      $("modal-title").textContent = editing ? "编辑档案" : "新建档案";
+      $("profile-name").value = editing ? editing.nickname : "";
+      pickedAvatar = editing ? editing.avatar : "frog";
+      if (!AVATAR_MAP[pickedAvatar]) pickedAvatar = "frog";
+      $("avatar-pick").innerHTML = AVATARS.map(([aid, emoji, label]) =>
+        `<button class="avatar-opt" type="button" data-avatar="${aid}" aria-pressed="${aid === pickedAvatar}" aria-label="${label}">${emoji}</button>`
+      ).join("");
+      $("avatar-pick").querySelectorAll("[data-avatar]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          pickedAvatar = btn.dataset.avatar;
+          $("avatar-pick").querySelectorAll("[data-avatar]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+        });
+      });
+      $("profile-modal").classList.remove("hidden");
+      $("profile-name").focus();
+    }
+
+    function closeModal() { $("profile-modal").classList.add("hidden"); editing = null; }
+
+    async function saveModal() {
+      const nickname = $("profile-name").value.trim();
+      if (!nickname) { status("昵称不能为空", true); $("profile-name").focus(); return; }
+      try {
+        if (editing) {
+          await API.json(`/api/profiles/${encodeURIComponent(editing.user_id)}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nickname, avatar: pickedAvatar }),
+          });
+        } else {
+          const res = await API.post("/api/profiles", { nickname, avatar: pickedAvatar });
+          closeModal();
+          await load();
+          if (res.profile) await choose(res.profile.user_id);
+          return;
+        }
+        closeModal();
+        await load();
+        status("档案已更新");
+      } catch (e) { status("保存失败：" + e.message, true); }
+    }
+
+    async function removeProfile(id) {
+      const p = profiles.find(x => x.user_id === id);
+      if (!p) return;
+      const live = Profile.liveGame();
+      if (live && live.user_id === id) { status("这一局还在进行，不能删除当前档案", true); return; }
+      if (!confirm(`确定删除「${p.nickname}」？相关记录、资产和报告会从本地数据库移除。`)) return;
+      if (!confirm("再次确认：删除后无法从应用内撤销（已有备份可能仍保留删除前的数据）。")) return;
+      try {
+        const res = await API.json(`/api/profiles/${encodeURIComponent(id)}?confirm=true`, { method: "DELETE" });
+        if (Profile.userId() === id) {
+          try { localStorage.removeItem("bf-active-user"); } catch (_) {}
+          Profile.clearProfileCache();
+        }
+        status(`已删除档案；移除 ${res.reports_removed || 0} 份报告。${res.backups_note || ""}`);
+        await load();
+      } catch (e) { status("删除失败：" + e.message, true); }
+    }
+
+    async function importLegacy() {
+      const target = Profile.active();
+      if (!target) { status("请先选择一个档案，再导入旧版数据", true); return; }
+      if (target.is_system) { status("不能把旧版数据导入系统保留档案", true); return; }
+      if (!confirm(`把本机旧版存档导入「${target.nickname}」？只导入这一份档案，不会复制给其他孩子。`)) return;
+      try {
+        const res = await API.post(`/api/profiles/${encodeURIComponent(target.user_id)}/import-legacy`, legacy || {});
+        status(res.already_imported ? "旧数据已经导入过，没有重复写入" : "旧版数据已导入，并创建了迁移前备份");
+        $("legacy-banner").classList.add("hidden");
+        await load();
+      } catch (e) { status("导入失败：" + e.message, true); }
+    }
+
+    $("btn-new").addEventListener("click", () => openModal(null));
+    $("btn-modal-cancel").addEventListener("click", closeModal);
+    $("btn-modal-save").addEventListener("click", saveModal);
+    $("profile-name").addEventListener("keydown", e => { if (e.key === "Enter") saveModal(); });
+    $("btn-import-legacy").addEventListener("click", importLegacy);
+    $("profile-modal").addEventListener("click", e => { if (e.target === $("profile-modal")) closeModal(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("profile-modal").classList.contains("hidden")) closeModal(); });
+
+    legacy = Profile.active() ? null : Profile.legacySnapshot();
+    if (legacy && legacy.has_data) {
+      $("legacy-banner").classList.remove("hidden");
+      $("legacy-text").textContent = "检测到本机旧版存档（钱包/成就/装扮/校准）。旧数据不会自动分配给任何孩子；请先选择档案，再确认导入。";
+    }
+    load();
+  </script>
+</body>
+</html>

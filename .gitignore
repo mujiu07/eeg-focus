@@ -26,3 +26,9 @@ Thumbs.db
 
 # 运行时产物（启动脚本的日志/状态）
 .run/
+
+# 本地 SQLite 档案数据库（数据目录默认在 Documents，禁止提交）
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*

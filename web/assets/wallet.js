@@ -77,6 +77,19 @@
     return true;
   }
 
+  function replace(next) {
+    const src = next && typeof next === "object" ? next : {};
+    const out = blank();
+    ["points", "rounds", "jumps", "spent"].forEach(key => {
+      const n = Number(src[key]);
+      if (Number.isFinite(n) && n > 0) out[key] = Math.floor(n);
+    });
+    state = out;
+    save();
+    emit();
+    return stats();
+  }
+
   function reset() {
     state = blank();
     save();
@@ -95,6 +108,7 @@
     points: function () { return stats().points; },
     stats: stats,
     settleRound: settleRound,
+    replace: replace,
     add: add,
     spend: spend,
     reset: reset,

@@ -1,7 +1,7 @@
 # 技术设计：专注判定、蓄力与单轮计分
 
 > 面向本仓库维护者的判定链路说明。系统结构、选型、数据模型与完整实测记录见工作区 `docs/Tech Design.md`；本文只收录“专注 → 分数 → 蓄力 → 子弹时间 → 跳跃 → 计分”这条链路上容易被误读、且改动风险最高的部分。
-> 最后更新：2026-11-27（v1.7.0）
+> 最后更新：2026-11-27（v1.8.1）
 
 ## 1. 判定链路
 
@@ -253,3 +253,34 @@ python tests/selfcheck_denoise.py          # 去噪：既有回归
 | EDF 回放 | 有真实历史窗口 | 有 | 历史回放 + 进度 |
 | 手动试玩 | 明确“无脑电采样” | 有模拟游戏分数 | 模拟游戏 |
 | 仅心率 | 明确“无脑电采样” | 有真实心率驱动分数 | 心率 |
+
+
+## 11. v1.8.1 本地存储与档案边界
+
+详细实现、Schema、API 与测试见 `docs/DEV-REPORT-v1.8.1.md`。这里只记录维护者最容易改错的部分。
+
+### 11.1 主存储与缓存
+
+- 权威数据：SQLite `profiles.db`（`app/storage.py`），默认在系统文档目录 `专注小蛙/`；`FOCUS_FROG_DATA_DIR` 只用于测试/便携启动。
+- 浏览器 `localStorage` 的 `bf-*` 是当前档案缓存与旧版兼容层，不是多用户权威存储；页面隐藏时 `profile-bridge.js` 调 `/api/profiles/{id}/sync`。
+- 数据目录指针是平台配置目录的 `location.json`，不是数据目录内的文件；避免迁移时把指针一起搬走。
+
+### 11.2 归属校验
+
+- `Session` 创建时写 `user_id`，之后不因前端切换档案而改变。
+- 正常模式 API 用 `X-User-Id`；`EventSource` 的 `/stream`、`/monitor` 用 `?user_id=`。
+- `finish`、`calibrate`、`manual`、报告读取/导出必须通过 `_session_for(sid, user_id)`；跨用户返回 403。
+- 前端 gate 只是体验层，不能替代后端校验。
+
+### 11.3 结算与回收
+
+- 结算幂等键：`wallet_transactions.idempotency_key = session:<sid>`；重复 `finish` 不得重复加积分。
+- 游戏页收到最终钱包后 `Wallet.replace(...)`，不要在游戏结束事件里再次本地加积分。
+- 完成 Session 默认保留 900 s；只有 `finished=True`、`monitor_clients=0` 且超过 TTL 才释放内存。报告优先读 SQLite，回收后仍可访问。
+- 校准追加写入 `calibrations`；`kind=daily` 为当前每日校准，`reference_baselines` 为后续长期基线，当前不计算。
+
+### 11.4 迁移与备份
+
+- 旧 `outputs/sessions` 仅导入 `hardware/heart`、非 demo、`played_sec > 0` 的报告；导入系统历史档案，不猜真实儿童归属。
+- 旧 LocalStorage 必须由操作者选择目标档案并确认，导入前备份；不要自动复制给所有档案。
+- 备份用 SQLite `backup()` 一致性快照；恢复前自动 `before-restore` 备份。数据库、报告、备份是不同的数据，删除档案不自动删除备份。

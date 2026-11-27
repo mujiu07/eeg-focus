@@ -633,6 +633,7 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/profile-bridge.js"></script>
   <script src="assets/achievements.js"></script>
   <script src="assets/achievement-cinematic.js"></script>
   <script src="assets/pond-effects.js"></script>
@@ -722,6 +723,10 @@
     const developerRun = demo || !!testMode || (DeveloperTools.canTest && monitorRequested);
     const deniedTest = (demoRequested || requestedTest || monitorRequested) && !developerRun;
     const calibrationStore = testMode ? Store.forDeveloperTest() : Store;
+    if (!developerRun && !Profile.userId()) {
+      const next = "game.html" + location.search;
+      location.replace("profiles.html?next=" + encodeURIComponent(next));
+    }
     const calibInfo = testMode ? calibrationStore.calibInfo() : Store.playerCalibInfo();
     const prev = calibrationStore.load();
     const calib = deniedTest ? null : demo ? { baseline: 0.55 }
@@ -898,7 +903,12 @@
       const heartRest = Number(localStorage.getItem("bf-heart-rest")) || null;
       const heartWeight = Number(localStorage.getItem("bf-heart-weight")) || 0.15;
       // baseline 必须随会话一起上报：报告页的橙色虚线与"高于基线占比"都依赖它
+      const profileUser = Profile.userId();
       let body = { mode, baseline: calib.baseline };
+      if (profileUser) {
+        body.user_id = profileUser;
+        if (calib.calibration_id) body.calibration_id = calib.calibration_id;
+      }
       // 动态定标区间随会话带上：校准页把「最放松/最专注」映射成 20/80
       if (calib.range && calib.range.low != null && calib.range.high != null) {
         body.score_low = calib.range.low;
@@ -924,6 +934,7 @@
         return;
       }
       state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null };
+      if (profileUser) Profile.markGame(res.session_id);
       $("replay-label").textContent = developerRun ? "开发者测试 · " + describeSignal(res.source) : "";
       $("replay-label").classList.toggle("hidden", !developerRun);
       state.manualMode = mode === "manual";
@@ -2009,7 +2020,9 @@
       // 本局累计积分（state.score）与商城货币（earnedPoints）分离：避免经济系统被放大。
       monitor?.event("score_settle", "积分结算", { score: state.score });
       state.earnedPoints = FocusRound.pointsForScore(state.score);
-      if (!state.pointsSettled && !developerRun && window.Wallet) {
+      const profileUser = Profile.userId();
+      // 有档案时由本地后端按 session_id 幂等入账；无档案的旧式直达页面才回退本地钱包。
+      if (!state.pointsSettled && !developerRun && window.Wallet && !profileUser) {
         state.pointsSettled = true;
         Wallet.settleRound(state.earnedPoints);
       }
@@ -2032,14 +2045,19 @@
             + focusRound.cooldownSec) * 1000) / 1000,
           rounds,
         });
-        await API.post(`/api/session/${sessionId}/finish`, {
+        const finished = await API.post(`/api/session/${sessionId}/finish`, {
           score: state.score,
           actions,
           demo,
           played_sec: playedSec,
           notes: "完整一局（" + formatClock(state.totalSec) + "）",
         });
+        state.pointsSettled = true;
+        if (!developerRun && window.Wallet && finished && finished.wallet) {
+          Wallet.replace(finished.wallet);
+        }
         state.session = null;
+        Profile.clearGame();
         // 完整玩完一局 → 计入「专注小达人」时长与当天打卡（试玩/演示不计入）
         let fresh = [];
         if (!developerRun && !state.achievementsRecorded) {
@@ -2063,13 +2081,19 @@
       }
     }
 
-    $("btn-quit").addEventListener("click", () => { location.href = developerRun ? "dev.html" : "index.html"; });
+    $("btn-quit").addEventListener("click", () => {
+      Profile.clearGame();
+      location.href = developerRun ? "dev.html" : "index.html";
+    });
     window.addEventListener("pagehide", () => {
       state.leaving = true;
       state.es?.close();
       monitor?.stop();
       AchievementCinematic?.stop?.();
-      if (state.session && !state.saving) API.endAbandonedSession(state.session.id);
+      if (state.session && !state.saving) {
+        API.endAbandonedSession(state.session.id);
+        Profile.clearGame();
+      }
     });
     window.addEventListener("pageshow", event => {
       if (event.persisted) location.reload();

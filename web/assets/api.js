@@ -1,7 +1,24 @@
 // Brain-Focusing Game MVP - 前端 API 封装
+function activeUserId() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("bf-active-user") || "null");
+    return raw && typeof raw.user_id === "string" ? raw.user_id : null;
+  } catch (_) { return null; }
+}
+
+function withUserHeader(headers) {
+  const h = Object.assign({}, headers || {});
+  const uid = activeUserId();
+  if (uid && !h["X-User-Id"] && !h["x-user-id"]) h["X-User-Id"] = uid;
+  return h;
+}
+
 const API = {
   async json(url, options = {}) {
-    const r = await fetch(url, options);
+    const opts = Object.assign({}, options, {
+      headers: withUserHeader(options.headers),
+    });
+    const r = await fetch(url, opts);
     if (!r.ok) {
       let msg = r.statusText;
       try {
@@ -26,7 +43,7 @@ const API = {
   endAbandonedSession(sessionId) {
     return fetch(`/api/session/${sessionId}/finish`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withUserHeader({ "Content-Type": "application/json" }),
       body: JSON.stringify({ played_sec: 0, notes: "abandoned" }),
       keepalive: true,
     }).catch(() => {});
@@ -66,7 +83,9 @@ const API = {
     }
 
     function connect() {
-      const connection = new EventSource(`/api/session/${sessionId}/stream`);
+      const uid = activeUserId();
+      const streamUrl = `/api/session/${sessionId}/stream` + (uid ? `?user_id=${encodeURIComponent(uid)}` : "");
+      const connection = new EventSource(streamUrl);
       es = connection;
 
       function watchForData(timeout) {
@@ -181,8 +200,9 @@ const Store = {
     return { calib: raw, expired: false, remainMs };
   },
 
-  saveCalib(baseline, quantiles, range) {
+  saveCalib(baseline, quantiles, range, calibrationId) {
     const payload = { baseline, quantiles, range: range || null, at: Date.now() };
+    if (calibrationId) payload.calibration_id = calibrationId;
     this.storage.setItem(this.CALIB_KEY, JSON.stringify(payload));
     if (this.storage === localStorage) {
       try { sessionStorage.removeItem(this.CALIB_KEY); } catch (_) { /* ignore */ }

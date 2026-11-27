@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-sky="day">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据与隐私 - 专注小蛙</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/vinyl.css">
+  <link rel="stylesheet" href="assets/sky.css">
+  <style>
+    .settings-head { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+    .settings-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
+    @media (max-width:700px){ .settings-grid { grid-template-columns:1fr; } }
+    .stat-box { padding:14px 16px; border:1px solid rgba(58,167,160,.16); border-radius:16px; background:rgba(255,255,255,.7); }
+    .stat-box .k { font-size:12px; color:var(--ink-soft); }
+    .stat-box .v { font-size:15px; font-weight:800; margin-top:4px; overflow-wrap:anywhere; }
+    .path-code { font-family:ui-monospace,Menlo,monospace; font-size:12.5px; }
+    .warn-box { margin-top:12px; padding:12px 14px; border-radius:14px; background:#fff8e8; border:1px solid #f0d8a8; color:#745526; font-size:13px; line-height:1.7; }
+    .danger-note { color:#a33; }
+    .backup-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px dashed rgba(58,108,122,.15); font-size:13px; }
+    .backup-row:last-child { border-bottom:0; }
+    .backup-row code { font-size:12px; overflow-wrap:anywhere; }
+    .btn-row { margin-top:14px; }
+    .privacy-list { font-size:13.5px; line-height:1.9; color:var(--ink-soft); }
+    .privacy-list li { margin-left:18px; }
+    #status { min-height:24px; margin-top:12px; font-size:13px; color:#b45309; }
+  </style>
+</head>
+<body>
+  <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
+  <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="card settings-head">
+      <div class="brand">
+        <div class="logo-badge">🔐</div>
+        <div><h1>数据与隐私</h1><div class="slogan">本地档案、备份与数据目录</div></div>
+      </div>
+      <div class="btn-row" style="margin:0">
+        <a class="btn btn-ghost" href="profiles.html">← 返回档案</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>本地存储状态</div>
+      <div id="summary" class="hint">正在读取……</div>
+      <div class="settings-grid" id="stats"></div>
+      <div class="warn-box" id="cloud-hint" hidden></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-open">打开数据文件夹</button>
+        <button class="btn btn-ghost" id="btn-change">修改数据目录</button>
+        <button class="btn btn-warm" id="btn-backup">立即备份</button>
+      </div>
+      <p class="tiny">数据目录默认位于当前系统用户的文档目录。桌面封装后可替换为原生文件选择器；Web 模式下“打开文件夹”由本机后端执行。</p>
+      <div id="status" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>备份与恢复</div>
+      <p class="hint">备份使用 SQLite 一致性快照，不会直接复制正在写入的数据库文件。恢复前会自动再备份当前数据库。</p>
+      <div id="backups" class="hint">读取备份列表……</div>
+      <div class="btn-row"><button class="btn btn-ghost" id="btn-refresh">刷新列表</button></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>档案与数据范围</div>
+      <p class="hint">删除档案会删除该档案的数据库记录、报告索引和已登记录制文件；<strong>不会自动删除已有备份</strong>，备份可能仍包含删除前的数据。</p>
+      <div class="btn-row"><a class="btn btn-ghost" href="profiles.html">管理个人档案</a></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span class="dot"></span>隐私边界</div>
+      <ul class="privacy-list">
+        <li>默认本地存储，不上传个人资料、脑电或报告到第三方。</li>
+        <li>不默认永久保存原始高频 EEG；录制需要单独明确授权。</li>
+        <li>后端默认只监听 <code>127.0.0.1</code>；本地档案隔离不等于联网身份认证。</li>
+        <li>SQLite 未做静态加密；如需防止同一电脑账户的其他使用者读取，应依赖操作系统账户权限与磁盘加密。</li>
+      </ul>
+    </div>
+  </div>
+
+  <script src="assets/api.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    function fmtBytes(n) {
+      if (!Number.isFinite(n)) return "—";
+      if (n > 1024 ** 3) return (n / 1024 ** 3).toFixed(1) + " GB";
+      if (n > 1024 ** 2) return (n / 1024 ** 2).toFixed(0) + " MB";
+      return Math.round(n / 1024) + " KB";
+    }
+    function setStatus(text, bad) { $("status").textContent = text || ""; $("status").style.color = bad ? "#a33" : "#b45309"; }
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c])); }
+
+    async function load() {
+      try {
+        const s = await API.get("/api/storage/status");
+        if (s.ok === false) {
+          $("summary").textContent = "数据目录不可用：" + (s.error || "未知错误");
+          $("summary").style.color = "#a33";
+        } else {
+          $("summary").textContent = "存储正常，数据库 Schema v" + s.schema_version + "。";
+          $("summary").style.color = "";
+        }
+        $("stats").innerHTML = [
+          ["数据目录", `<span class="path-code">${esc(s.data_dir)}</span>`],
+          ["数据库", `<span class="path-code">${esc(s.database || "—")}</span>`],
+          ["磁盘剩余", fmtBytes(s.disk_free)],
+          ["档案 / 局数 / 校准", `${s.counts ? s.counts.users : "—"} / ${s.counts ? s.counts.sessions : "—"} / ${s.counts ? s.counts.calibrations : "—"}`],
+          ["加密", s.encrypted ? "已启用" : "未启用（SQLite 本身不加密）"],
+          ["适用范围", "本机多档案隔离；非联网认证"],
+        ].map(([k, v]) => `<div class="stat-box"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+        if (s.cloud_sync_hint) {
+          $("cloud-hint").hidden = false;
+          $("cloud-hint").textContent = "⚠️ " + s.cloud_sync_hint;
+        } else {
+          $("cloud-hint").hidden = true;
+        }
+        await loadBackups();
+      } catch (e) {
+        $("summary").textContent = "读取存储状态失败：" + e.message;
+        $("summary").style.color = "#a33";
+      }
+    }
+
+    async function loadBackups() {
+      try {
+        const data = await API.get("/api/storage/backups");
+        const list = data.backups || [];
+        if (!list.length) { $("backups").className = "hint"; $("backups").textContent = "还没有备份。"; return; }
+        $("backups").className = "";
+        $("backups").innerHTML = list.map(b => `<div class="backup-row">
+          <span><code>${esc(b.filename)}</code><br><span class="tiny">${esc(b.created_at)} · ${fmtBytes(b.size)}</span></span>
+          <button class="btn btn-ghost" data-restore="${esc(b.filename)}" type="button">恢复</button>
+        </div>`).join("");
+        $("backups").querySelectorAll("[data-restore]").forEach(btn => {
+          btn.addEventListener("click", () => restore(btn.dataset.restore));
+        });
+      } catch (e) { $("backups").className = "hint"; $("backups").textContent = "读取备份失败：" + e.message; }
+    }
+
+    async function restore(filename) {
+      if (!confirm(`从「${filename}」恢复？当前数据库会先自动备份，再被该备份覆盖。`)) return;
+      if (!confirm("再次确认：恢复后当前档案与最近记录可能回到备份时间点。")) return;
+      try {
+        const res = await API.post("/api/storage/restore", { filename, confirm: true });
+        setStatus("恢复完成；恢复前备份：" + res.pre_restore_backup);
+        await load();
+      } catch (e) { setStatus("恢复失败：" + e.message, true); }
+    }
+
+    $("btn-open").addEventListener("click", async () => {
+      try { await API.post("/api/storage/open", {}); setStatus("已请求系统打开数据文件夹"); }
+      catch (e) { setStatus("打开文件夹失败：" + e.message, true); }
+    });
+    $("btn-change").addEventListener("click", async () => {
+      const path = prompt("输入新的数据目录绝对路径。必须为空目录；应用会复制现有数据并保留旧目录。", "");
+      if (!path) return;
+      if (!confirm("确认迁移数据到新目录？旧目录会保留；迁移前自动创建备份。")) return;
+      try {
+        const res = await API.post("/api/storage/location", { path, confirm: true, migrate: true });
+        setStatus("数据目录已切换到：" + res.data_dir + (res.pre_change_backup ? "；迁移前备份：" + res.pre_change_backup : ""));
+        await load();
+      } catch (e) { setStatus("修改数据目录失败：" + e.message, true); }
+    });
+    $("btn-backup").addEventListener("click", async () => {
+      try { const res = await API.post("/api/storage/backup", {}); setStatus("已创建备份：" + res.filename); await load(); }
+      catch (e) { setStatus("备份失败：" + e.message, true); }
+    });
+    $("btn-refresh").addEventListener("click", loadBackups);
+
+    load();
+  </script>
+</body>
+</html>

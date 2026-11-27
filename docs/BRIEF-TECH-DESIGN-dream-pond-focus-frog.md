@@ -1,9 +1,9 @@
 # 专注小蛙 · 梦境池塘 — 简要技术设计（Brief Tech Design）
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 适用代码：`main` @ `v1.4.16`（去噪去伪迹接入；上一基线 `98b5b2a` 为 v1.4.15）
+> 适用代码：`main` @ `v1.8.1`（本地 SQLite 与多用户档案；历史基线 v1.7.0）
 > 说明：本文是**一页可读的技术设计摘要**，用于评审与新人上手；完整细节见 `ARCHITECTURE.md` / `tech-stack.md` / `DECISIONS-AND-VERIFICATION-dream-pond-focus-frog.md`。
-> 版本元数据：`app/server.py` 的 FastAPI `version` 已在 v1.4.16 同步（V-014 的历史漂移由 V-018 修复）。
+> 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.8.1`。
 
 ---
 
@@ -39,11 +39,12 @@
 
 | 层 | 组件 | 职责 | 关键接口 |
 |---|---|---|---|
-| 浏览器 | 5 个页面 `index/calibrate/game/report/dev` | 首页与成长入口、校准、玩法、报告、联调 | — |
+| 浏览器 | 7 个页面 `index/profiles/settings/calibrate/game/report/dev` | 首页、档案、数据设置、校准、玩法、报告、联调 | — |
 | 浏览器 | `assets/api.js` | REST + SSE 封装，6 s 无数据自愈重连 | `openStream` |
-| 浏览器 | `assets/wallet/checkin/achievements/shop/dressup` | 本地成长系统（localStorage） | `settleRound` / `record*` / `owned` |
+| 浏览器 | `assets/wallet/checkin/achievements/shop/dressup` | 成长系统（SQLite 权威 + localStorage 缓存） | `settleRound` / `Wallet.replace` / `record*` / `owned` |
 | 浏览器 | `assets/sky.js`、`music.js`、`hero-*`、`pond-*` | 天空、音乐、首页池塘与音效 | `SkyTheme.palette()` |
-| 服务 | `app/server.py` | 会话生命周期、校准、报告、导出、静态托管 | `POST /api/session`、`/calibrate`、`/finish` |
+| 服务 | `app/server.py` | 会话生命周期、校准、报告、导出、静态托管、用户归属/TTL | `POST /api/session`、`/calibrate`、`/finish` |
+| 服务 | `app/storage.py` / `app/accounts.py` | SQLite 档案/校准/游戏/资产、备份迁移与存储 API | `/api/profiles/*`、`/api/storage/*` |
 | 服务 | `app/sources.py` | 信号源抽象与工厂 | `start()` / `next_window()` / `stop()` |
 | 服务 | `app/xmuse_osc.py` | OSC/UDP 接收、环形缓冲、质量/电量 | `next_window()` |
 | 服务 | `app/focus_engine.py` | 特征→模型/频段回退→EMA | `update(seg, fs)` |
@@ -76,10 +77,10 @@ GET /api/session/{id}/stream (SSE, 0.5 s/帧)
 **报告与成长**
 
 ```
-服务端落盘 outputs/sessions/{id}.json（curve、事件、统计）
-  → report.html 回放曲线 + 生成「给家长的话」
+服务端写 profiles.db 的 sessions/report_json + 数据目录 reports/{id}.json（curve、逐轮、统计）
+  → report.html 按 user_id 读取 + 生成「给家长的话」
   → 导出：本机生成 PDF/XLSX/DOCX/CSV/JSON
-  → 前端 wallet.settleRound(score)：积分入账；achievements 判定；商城/装扮仅 localStorage
+  → 服务端按 session_id 幂等入账钱包；前端 Wallet.replace 同步；成就/商城/装扮按 user_id 存 SQLite
 ```
 
 ## 6. 算法要点
@@ -112,9 +113,12 @@ GET /api/session/{id}/stream (SSE, 0.5 s/帧)
 | 位置 | 内容 | 是否入库 |
 |---|---|---|
 | `outputs/models/*.joblib` | 模型 | 是 |
-| `outputs/sessions/*.json` | 每局报告（逐帧、事件） | 否（`.gitignore`，隐私） |
+| `专注小蛙/profiles.db` | 档案、校准、游戏/逐轮、钱包、成就、装扮、设置 | 否（仓库外） |
+| `专注小蛙/reports/*.json` | 每局报告可读副本 | 否（仓库外） |
+| `专注小蛙/backups/*.db` | 一致性备份 | 否（仓库外） |
+| `outputs/sessions/*.json` | 旧报告兼容读取 | 否（`.gitignore`，隐私） |
 | `data/eegmat/` | 公开 EDF 数据副本 | 本地 |
-| 浏览器 `localStorage` | 基线、钱包、签到、成就、装扮、天空/音乐/心率偏好 | 否 |
+| 浏览器 `localStorage` | 当前档案缓存、基线缓存、天空/音乐/心率偏好 | 否 |
 | `data/music_cookie.txt` | 可选音乐凭据 | 否（忽略） |
 
 ## 9. 失败模式与降级

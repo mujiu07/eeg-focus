@@ -2,7 +2,7 @@
 
 > 文档类型：Proposal + MVP PRD + Technical Design + AI Workflow（四合一，对应课程 Project Documentation Guidelines Part 1–4）
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 代码版本：v1.7.0（2026-11-27）
+> 代码版本：v1.8.1（2026-11-27）
 > 仓库：`eeg-focus/`（GitHub: `mujiu07/eeg-focus`）
 > 说明：本文件是评审入口；更细的架构、技术栈、隐私与硬件内容见 `docs/` 下对应文档。
 
@@ -93,7 +93,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 |---|---|---|
 | 校准时长 | 默认 40 s，可跟 60 s 视频，最长 600 s | `web/calibrate.html` |
 | 基线 | 校准期 focus 中位数（P50），另记 P10/P90 | `app/server.py` `/calibrate` |
-| 基线有效期 | 1 小时（`localStorage: bf-calib`） | `web/assets/api.js` |
+| 基线有效期 | 每日校准按档案写入 SQLite；前端 `bf-calib-*` 约 1 小时缓存 | `app/storage.py`、`web/assets/api.js` |
 | 专注判定 | 平滑后 45/38 分滞回；高于蓄力零点 42 分才蓄力 | `web/game.html`、`assets/focus-round.js` |
 | 宽容与衰减 | 低于阈值 1.5 s 内不掉进度，超过后按基准速度 30% 衰减至 0 | `assets/focus-round.js` |
 | 金色区域 | 每轮随机生成一次，进入后锁定脑电基础分 | `assets/focus-round.js` |
@@ -105,7 +105,8 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | 签到 | 每天 +2 积分，本机 0 点刷新 | `web/assets/checkin.js` |
 | 商城 | 装扮 5–18 积分；成就专属不售卖 | `web/assets/shop.js`、`dressup.js` |
 | 成就 | 4 组 15 枚：首次校准、单局 1/3/5/10 分钟、累计 30/60/150/300/600 分钟、连续 3/5/7/15/30 天 | `web/assets/achievements.js` |
-| 数据边界 | 脑电/报告/成长数据均在本机；仅可选音乐联网 | `docs/usage-and-privacy.md` §6 |
+| 档案 | 每个档案独立 `user_id`；校准/游戏/钱包/装扮/成就按档案隔离 | `app/storage.py`、`web/profiles.html` |
+| 数据边界 | 脑电/档案/报告均在本机系统文档目录 `专注小蛙/`；SQLite 未加密；仅可选音乐联网 | `docs/usage-and-privacy.md` §6、`docs/DEV-REPORT-v1.8.1.md` |
 
 ### 2.4 可测试的验收标准
 
@@ -123,6 +124,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | AC9 | 成就解锁只播一次，刷新后不重复播报 | 通过 | `bf-ach-pending` 清空验证 |
 | AC10 | 装扮/商城购买扣积分且刷新后保留 | 通过 | `bf-wallet` / `bf-owned` 验证 |
 | AC11 | Android/iOS 手机端不作为支持范围，布局不崩即可 | 部分通过 | 窄屏手动检查 |
+| AC12 | 多档案隔离：A 不能完成/读取 B 的 Session/报告/资产；重复结算不重复加积分；SQLite 重启持久化；备份可恢复（v1.8.1） | 通过 | `tests/selfcheck_v181.py`、`tests/selfcheck_ui_static.js` |
 | AC12 | 全站不加载外部静态资源；断网（除音乐）可玩 | 通过 | DevTools Network 检查 |
 
 > 未完成项：真实儿童用户的可用性测试、长时间连续使用稳定性、4 通道模型精度验证。
@@ -145,7 +147,7 @@ FastAPI（server.py）
    └─ music.py：网易云代理（可选）
    │
 outputs/models/*.joblib ← scripts/preprocess.py + train.py ← data/eegmat/
-outputs/sessions/*.json（本地报告）
+专注小蛙/profiles.db + reports/*.json（本地报告）
 ```
 
 完整图与 API 表见 `ARCHITECTURE.md`。
@@ -159,7 +161,7 @@ outputs/sessions/*.json（本地报告）
 | LogisticRegression（231 维） | 小样本、可解释、训练快 | 泛化有限；跨被试波动大（Subject02 仅 0.32） |
 | 频段回退 `β/(θ+α)` | 4/6 通道设备无需重训即可玩 | 只表达相对变化，不是临床分数 |
 | 基线=个人中位数 | 简单、可解释、家长能理解 | 受校准状态影响；1 小时有效期是折中 |
-| localStorage 成长系统 | 无账号、无上传、断网可用 | 换设备/清缓存即丢失；无跨端同步 |
+| SQLite 本地主存储 | 多档案隔离、可备份/迁移、断网可用；无新增依赖 | 无静态加密；需维护迁移/事务；同 OS 账户可读 |
 | 报告导出在本机 | 隐私；家长可直接拿走文件 | 依赖 reportlab/openpyxl/python-docx |
 | OSC 而非 LSL | Xmuse Direct 原生支持，Windows 部署简单 | 无科研级时间戳；后续可补 LSL |
 
@@ -174,28 +176,35 @@ outputs/sessions/*.json（本地报告）
 | `app/heart.py` | hrd/mock/csv 心率与融合 | `start/stop/status`、`snapshot()` |
 | `app/export.py` | 报告渲染为文件 | `render_pdf/xlsx/docx/csv/json` |
 | `web/assets/api.js` | REST/SSE 封装与自愈 | `API.get/post`、`openStream` |
-| `web/assets/wallet.js` | 积分账本 | `settleRound/add/spend` |
+| `app/storage.py` | SQLite/数据目录/备份/迁移 | `bootstrap/sync_state/backup/restore` |
+| `app/accounts.py` | 档案与存储 API | `/api/profiles/*`、`/api/storage/*` |
+| `web/profiles.html` | 档案选择与管理 | 新建/选择/编辑/删除/旧数据导入 |
+| `web/settings.html` | 数据目录/备份/隐私 | 状态、备份、恢复、迁移 |
+| `web/assets/profile-bridge.js` | 档案缓存与后端同步 | `getUser/select/syncNow` |
+| `web/assets/wallet.js` | 积分账本 | `settleRound/add/spend/replace` |
 | `web/assets/achievements.js` | 成就判定与播报队列 | `record*`、`pending` |
 | `web/assets/dressup.js` | 装扮数据、图鉴、穿戴 | `owned/equip`、`ITEMS` |
 
 ### 3.4 数据与状态
 
-**服务端（本机文件）：**
+**服务端（本机文件/数据库）：**
 
+- 系统文档目录 `专注小蛙/profiles.db`：档案、校准、游戏/逐轮、钱包、装扮、成就、设置、导入标记
+- 系统文档目录 `专注小蛙/reports/{id}.json`：会话报告可读副本；`sessions.report_json` 为主索引
+- 系统文档目录 `专注小蛙/backups/*.db`：一致性快照
 - `outputs/models/LogisticRegression.joblib`：模型
-- `outputs/sessions/{id}.json`：每局逐帧 focus、`focus_fused`、`score`、起跳事件、校准信息
+- `outputs/sessions/*.json`：旧报告兼容读取，新报告不再写这里
 - `outputs/train_report.md`：模型指标与逐被试准确率
 
-**浏览器（localStorage）：**
+**浏览器（localStorage，仅当前档案缓存/偏好）：**
 
 | 键 | 内容 | 是否可清 |
 |---|---|---|
-| `bf-calib` | 基线 + 时间戳（1 h） | 可，清后需重校 |
-| `bf-wallet` | 积分/局数/累计/消费 | 可，清后成长进度归零 |
-| `bf-checkin` | 签到日期 | 可 |
-| `bf-achievements` | 解锁状态、进度、时间 | 可 |
-| `bf-owned` / `bf-owned-at` / `bf-outfit` | 已购装扮、获得时间、穿戴 | 可 |
-| `bf-sky-mode` / `bf-music-*` / `bf-heart*` | 偏好与心率参数 | 可 |
+| `bf-active-user` / `bf-live-session` | 当前档案/进行中会话 | 可，但切换档案会被阻止 |
+| `bf-calib-*` | 基线缓存 | 可，服务端 `calibrations` 保留历史 |
+| `bf-wallet` / `bf-checkin` / `bf-achievements` / `bf-owned*` / `bf-outfit*` | 当前档案缓存 | 可，重新进入从 SQLite 恢复 |
+| `bf-sky-mode` / `bf-music-*` / `bf-pond-audio` / `bf-heart*` | 视觉、音频与心率参数 | 可 |
+| `bf-legacy-v181` | 旧数据已提示标记 | 可 |
 
 ### 3.5 测试与验证策略
 
@@ -220,7 +229,7 @@ outputs/sessions/*.json（本地报告）
 2. **保持零构建**：不引入 npm/打包器/前端框架；新增前端能力放进 `web/assets/`
 3. **隐私红线**：不新增任何把脑电、报告、成长数据发往外部的调用；唯一允许的公网访问是可选背景音乐
 4. **表述红线**：不写"诊断/治疗/提升注意力"等疗效表述；统一用"脑波分数（教学映射）"
-5. **本地数据**：新增持久化状态优先用 `localStorage`，并在 `usage-and-privacy.md` §6 登记键名
+5. **本地数据**：新增持久化状态优先写 SQLite（`app/storage.py`）；只有当前档案缓存/纯 UI 偏好才用 `localStorage`，并在 `usage-and-privacy.md` §6 登记键名
 6. **SSE 契约**：帧字段只增不改；分隔符兼容 `\r?\n\r?\n`
 7. **版本纪律**：行为变化要更新 `CHANGELOG.md` 与受影响文档；不静默改默认值（尤其 OSC 端口）
 
@@ -237,7 +246,7 @@ outputs/sessions/*.json（本地报告）
 | 运行服务 | `uvicorn app.server:app --host 127.0.0.1 --port 8000`；先确认端口未被占用 |
 | 无设备验证 | 首页 Konami 码进入开发者模式，选「无设备试玩 · 1 分钟」 |
 | 硬件联调 | 先跑 `scripts/xmuse_osc_probe.py`，再看校准页/开发者页 |
-| 报告验证 | 查看 `outputs/sessions/{id}.json` 的帧数、有效帧、起跳事件 |
+| 报告验证 | 查看 `profiles.db`/`reports/{id}.json` 的帧数、有效帧、逐轮事件 |
 | 导出验证 | 逐个格式下载并打开，检查中文与曲线 |
 | 隐私验证 | DevTools Network 确认无外部请求（音乐关闭时） |
 | 变更记录 | 提交信息写清版本与范围；`CHANGELOG` 与文档同步 |

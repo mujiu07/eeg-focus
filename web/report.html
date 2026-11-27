@@ -456,6 +456,7 @@
   </div>
 
   <script src="assets/api.js"></script>
+  <script src="assets/profile-bridge.js"></script>
   <script src="assets/achievements.js"></script>
   <script>
     const $ = id => document.getElementById(id);
@@ -1334,7 +1335,7 @@
       try {
         const res = await fetch("/api/report/" + encodeURIComponent(sid) + "/export/" + fmt, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: withUserHeader({ "Content-Type": "application/json" }),
           body: JSON.stringify({ parent_note: note }),
         });
         if (!res.ok) {
