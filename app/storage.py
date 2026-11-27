@@ -686,18 +686,57 @@ class StorageManager:
                     raise StorageError("恢复副本完整性检查失败")
             finally:
                 v.close()
-            for suffix in ("-wal", "-shm"):
+
+            # v1.9.1 根因修复：备份可能是旧 Schema（例如 v1.8.1 的 Schema 2）。
+            # 必须先在临时副本上完成迁移，再替换正式库；否则恢复成功后
+            # /api/profiles 会因缺少 difficulty_profiles/assessments 等表返回 500。
+            with self.lock:
+                original_db = self.db_path
+                self.db_path = tmp
                 try:
-                    Path(str(self.db_path) + suffix).unlink()
+                    self._migrate()
+                finally:
+                    self.db_path = original_db
+                v = sqlite3.connect(str(tmp))
+                try:
+                    if v.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                        raise StorageError("迁移后数据库完整性检查失败")
+                    v.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    required = {"users", "sessions", "difficulty_profiles", "assessments"}
+                    present = {r[0] for r in v.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+                    missing = required - present
+                    if missing:
+                        raise StorageError("恢复后缺少必要数据表：" + "、".join(sorted(missing)))
+                finally:
+                    v.close()
+                for suffix in ("-wal", "-shm"):
+                    try:
+                        Path(str(tmp) + suffix).unlink()
+                    except OSError:
+                        pass
+                for suffix in ("-wal", "-shm"):
+                    try:
+                        Path(str(self.db_path) + suffix).unlink()
+                    except OSError:
+                        pass
+                os.replace(tmp, self.db_path)
+            self._cleanup_empty_legacy()
+            return {"ok": True, "restored": name, "pre_restore_backup": pre["filename"],
+                    "schema_version": SCHEMA_VERSION}
+        except StorageError:
+            for suffix in ("", "-wal", "-shm"):
+                try:
+                    Path(str(tmp) + suffix).unlink()
                 except OSError:
                     pass
-            os.replace(tmp, self.db_path)
-            return {"ok": True, "restored": name, "pre_restore_backup": pre["filename"]}
-        except StorageError:
-            tmp.unlink(missing_ok=True)
             raise
         except Exception as exc:
-            tmp.unlink(missing_ok=True)
+            for suffix in ("", "-wal", "-shm"):
+                try:
+                    Path(str(tmp) + suffix).unlink()
+                except OSError:
+                    pass
             raise StorageError(f"恢复失败：{exc}") from exc
 
     def set_data_dir(self, raw: str, confirm: bool = False, migrate: bool = True) -> dict:

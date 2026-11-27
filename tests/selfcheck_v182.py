@@ -122,7 +122,7 @@ def main():
         "baseline": .5, "range": {"low": .3, "high": .7},
         "quantiles": {"q15": .3, "q50": .5, "q85": .7}, "n_frames": 240,
         "protocol_version": "daily_v2", "mapping_version": "map_v2",
-        "status": "ok", "calibration_date": "2026-11-27",
+        "status": "ok", "calibration_date": ce.local_date(int(time.time() * 1000), -480),
         "timezone_offset_min": -480, "device_key": "hardware|7000,8000|256|",
         "effective_sec": 60, "stages": {"natural": {"n": 120}, "tutorial": {"n": 120}},
     }, source={"name": "hardware", "osc_ports": "7000,8000", "osc_fs": 256})
@@ -133,7 +133,7 @@ def main():
         "baseline": .6, "range": {"low": .4, "high": .8},
         "quantiles": {"q15": .4, "q50": .6, "q85": .8}, "n_frames": 240,
         "protocol_version": "daily_v2", "mapping_version": "map_v2", "status": "ok",
-        "calibration_date": "2026-11-27", "timezone_offset_min": -480,
+        "calibration_date": ce.local_date(int(time.time() * 1000), -480), "timezone_offset_min": -480,
         "device_key": "hardware|7000,8000|256|", "effective_sec": 60,
     }, source={"name": "hardware", "osc_ports": "7000,8000", "osc_fs": 256})
     ref_after_daily = m.reference_baseline(u1["user_id"])

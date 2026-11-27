@@ -265,7 +265,8 @@ def build_fixture(root: Path) -> Dict[str, Any]:
         # 只清理明确的临时测试目录；调用方负责传入临时路径。
         shutil.rmtree(root)
     store = StorageManager(root)
-    now = _now_local().replace(microsecond=0)
+    # 固定在当天中午，避免测试在午夜前后运行时 7/30 天边界漂移。
+    now = _now_local().replace(hour=12, minute=0, second=0, microsecond=0)
     users = {}
     for key, nickname in (("A", "新朋友小芽"), ("B", "小满"), ("C", "小禾"),
                           ("D", "小石"), ("E", "小雨")):

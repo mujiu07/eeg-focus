@@ -7,6 +7,14 @@
 
 ---
 
+## v1.9.1（2026-11-28）
+
+- **紧急修复：恢复旧备份后的档案 500**：真实运行库恢复到 Schema 2 备份后，`/api/profiles` 因缺少 `difficulty_profiles` 表返回 500。`StorageManager.restore()` 原先只替换 `profiles.db`，没有重新执行 Schema 迁移；新版先在临时副本上完成迁移、完整性和必要表检查，再原子替换正式库，且保留恢复前一致性备份。
+- **真实异常**：`sqlite3.OperationalError: no such table: difficulty_profiles`，触发点为 `app/accounts.py` 的档案列表 → `storage.difficulty_profile()`；不是前端提示问题，也没有吞异常或返回空列表掩盖。
+- **真实数据检查**：修复前已创建并验证 `profiles-20261128-005348-before-v1.9.1-d4ec6d.db`（integrity ok，3 个档案、6 个 Session）；未删除真实库、未重初始化、未改数据目录。真实历史 Schema 2 备份作为回归输入复制到临时目录测试，不触碰真实文件。
+- **测试**：新增 `tests/selfcheck_v191.py`（12 项），覆盖旧 Schema 恢复、必要表/列补齐、`GET /api/profiles` 200、真实 v1.8.1 备份副本恢复、真实库副本创建/修改/选择/同步/成长读取；既有 v1.8.1–v1.9.0 回归全部通过。
+- **版本**：`app/server.py` 与静态 UI 契约同步到 `1.9.1`；本版本不新增功能、不修改游戏/算法/校准/计分。
+
 ## v1.9.0（2026-11-27）
 
 - **儿童成长日记**：新增 `web/growth.html`，展示累计游玩天数/时长、成功跳跃、历史游戏积分、最近 7 天、装扮、成就和成长纪念；只读取正式游戏，不展示脑电分数、复杂图表或儿童排行榜。

@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.9.0（2026-11-27）
+> 版本：v1.9.1（2026-11-28）
 > 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
