@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>脑电校准 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/ui.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <style>
     .calib-hero { text-align: center; padding: 22px 30px 10px; }
@@ -99,6 +100,11 @@
   <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
 
   <div class="wrap">
+    <div class="app-topbar">
+      <div class="app-topbar__left">
+        <a id="btn-home" class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+      </div>
+    </div>
     <div class="page-skybar">
       <span class="page-skybar-label">🎨 页面配色</span>
       <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
@@ -118,7 +124,6 @@
             <div class="slogan" id="calib-slogan">先跟着视频放松一会儿</div>
           </div>
         </div>
-        <a id="btn-home" class="btn btn-sm btn-ghost" href="index.html">返回首页</a>
       </div>
 
       <!-- 待校准 -->
@@ -374,6 +379,17 @@
       $("heart-select").disabled = false;
       startButton.focus();
     }
+
+    // 返回首页/开发者页前，正在校准必须确认；确认后立即关闭 SSE
+    // 并结束后台 Session，避免离开页面后仍保留监测连接。
+    $("btn-home").addEventListener("click", e => {
+      if (state.running && !confirm("校准还在进行。离开会结束本次未完成的校准，确定返回吗？")) {
+        e.preventDefault();
+        return;
+      }
+      leaving = true;
+      stopCalibration();
+    });
 
     window.addEventListener("pagehide", () => {
       leaving = true;

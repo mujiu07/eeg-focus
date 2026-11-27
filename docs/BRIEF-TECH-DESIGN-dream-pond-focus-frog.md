@@ -1,9 +1,9 @@
 # 专注小蛙 · 梦境池塘 — 简要技术设计（Brief Tech Design）
 
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 适用代码：`main` @ `v1.9.1`（成长中心/标准评估趋势/四格式报告 + 旧 Schema 恢复修复；历史基线 v1.8.4/v1.8.3/v1.8.2/v1.8.1/v1.7.0）
+> 适用代码：`main` @ `v1.9.2`（全站 UI 修复 + 成长中心/标准评估趋势/四格式报告 + 旧 Schema 恢复修复；历史基线 v1.8.4/v1.8.3/v1.8.2/v1.8.1/v1.7.0）
 > 说明：本文是**一页可读的技术设计摘要**，用于评审与新人上手；完整细节见 `ARCHITECTURE.md` / `tech-stack.md` / `DECISIONS-AND-VERIFICATION-dream-pond-focus-frog.md`。
-> 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.9.1`。
+> 版本元数据：`app/server.py` 的 FastAPI `version` 已同步为 `1.9.2`。
 
 ---
 

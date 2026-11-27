@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>专注小蛙 - 小青蛙陪你蹦蹦跳，专注力嗖嗖涨！</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/ui.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <link rel="stylesheet" href="assets/sky.css">
   <link rel="stylesheet" href="assets/achievements.css">
@@ -59,6 +60,7 @@
     .step .d { color: var(--ink-soft); font-size: 13.5px; margin-top: 5px; line-height: 1.6; }
     @media (max-width: 700px) { .steps { grid-template-columns: 1fr; } }
     .home-growth-nav { justify-content: center; margin-top: -2px; }
+    #settings-entry { color:#1e5d63; background:rgba(255,255,255,.9); border-color:rgba(58,167,160,.32); font-weight:900; }
     .home-growth-nav .growth-link { border: 0; cursor: pointer; font-family: inherit; }
     .home-growth-nav .growth-link--primary { color: #fff; }
 
@@ -159,19 +161,17 @@
       <!-- 右侧入口：签到居左，成就其次，商城居中，装扮占最右侧 -->
       <div class="hero-entries">
         <a class="btn btn-ghost" id="profile-entry" href="profiles.html" title="切换个人档案" style="padding:9px 13px;font-size:13px">👤 <span id="profile-entry-name">选择档案</span></a>
+        <a class="top-link" id="settings-entry" href="settings.html">⚙ 设置</a>
         <div id="checkin-entry" class="checkin-entry"></div>
         <div id="achievement-entry" class="ach-entry"></div>
         <div id="shop-entry" class="shop-entry"></div>
-        <div id="dressup-entry" class="dress-entry"></div>
       </div>
     </div>
 
     <nav class="growth-nav home-growth-nav" aria-label="主要功能">
-      <button type="button" class="growth-link growth-link--primary" onclick="document.getElementById('btn-start').click()">▶ 开始游戏</button>
       <button type="button" class="growth-link" onclick="window.DressUp && window.DressUp.open()">🎩 小蛙装扮</button>
       <a class="growth-link" href="growth.html">🌱 成长日记</a>
       <a class="growth-link" href="parent.html">👨‍👩‍👧 家长报告</a>
-      <a class="growth-link growth-link--ghost" href="settings.html">⚙ 设置</a>
     </nav>
 
     <!-- 英雄区 -->
@@ -415,10 +415,9 @@
       <div style="padding:14px 30px 26px;text-align:center">
         <div class="btn-row">
           <button id="btn-start" class="btn btn-primary">开始游戏</button>
-          <button id="btn-calib" class="btn btn-warm">进入脑电校准</button>
         </div>
         <p class="hint" id="calib-status" style="margin-top:14px;font-size:14px">
-          首次使用请先做一次 <strong>信号校准</strong>，系统会按你今天的状态设定专注线。
+          开始游戏时会按需引导 <strong>信号校准</strong>，系统会按你今天的状态设定专注线。
         </p>
       </div>
     </div>
@@ -630,10 +629,8 @@
     });
 
     btnStart.addEventListener("click", openDurationDialog);
-    document.getElementById("btn-calib").addEventListener("click", () => {
-      if (!ensureProfile("calibrate.html")) return;
-      location.href = "calibrate.html";
-    });
+    // 设备连接与每日校准由“开始游戏”流程按条件引导；
+    // 独立的重新校准仍保留在档案页和开发者页，避免首页重复入口。
     const developerKeys = [
       "ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown",
       "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a", "b", "a",

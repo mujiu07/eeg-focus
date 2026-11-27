@@ -2,7 +2,7 @@
 
 > 文档类型：Proposal + MVP PRD + Technical Design + AI Workflow（四合一，对应课程 Project Documentation Guidelines Part 1–4）
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 代码版本：v1.9.1（2026-11-28）
+> 代码版本：v1.9.2（2026-11-28）
 > 仓库：`eeg-focus/`（GitHub: `mujiu07/eeg-focus`）
 > 说明：本文件是评审入口；更细的架构、技术栈、隐私与硬件内容见 `docs/` 下对应文档。
 
@@ -288,6 +288,15 @@ outputs/models/*.joblib ← scripts/preprocess.py + train.py ← data/eegmat/
 - `StorageManager.restore()` 先在临时副本迁移并验证，再原子替换正式库；
 - 真实历史 Schema 2 备份使用副本回归，未触碰真实档案；12 项 v1.9.1 验收通过；
 - 详见 `docs/DEV-REPORT-v1.9.1.md`。
+
+## v1.9.2 全局 UI 修复
+
+- 侧栏折叠改用显式 `grid-template-areas`，四态不再把中央列挤到 0px；
+- 音乐控件在游戏页挂载到中央容器，非游戏中等宽度收缩为可展开小唱片；
+- 首页合并重复的开始游戏/装扮/设置/校准入口，开发者入口放入设置；
+- 所有独立页面顶部增加首页入口，游戏/校准离开确认并清理资源；
+- 新增 `web/assets/ui.css` 与 10 项静态、463 项真实浏览器 UI 检查；
+- 无 Schema/算法/计分变更；详见 `docs/DEV-REPORT-v1.9.2.md`、`docs/NAVIGATION-v1.9.2.md`。
 
 ## v1.9.0 个人成长中心
 

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>选择档案 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/ui.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <link rel="stylesheet" href="assets/sky.css">
   <style>
@@ -72,6 +73,14 @@
   <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
   <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
   <div class="wrap">
+    <div class="app-topbar">
+      <div class="app-topbar__left">
+        <a class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+      </div>
+      <div class="app-topbar__actions">
+        <a class="top-link" href="settings.html">⚙ 设置</a>
+      </div>
+    </div>
     <div class="card profiles-hero">
       <div class="logo-badge" style="margin:0 auto 10px;width:58px;height:58px;font-size:30px;display:grid;place-items:center">🐸</div>
       <h1>今天谁来陪小蛙玩？</h1>
@@ -85,7 +94,6 @@
       <div class="profile-footer">
         <button class="btn btn-primary" id="btn-new">＋ 新建档案</button>
         <a class="btn btn-ghost" href="calibrate.html?reason=daily">重新校准</a>
-        <a class="btn btn-ghost" href="settings.html">数据与隐私设置</a>
       </div>
       <div class="profile-note">
         档案只保存在当前设备的本地数据目录；不需要手机号、邮箱或真实姓名。<br>

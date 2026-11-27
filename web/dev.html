@@ -6,6 +6,7 @@
   <link rel="icon" href="data:,">
   <title>开发者模式 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/ui.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <style>
     .monitor-curve { height: 140px; display: block; border: 1.5px solid rgba(58,167,160,.18); }
@@ -42,6 +43,11 @@
   <div class="sky-veil sky-veil--night" aria-hidden="true"></div>
 
   <div class="wrap">
+    <div class="app-topbar">
+      <div class="app-topbar__left">
+        <a class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+      </div>
+    </div>
     <div class="page-skybar">
       <span class="page-skybar-label">🎨 页面配色</span>
       <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
@@ -430,6 +436,13 @@
       $("monitor-card").classList.add("hidden");
       btn.textContent = "开启实时监视";
     }
+
+    // 离开开发者页时关闭实时监视 SSE，并结束后台测试 Session，避免残留连接。
+    window.addEventListener("pagehide", () => {
+      const sid = watchSession;
+      stopWatch();
+      if (sid) API.endAbandonedSession(sid);
+    });
 
     function drawMonitor() {
       const c = $("monitor-canvas");

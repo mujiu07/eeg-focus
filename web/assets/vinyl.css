@@ -307,7 +307,7 @@
   .vinyl-player {
     position: relative;
     inset: auto;
-    z-index: auto;
+    z-index: 45;
     width: max-content;
     flex-shrink: 0;
     margin: 12px 18px 0 auto;
@@ -331,4 +331,70 @@
   .vinyl-expand[aria-expanded="false"] + .vinyl-controls { display: none; }
   /* 展开后同样固定宽度，切换歌曲不会改变白框大小 */
   .vinyl-controls { width: 220px; padding: 4px 14px 10px; }
+}
+
+/* v1.9.2：游戏页把唱片机放进中央容器，而不是 fixed 到窗口右上角。
+   这样右侧工作台、积分、计时器和蓄力条都不会被它覆盖。 */
+.game-music-host .vinyl-player {
+  position: relative;
+  inset: auto;
+  top: auto;
+  right: auto;
+  z-index: 1;
+  width: 250px;
+  max-width: 100%;
+  margin: 0;
+  flex: 0 0 auto;
+  transform-origin: top right;
+}
+@media (max-width: 1100px) {
+  .game-music-host .vinyl-player { width: max-content; }
+}
+
+/* v1.9.2：中等宽度（常见的 1280/1440 校屏）没有足够的右侧空白容纳
+   250px 唱片机。此处收缩为可展开的小唱片按钮，避免压住页面卡片；
+   展开面板仍保留完整播放、切歌、音量与动画。游戏页使用中央容器，
+   不受这一规则影响。 */
+@media (min-width: 1101px) and (max-width: 1519px) {
+  body:not(.game-page) .vinyl-player {
+    position: fixed;
+    inset: auto;
+    top: 12px;
+    right: 12px;
+    z-index: 45;
+    width: 48px;
+    padding: 2px;
+    margin: 0;
+    border-radius: 24px;
+  }
+  body:not(.game-page) .vinyl-expand {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: 0 auto;
+    border: 0;
+    border-radius: 22px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 22px;
+    cursor: pointer;
+  }
+  body:not(.game-page) .vinyl-expand:focus-visible { outline: 2px solid currentColor; }
+  body:not(.game-page) .vinyl-expand[aria-expanded="false"] + .vinyl-controls { display: none; }
+  body:not(.game-page) .vinyl-controls {
+    position: absolute;
+    top: 52px;
+    right: 0;
+    width: 236px;
+    padding: 5px 14px 10px;
+    border: 1px solid var(--card-border, rgba(255, 255, 255, .55));
+    border-radius: 18px;
+    background: var(--card, rgba(255, 255, 255, .92));
+    box-shadow: 0 12px 30px rgba(27, 57, 68, .18);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    z-index: 3;
+  }
 }

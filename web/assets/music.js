@@ -77,7 +77,15 @@
       // 展开/收起后可见宽度变了，通知播放器重新判断歌名是否需要滚动
       box.dispatchEvent(new CustomEvent("vinyl:resize"));
     });
-    document.body.prepend(box);
+    // v1.9.2：游戏页提供中央容器挂载点，避免 fixed 唱片机覆盖右侧工作台。
+    // 其他页面没有挂载点时仍沿用原来的窗口右上角位置。
+    const host = document.querySelector("[data-music-host]");
+    if (host) {
+      box.classList.add("vinyl-player--hosted");
+      host.appendChild(box);
+    } else {
+      document.body.prepend(box);
+    }
     return box;
   }
 

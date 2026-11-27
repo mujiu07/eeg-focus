@@ -233,8 +233,17 @@
       if (btn) {
         btn.setAttribute("aria-pressed", String(visible));
         btn.textContent = visible ? (side === "left" ? "隐藏波形" : "隐藏算法") : (side === "left" ? "显示波形" : "显示算法");
+        btn.title = visible
+          ? (side === "left" ? "隐藏波形面板（监测继续）" : "隐藏开发者工作台（监测继续）")
+          : (side === "left" ? "重新显示波形面板" : "重新显示开发者工作台");
       }
       this.draw();
+      // 侧栏显隐改变的是 CSS Grid 列宽，canvas 自身不会收到 resize；
+      // 等下一帧布局完成后再通知游戏页重算画布与指针映射。
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("resize"));
+        this.draw();
+      });
     }
 
     _setSourceBadge() {

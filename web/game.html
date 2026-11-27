@@ -6,11 +6,12 @@
   <link rel="icon" href="data:,">
   <title>专注小蛙 - 游戏</title>
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/ui.css">
   <link rel="stylesheet" href="assets/vinyl.css">
   <link rel="stylesheet" href="assets/eeg-monitor.css">
   <link rel="stylesheet" href="assets/achievement-cinematic.css">
   <style>
-    .canvas-wrap { position: relative; width: 100%; max-width: 900px; }
+    .canvas-wrap { position: relative; width: 100%; max-width: 1120px; }
     #game-canvas {
       display: block; width: 100%; height: auto;
       /* 首帧绘制前先铺一层与当前天空模式一致的底色，避免白天/黑夜闪一下 */
@@ -420,7 +421,7 @@
     }).catch(() => {});
   </script>
 </head>
-<body>
+<body class="game-page">
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="sky-veil sky-veil--dawn" aria-hidden="true"></div>
   <div class="sky-veil sky-veil--dusk" aria-hidden="true"></div>
@@ -428,6 +429,9 @@
 
   <div class="wrap">
     <div class="page-skybar">
+      <button type="button" class="home-link home-link--compact" id="btn-game-home" aria-label="返回首页">
+        <span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span>
+      </button>
       <span class="page-skybar-label">🎨 页面配色</span>
       <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
         <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
@@ -446,7 +450,7 @@
       <aside class="monitor-panel monitor-left" id="monitor-left" aria-label="实时脑电波形" aria-hidden="true">
         <div class="mon-head">
           <div><span class="mon-kicker">EEG / LIVE</span><strong>实时脑电</strong></div>
-          <button type="button" class="mon-icon" id="monitor-hide-left" title="收起波形面板" aria-label="收起波形面板">‹</button>
+          <button type="button" class="mon-icon" id="monitor-hide-left" title="隐藏波形面板（不停止监测）" aria-label="隐藏波形面板，不停止监测">‹</button>
         </div>
         <div class="mon-meta">
           <span id="mon-source-label">—</span>
@@ -468,7 +472,7 @@
           <label class="mon-control">增益
             <input id="mon-gain" type="range" min="0.5" max="3" step="0.1" value="1" aria-label="波形振幅缩放">
           </label>
-          <button type="button" class="mon-small-btn" id="mon-pause-wave">暂停</button>
+          <button type="button" class="mon-small-btn" id="mon-pause-wave" title="暂停波形绘制（监测继续）" aria-label="暂停波形绘制，监测继续">暂停</button>
         </div>
         <div class="mon-wave-wrap">
           <canvas id="mon-wave-canvas" aria-label="多通道脑电波形"></canvas>
@@ -479,6 +483,9 @@
       </aside>
 
       <main class="game-main">
+    <div class="game-media-row">
+      <div class="game-music-host" data-music-host aria-label="背景音乐"></div>
+    </div>
     <div class="assessment-banner hidden" id="assessment-banner" role="status" aria-live="polite">
       <span>标准评估 · <b id="assessment-banner-title">固定难度 1.00</b> <small id="assessment-banner-note">90 秒 · 不发放商城积分</small></span>
       <small id="assessment-banner-id">—</small>
@@ -595,7 +602,7 @@
       <aside class="monitor-panel monitor-right" id="monitor-right" aria-label="开发者工作台" aria-hidden="true">
         <div class="mon-head">
           <div><span class="mon-kicker">DEV / WORKBENCH</span><strong>开发者工作台</strong></div>
-          <button type="button" class="mon-icon" id="monitor-hide-right" title="收起工作台" aria-label="收起工作台">›</button>
+          <button type="button" class="mon-icon" id="monitor-hide-right" title="隐藏开发者工作台（不停止监测）" aria-label="隐藏开发者工作台，不停止监测">›</button>
         </div>
 
         <div class="dw-tabs" id="dw-tabs" role="tablist" aria-label="工作台面板">
@@ -2316,10 +2323,29 @@
       }
     }
 
-    $("btn-quit").addEventListener("click", () => {
+    function leaveGame(destination) {
+      if (state.saving) {
+        toast("正在保存本局结果，请稍候");
+        return;
+      }
+      const active = !!state.session;
+      const target = destination === "index.html" ? "返回首页" : "返回开发者工作台";
+      if (active && !confirm(`本局还在进行。离开会结束当前状态，不会保存未完成的成绩，确定${target}吗？`)) return;
+      state.leaving = true;
+      state.es?.close();
+      monitor?.stop();
+      workbench?.destroy?.();
+      AchievementCinematic?.stop?.();
+      if (state.session) {
+        API.endAbandonedSession(state.session.id);
+        state.session = null;
+      }
       Profile.clearGame();
-      location.href = developerRun ? "dev.html" : "index.html";
-    });
+      location.href = destination;
+    }
+
+    $("btn-game-home").addEventListener("click", () => leaveGame("index.html"));
+    $("btn-quit").addEventListener("click", () => leaveGame(developerRun ? "dev.html" : "index.html"));
     window.addEventListener("pagehide", () => {
       state.leaving = true;
       state.es?.close();

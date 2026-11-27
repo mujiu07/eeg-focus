@@ -1,0 +1,247 @@
+/* ============================================================
+   专注小蛙 · 全站 UI 规范 v1.9.2
+   - 顶部首页入口 / 页面操作区
+   - 按钮、标签页、图标按钮的统一居中与尺寸
+   - 空状态 / 错误 / 加载状态的公共外观
+   只做界面一致性，不改变业务逻辑与脑电算法。
+   ============================================================ */
+
+:root {
+  --ui-control-height: 42px;
+  --ui-control-radius: 999px;
+  --ui-control-border: rgba(58, 167, 160, .24);
+  --ui-control-bg: rgba(255, 255, 255, .88);
+  --ui-control-shadow: 0 5px 14px rgba(47, 110, 128, .10);
+  --ui-focus: 0 0 0 4px rgba(58, 167, 160, .18);
+}
+
+/* 顶部横向栏：首页总是在左，页面级动作在右 */
+.app-topbar {
+  position: relative;
+  z-index: 20;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+}
+
+.app-topbar__left,
+.app-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.app-topbar__spacer { flex: 1 1 20px; }
+
+/* 全站统一的“首页”入口：房子图标 + 文字，位置由各页顶部栏决定 */
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 15px;
+  border: 1px solid var(--ui-control-border);
+  border-radius: var(--ui-control-radius);
+  background: var(--ui-control-bg);
+  color: var(--accent-dark);
+  box-shadow: var(--ui-control-shadow);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .2px;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.home-link:hover {
+  transform: translateY(-1px);
+  background: #fff;
+  border-color: rgba(58, 167, 160, .45);
+  box-shadow: 0 8px 18px rgba(47, 110, 128, .14);
+}
+
+.home-link:active { transform: translateY(0) scale(.98); }
+.home-link:focus-visible { outline: none; box-shadow: var(--ui-focus), var(--ui-control-shadow); }
+.home-link__icon { font-size: 16px; line-height: 1; }
+.home-link--compact { padding: 7px 12px; min-height: 36px; font-size: 13px; }
+
+/* 页面顶部的轻量操作胶囊（设置、档案切换等） */
+.top-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid rgba(58, 167, 160, .18);
+  border-radius: var(--ui-control-radius);
+  background: rgba(255, 255, 255, .72);
+  color: var(--accent-dark);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+}
+.top-link:hover { transform: translateY(-1px); background: #fff; border-color: rgba(58, 167, 160, .4); }
+.top-link:focus-visible { outline: none; box-shadow: var(--ui-focus); }
+
+/* ------------------------------------------------------------
+   按钮基类补齐：
+   原 .btn 只有 padding/字体，没有内部对齐规则；链接按钮、多行
+   按钮与图标按钮因此在不同页面出现垂直偏移。这里统一用
+   inline-flex 做水平/垂直居中，不改变业务按钮的尺寸与颜色。
+   ------------------------------------------------------------ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45em;
+  max-width: 100%;
+  min-height: var(--ui-control-height);
+  text-align: center;
+  line-height: 1.25;
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.btn-row { align-items: center; }
+.btn-row > .btn { flex: 0 1 auto; }
+.btn:focus-visible { outline: none; box-shadow: var(--ui-focus), 0 10px 26px rgba(58, 167, 160, .22); }
+.btn:disabled,
+.btn[aria-disabled="true"] { transform: none; }
+
+/* 现有页面中的胶囊链接与微型控件 */
+.growth-link,
+.mon-small-btn,
+.mon-icon,
+.mon-tabs button,
+.dw-tabs button,
+.mon-event-filter button,
+.mon-channel,
+.mon-band-legend button,
+.profile-actions button,
+.detail-actions button {
+  text-align: center;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.growth-link,
+.mon-small-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35em;
+}
+
+.mon-icon,
+.mon-tabs button,
+.dw-tabs button,
+.mon-event-filter button,
+.mon-channel,
+.mon-band-legend button,
+.profile-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 标签页/筛选条：文字不能因选中态变粗而改变宽度 */
+.mon-tabs button,
+.dw-tabs button,
+.mon-event-filter button { box-sizing: border-box; }
+
+/* 危险操作：保留语义色，不靠单个页面的临时 margin 修正 */
+.btn-danger,
+.btn.danger {
+  color: #fff;
+  background: linear-gradient(135deg, #e47768, #bd5149);
+  box-shadow: 0 8px 20px rgba(189, 81, 73, .25);
+}
+.btn-danger:hover,
+.btn.danger:hover { filter: brightness(1.02); }
+
+/* 图标按钮的通用尺寸（页面可继续使用自己的尺寸类） */
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--ui-control-border);
+  border-radius: 10px;
+  background: var(--ui-control-bg);
+  color: var(--accent-dark);
+  cursor: pointer;
+}
+.icon-button:focus-visible { outline: none; box-shadow: var(--ui-focus); }
+
+/* 公共状态：加载 / 空 / 错误 */
+.ui-state {
+  width: 100%;
+  padding: 22px 18px;
+  border: 1px dashed rgba(58, 167, 160, .22);
+  border-radius: var(--radius-md, 18px);
+  background: rgba(255, 255, 255, .55);
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  line-height: 1.7;
+  text-align: center;
+}
+.ui-state--error { color: #b45549; border-color: rgba(189, 81, 73, .28); background: rgba(255, 246, 243, .72); }
+.ui-state strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 15px; }
+.ui-loading { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.ui-loading::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(58, 167, 160, .2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ui-spin .75s linear infinite;
+}
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+
+/* 公共内容宽度/标题，供后续页面复用；不强制已有页面迁移 */
+.ui-page { width: 100%; max-width: 1180px; margin: 0 auto; padding: 24px 22px 64px; }
+.ui-page__title { font-size: clamp(24px, 3vw, 34px); line-height: 1.2; letter-spacing: .5px; }
+.ui-page__sub { margin-top: 6px; color: var(--ink-soft); font-size: 14px; line-height: 1.6; }
+
+/* 小屏下统一给顶部入口留足换行空间 */
+@media (max-width: 760px) {
+  .app-topbar { align-items: stretch; }
+  .app-topbar__left,
+  .app-topbar__actions { width: 100%; }
+  .home-link { min-height: 38px; }
+  .btn { padding-left: 22px; padding-right: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-link, .top-link, .btn { transition: none; }
+  .ui-loading::before { animation-duration: .01ms; }
+}
+
+/* 游戏页的中央音乐行：只占中央列，不覆盖两侧工作台 */
+.game-media-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  min-height: 0;
+}
+.game-media-row:empty { display: none; }

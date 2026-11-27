@@ -25,13 +25,16 @@ html.monitor-mode .monitor-toggles {
 }
 html.monitor-mode .game-layout {
   display: grid;
+  grid-template-areas: "left main right";
   grid-template-columns: var(--mon-left, 310px) minmax(420px, 900px) var(--mon-right, 360px);
   gap: 16px;
   align-items: start;
   justify-content: center;
 }
-html.monitor-mode .game-layout.left-off { --mon-left: 0px; }
-html.monitor-mode .game-layout.right-off { --mon-right: 0px; }
+html.monitor-mode .monitor-left { grid-area: left; }
+html.monitor-mode .game-main { grid-area: main; width: 100%; }
+html.monitor-mode .monitor-right { grid-area: right; }
+/* 隐藏项必须同时退出布局；具体列模板由文件底部的 grid-area 规则重建。 */
 html.monitor-mode .game-layout.left-off .monitor-left,
 html.monitor-mode .game-layout.right-off .monitor-right { display: none; }
 .game-main {
@@ -195,9 +198,6 @@ html.monitor-mode .monitor-panel { display: flex; flex-direction: column; gap: 1
   .mon-band-row { grid-template-columns: 82px 1fr 40px; }
 }
 
-/* 折叠规则必须放在响应式变量之后，否则窄屏媒体查询会重新撑开列宽 */
-html.monitor-mode .game-layout.left-off { --mon-left: 0px; }
-html.monitor-mode .game-layout.right-off { --mon-right: 0px; }
 
 /* v1.8.4 开发者工作台标签页与诊断面板 */
 .dw-tabs {
@@ -261,3 +261,39 @@ html.monitor-mode .game-layout.right-off { --mon-right: 0px; }
 .dw-tag.warn { background: rgba(240,194,126,.12); color: #f0c27e; }
 .mon-line-key.daily::before { background: #8fe3d0; }
 .mon-line-key.reference::before { background: #c49bea; }
+
+
+/* ------------------------------------------------------------
+   v1.9.2 侧栏折叠：用明确的 grid-area 重新排版。
+   v1.9.1 之前只把隐藏列宽设为 0，隐藏项不参与自动排布后中央主列
+   会掉进 0px 的第一列，画布被压成 6px；这里改为：
+   - 左隐藏：主列 + 右栏
+   - 右隐藏：左栏 + 主列
+   - 两侧隐藏：主列独占
+   ------------------------------------------------------------ */
+@media (min-width: 1221px) {
+  html.monitor-mode .game-layout.left-off {
+    grid-template-areas: "main right";
+    grid-template-columns: minmax(420px, 1fr) var(--mon-right, 360px);
+  }
+  html.monitor-mode .game-layout.right-off {
+    grid-template-areas: "left main";
+    grid-template-columns: var(--mon-left, 310px) minmax(420px, 1fr);
+  }
+  html.monitor-mode .game-layout.left-off.right-off {
+    grid-template-areas: "main";
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1220px) {
+  html.monitor-mode .game-layout {
+    grid-template-areas: "main" "left" "right";
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+  }
+  html.monitor-mode .game-layout.left-off { grid-template-areas: "main" "right"; }
+  html.monitor-mode .game-layout.right-off { grid-template-areas: "main" "left"; }
+  html.monitor-mode .game-layout.left-off.right-off { grid-template-areas: "main"; }
+  html.monitor-mode .monitor-panel { position: relative; top: auto; max-height: none; }
+}
