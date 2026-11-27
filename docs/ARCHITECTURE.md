@@ -1,6 +1,6 @@
 # 专注小蛙 · 梦境池塘 — 架构设计
 
-> 版本：v1.8.3（2026-11-27）
+> 版本：v1.8.4（2026-11-27）
 > 适用代码：`eeg-focus/`（`app/` + `web/`）
 > 定位：本地运行的脑电专注游戏 MVP，教学演示用途，不构成注意力评估或医疗诊断。
 
@@ -29,6 +29,8 @@
 │  storage.py     SQLite、数据目录、档案/校准/游戏/资产/备份/迁移  │
 │  calibration.py 每日校准配置、分位、阶段统计、日状态               │
 │  difficulty.py  v1.8.3 难度范围、净蓄力指标、连续判定              │
+│  diagnostics.py v1.8.4 过程统计、瓶颈诊断、客户端边界校验          │
+│  dev_export.py  v1.8.4 脱敏 JSON/CSV 诊断导出                     │
 │  accounts.py    档案/校准状态/参考基线/难度控制/存储 API           │
 │  sources.py     信号源：replay · manual · hardware · heart       │
 │  xmuse_osc.py   Xmuse OSC/UDP 多端口接收（2 s 出窗）            │
@@ -121,8 +123,9 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 - 每日校准写入 `calibrations`（按 `user_id`、日期、来源、设备、协议追加，不覆盖历史）；`reference_baselines` 保存首个有效硬件校准建立的 v1 及显式版本化长期参考；每日校准不覆盖长期参考。前端 `bf-calib-*` 只是同一天/同设备缓存，服务端在开局时重新校验并锁定量程。
 - 校准失败（无有效帧 / 信号中断）会给出明确提示，不会写入伪基线。
 - v1.8.3 难度只调整黄色区域起点，默认 1.00、范围 0.60–1.20；Session 创建时锁定，局内不变；详细规则见 `docs/DEV-REPORT-v1.8.3.md`。
+- v1.8.4 在同一 Session 上增加开发者工作台：概览、双基线、难度历史、瓶颈诊断、标准评估/导出。诊断和评估只读现有状态机，不自动改蓄力/计分/难度公式；详细规则见 `docs/DEV-REPORT-v1.8.4.md`。
 
-## 5. API 一览（v1.8.3）
+## 5. API 一览（v1.8.4）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -136,6 +139,12 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 | GET | `/api/profiles/{id}/difficulty` | 个人难度档、最近指标/历史 |
 | POST | `/api/profiles/{id}/difficulty` | 自动开关/手动锁定/恢复 1.00（下一局生效） |
 | GET | `/api/dev/info` | 引擎信息、训练报告、EDF 文件列表、会话 |
+| GET | `/api/dev/workbench` | 工作台运行时、校准/参考、难度、评估、最近报告 |
+| GET | `/api/dev/diagnostics/{sid}` | 已完成 Session 诊断与过程统计 |
+| POST | `/api/dev/diagnostics/{sid}/export?fmt=json\|csv` | 写本地 reports 并返回导出内容 |
+| POST | `/api/assessments` | 创建 90s 固定难度标准评估 Session |
+| GET | `/api/assessments` | 按用户列出评估 |
+| GET | `/api/assessments/{id}` | 读取评估与报告 |
 | GET | `/api/dev/current` | 当前信号源配置与最近会话 |
 | POST | `/api/dev/source` | 切换全局默认信号源（含 OSC 参数） |
 | POST | `/api/session` | 创建会话 `{mode, purpose, file, baseline, osc_*, heart_*}`；硬件 `purpose=game` 需当日校准，否则 409 |
@@ -151,6 +160,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 | GET | `/api/music/playlist` | 背景音乐歌单（网易云代理） |
 | GET | `/api/music/url/{track_id}` | 单曲播放直链（服务端缓存） |
 
+> v1.8.4 起，`/api/session` 仍负责日常游戏；`/api/assessments` 强制 `purpose=assessment`，固定 1.00/90s 并写独立 `assessments` 表；工作台与导出 API 只在本地开发者页面使用。
 > v1.4.16 起，`hardware` 会话的 SSE `frame` 新增可选字段 `artifact`（信号质量报告，字段见 `docs/denoise-artifacts.md` §5）；
 > `valid=false, reason="artifact"` 表示该窗伪迹过重、不出分且不入 history；`/calibrate` 与 `finish` 的结果新增 `signal_quality`。
 > v1.8.2 起 `/calibrate` 请求增加 `protocol=daily_v2, stage_windows, tutorial_events, device_key, timezone_offset_min`；`stream`/`monitor` 增加 `calibration_id`、`reference_baseline_id`、`daily_score`、`reference_score`。
@@ -162,6 +172,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 - SSE 端点从队列取帧；校准端点按时间窗口从历史列表聚合
 - 报告快照写入 `sessions.report_json`，并写数据目录 `reports/{id}.json`；同时保留逐轮记录、`focus/focus_fused/score/S_daily/S_reference` 与起跳事件。Session 完成 900 秒后回收内存数组，报告仍从 SQLite 读取。正式游戏创建时锁定校准/参考/难度快照，游戏内禁止重校
 - v1.8.3 只在 Session 创建时读取个人 `difficulty_factor` 并锁定黄色区域起点范围；单轮新增 `eval_sec`（排除冷却/断流/暂停/子弹时间/跳跃动画）与未完成轮次快照；结束后才按连续判定更新下一局，不参与实时计分
+- v1.8.4 在报告层增加 `charge_process`、`diagnostics`、`data_quality`；`purpose=assessment` 的 Session 使用独立评估表，不写个人难度/钱包/成就；过程字段由客户端状态机上报，服务端只做边界与一致性检查
 - 硬件/仅心率会话互斥：新建硬件会话会自动结束旧的未完成硬件会话，避免 UDP 端口争抢；会话结束释放端口与采集进程
 
 ## 7. 关键权衡（MVP 演示定位）
@@ -169,7 +180,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 1. **真实数据回放 + 真机双通道**：无硬件时可回放本机配对 EDF 复现端到端"校准→游戏→报告"；hardware 源已通过 Xmuse OSC/UDP 真机接入
 2. **单被试基线**：模型对陌生被试仍有区分度（LOSO 验证），但演示时建议校准/游戏用同一被试
 3. **数据隐私**：脑电与档案默认全程本地，无联网账号、无上传；数据目录在系统文档目录，SQLite 未加密（文件权限/OS 账户/磁盘加密为边界）；仅可选背景音乐访问网易云。详见 `docs/DEV-REPORT-v1.8.1.md`、`docs/DEV-REPORT-v1.8.2.md` 与 `docs/DEV-REPORT-v1.8.3.md`
-4. **前端零构建**：无需 Node/npm，静态托管即可；7 个页面共用一套 `assets/`；v1.8.3 难度卡片在开发者页，儿童端不增加难度数字
+4. **前端零构建**：无需 Node/npm，静态托管即可；7 个页面共用一套 `assets/`；v1.8.4 工作台在开发者模式右栏标签页，儿童端不创建监测或工作台
 5. **成长系统本地化**：积分、签到、商城、装扮、成就都不依赖服务端，断网也能完整使用；清缓存会重置成长进度，需在隐私说明中明示
 
 ## 8. 扩展路径
@@ -178,7 +189,7 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 - 多孩子账号：基线/进度按 profile 分文件保存
 - 家长周报：跨会话聚合专注曲线与基线变化趋势
 - 试验设计：不同被试/场景下校准-游戏基线的稳定性评估
-- 自适应难度：v1.8.3 只调黄色区域起点；v1.8.4 可扩展独立操作难度/完整面板，但不能把累计积分当训练效果
+- 自适应难度：v1.8.3 只调黄色区域起点；v1.8.4 已整合观察/诊断/评估入口，但不实现自动蓄力速度/点击窗口适配，也不能把累计积分当训练效果
 
 ## 9. 画面动效约定（避免闪烁）
 
@@ -211,3 +222,4 @@ v1.8.1 起，个人档案、校准、游戏/逐轮记录、钱包、装扮、成
 | v1.8.1 | 本机 SQLite 主存储与多用户档案：数据目录/迁移/备份恢复、后端用户归属、钱包幂等、旧报告/旧 LocalStorage 迁移、Session 900 s 回收 |
 | v1.8.2 | 每日游戏化校准：自然观察 + 教学阶段、P15/P85、当日/长期双基线、每日状态/设备指纹、正式游戏锁定、Schema v2 原地迁移 |
 | v1.8.3 | 个体自适应难度：局内锁定黄色区域起点、净蓄力 `eval_sec`、未完成轮次、连续局间判定、Schema v3、开发者基础控制 |
+| v1.8.4 | 开发者工作台整合：五标签页、双基线历史、9 类瓶颈诊断、过程统计、标准评估、脱敏导出、Schema v4 |

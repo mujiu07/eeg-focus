@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>专注小蛙 - 游戏</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
@@ -19,6 +20,16 @@
     }
     /* 儿童端只显示积分与状态；实时脑电分/蓄力百分比仅在开发者模式显示 */
     html:not(.debug-hud) .debug-only { display: none !important; }
+    .assessment-banner {
+      width: min(100%, 900px); padding: 10px 16px; border-radius: 12px;
+      display: flex; gap: 10px; align-items: center; justify-content: space-between;
+      background: #172b31; color: #e6f7f3; border: 1px solid rgba(143,227,208,.45);
+      font-size: 13px; font-weight: 700;
+    }
+    .assessment-banner.hidden { display: none; }
+    .assessment-banner b { color: #8fe3d0; }
+    .assessment-banner small { color: #9abfc1; font-weight: 600; }
+    @media (max-width: 620px) { .assessment-banner { align-items: flex-start; flex-direction: column; } }
     .hud { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
     .hud-item {
       display: inline-flex; align-items: center; gap: 10px;
@@ -468,6 +479,10 @@
       </aside>
 
       <main class="game-main">
+    <div class="assessment-banner hidden" id="assessment-banner" role="status" aria-live="polite">
+      <span>标准评估 · <b id="assessment-banner-title">固定难度 1.00</b> <small id="assessment-banner-note">90 秒 · 不发放商城积分</small></span>
+      <small id="assessment-banner-id">—</small>
+    </div>
     <div class="card" style="padding:16px 22px">
       <div class="hud">
         <span class="hud-item" id="lamp"><span class="lamp-dot"></span><span id="lamp-text">专注中</span></span>
@@ -577,57 +592,155 @@
     </div>
       </main>
 
-      <aside class="monitor-panel monitor-right" id="monitor-right" aria-label="脑电频段与算法监测" aria-hidden="true">
+      <aside class="monitor-panel monitor-right" id="monitor-right" aria-label="开发者工作台" aria-hidden="true">
         <div class="mon-head">
-          <div><span class="mon-kicker">SIGNAL / ALGORITHM</span><strong>频段与算法</strong></div>
-          <button type="button" class="mon-icon" id="monitor-hide-right" title="收起算法面板" aria-label="收起算法面板">›</button>
+          <div><span class="mon-kicker">DEV / WORKBENCH</span><strong>开发者工作台</strong></div>
+          <button type="button" class="mon-icon" id="monitor-hide-right" title="收起工作台" aria-label="收起工作台">›</button>
         </div>
 
-        <section class="mon-section">
-          <div class="mon-section-head"><h3>频段功率</h3><span id="mon-band-note">相对功率</span></div>
-          <div class="mon-bands" id="mon-bands"></div>
-          <details class="mon-details" id="mon-band-history">
-            <summary>最近 30 秒趋势</summary>
-            <canvas id="mon-band-canvas" aria-label="频段相对功率历史"></canvas>
-            <div class="mon-band-legend" id="mon-band-legend"></div>
-          </details>
-        </section>
+        <div class="dw-tabs" id="dw-tabs" role="tablist" aria-label="工作台面板">
+          <button type="button" data-dw-tab="overview" class="active" role="tab" aria-selected="true">概览</button>
+          <button type="button" data-dw-tab="baseline" role="tab" aria-selected="false">基线</button>
+          <button type="button" data-dw-tab="difficulty" role="tab" aria-selected="false">难度</button>
+          <button type="button" data-dw-tab="diagnostics" role="tab" aria-selected="false">诊断</button>
+          <button type="button" data-dw-tab="assessment" role="tab" aria-selected="false">评估/导出</button>
+        </div>
 
-        <section class="mon-section">
-          <div class="mon-section-head"><h3>算法监测</h3><span id="mon-algo-mode">—</span></div>
-          <dl class="mon-algo" id="mon-algo"></dl>
-        </section>
-
-        <section class="mon-section">
-          <div class="mon-section-head"><h3>游戏驱动分数</h3><span>最近 30 s</span></div>
-          <div class="mon-score-wrap">
-            <canvas id="mon-score-canvas" aria-label="游戏驱动分数曲线"></canvas>
-            <div class="mon-tip" id="mon-score-tip" role="tooltip"></div>
+        <div class="dw-panes" id="dw-panes">
+          <div class="dw-pane" data-dw-pane="overview" role="tabpanel">
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>频段功率</h3><span id="mon-band-note">相对功率</span></div>
+              <div class="mon-bands" id="mon-bands"></div>
+              <details class="mon-details" id="mon-band-history">
+                <summary>最近 30 秒趋势</summary>
+                <canvas id="mon-band-canvas" aria-label="频段相对功率历史"></canvas>
+                <div class="mon-band-legend" id="mon-band-legend"></div>
+              </details>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>算法监测</h3><span id="mon-algo-mode">—</span></div>
+              <dl class="mon-algo" id="mon-algo"></dl>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>运行状态</h3><span id="mon-status-fresh">—</span></div>
+              <div class="mon-status" id="mon-status"></div>
+            </section>
+            <section class="mon-section mon-events-section">
+              <div class="mon-section-head">
+                <h3>游戏事件</h3>
+                <div class="mon-event-filter" role="group" aria-label="事件筛选">
+                  <button type="button" data-event-filter="all" class="active">全部</button>
+                  <button type="button" data-event-filter="game">游戏</button>
+                  <button type="button" data-event-filter="signal">信号</button>
+                </div>
+              </div>
+              <ol class="mon-events" id="mon-events"></ol>
+            </section>
+            <div class="dw-runtime" id="dw-runtime"></div>
           </div>
-          <div class="mon-chart-legend">
-            <span class="mon-line-key raw">平滑前</span>
-            <span class="mon-line-key smooth">平滑后</span>
-            <span class="mon-line-key event">事件</span>
-            <span class="mon-line-key gap">信号异常</span>
-          </div>
-        </section>
 
-        <section class="mon-section">
-          <div class="mon-section-head"><h3>运行状态</h3><span id="mon-status-fresh">—</span></div>
-          <div class="mon-status" id="mon-status"></div>
-        </section>
-
-        <section class="mon-section mon-events-section">
-          <div class="mon-section-head">
-            <h3>游戏事件</h3>
-            <div class="mon-event-filter" role="group" aria-label="事件筛选">
-              <button type="button" data-event-filter="all" class="active">全部</button>
-              <button type="button" data-event-filter="game">游戏</button>
-              <button type="button" data-event-filter="signal">信号</button>
-            </div>
+          <div class="dw-pane hidden" data-dw-pane="baseline" role="tabpanel">
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>双基线趋势</h3><span id="dw-baseline-note">同一算法输出 · 不插值</span></div>
+              <div class="mon-score-wrap">
+                <canvas id="mon-baseline-canvas" aria-label="当日与长期参考双基线曲线"></canvas>
+                <div class="mon-tip" id="mon-baseline-tip" role="tooltip"></div>
+              </div>
+              <div class="mon-chart-legend">
+                <span class="mon-line-key daily">S_daily</span>
+                <span class="mon-line-key reference">S_reference</span>
+                <span class="mon-line-key gap">无效信号区间</span>
+              </div>
+              <div class="dw-summary" id="dw-baseline-summary"></div>
+              <details class="mon-details" id="dw-score-details">
+                <summary>原始 / 平滑游戏分数（同一算法输出）</summary>
+                <div class="mon-score-wrap">
+                  <canvas id="mon-score-canvas" aria-label="平滑前与平滑后的游戏驱动分数"></canvas>
+                  <div class="mon-tip" id="mon-score-tip" role="tooltip"></div>
+                </div>
+                <div class="mon-chart-legend">
+                  <span class="mon-line-key raw">平滑前</span>
+                  <span class="mon-line-key smooth">平滑后</span>
+                  <span class="mon-line-key event">事件</span>
+                  <span class="mon-line-key gap">信号异常</span>
+                </div>
+              </details>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>当日校准</h3><span id="dw-calib-state">—</span></div>
+              <div class="dw-kv" id="dw-calib-summary"></div>
+              <details class="dw-details" id="dw-calib-history-wrap">
+                <summary>查看历史校准</summary>
+                <div id="dw-calib-history" class="dw-list"></div>
+              </details>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>长期参考</h3><span>版本化 · 不覆盖</span></div>
+              <div class="dw-kv" id="dw-reference-summary"></div>
+              <details class="dw-details" id="dw-reference-history-wrap">
+                <summary>查看参考基线版本</summary>
+                <div id="dw-reference-history" class="dw-list"></div>
+              </details>
+            </section>
           </div>
-          <ol class="mon-events" id="mon-events"></ol>
-        </section>
+
+          <div class="dw-pane hidden" data-dw-pane="difficulty" role="tabpanel">
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>当前难度</h3><span id="dw-diff-state">—</span></div>
+              <div class="dw-kv" id="dw-diff-summary"></div>
+              <div class="dw-actions">
+                <button id="dw-diff-auto" class="mon-small-btn" type="button" disabled>开启/关闭自动</button>
+                <button id="dw-diff-lock" class="mon-small-btn" type="button" disabled>锁定当前</button>
+                <button id="dw-diff-reset" class="mon-small-btn" type="button" disabled>恢复 1.00</button>
+              </div>
+              <p class="dw-note">修改只影响下一局；当前 Session 的参数快照不变。</p>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>本局实时</h3><span>round state</span></div>
+              <div class="dw-kv" id="dw-diff-live"></div>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>调整历史</h3><span id="dw-diff-history-count">—</span></div>
+              <div id="dw-diff-history" class="dw-list"></div>
+            </section>
+          </div>
+
+          <div class="dw-pane hidden" data-dw-pane="diagnostics" role="tabpanel">
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>瓶颈诊断</h3><span>多条件可同时成立</span></div>
+              <div id="dw-diag-summary" class="dw-summary"></div>
+              <p class="dw-note">工程诊断，只解释现有状态机与数据；不构成医学诊断、ADHD 或临床注意力判断。</p>
+              <div id="dw-diag-list" class="dw-diag-list"></div>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>蓄力过程</h3><span>分母口径见下</span></div>
+              <div class="dw-kv" id="dw-process-grid"></div>
+              <p class="dw-note">charge_sec 用于计分；eval_sec 用于难度评估。断流、暂停、子弹和动画不进入 eval，不能把诊断统计替换成计分数据。</p>
+            </section>
+          </div>
+
+          <div class="dw-pane hidden" data-dw-pane="assessment" role="tabpanel">
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>标准评估</h3><span>90s · 1.00</span></div>
+              <div id="dw-assessment-status" class="dw-summary"></div>
+              <a id="dw-start-assessment" class="btn btn-sm btn-primary" href="#">开始 90 秒标准评估</a>
+              <p class="dw-note">固定协议与黄色区域序列；不发积分、不推进个人难度、不修改基线。模拟源会明确标记。</p>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>最近评估</h3><span id="dw-assessment-count">—</span></div>
+              <div id="dw-assessment-list" class="dw-list"></div>
+            </section>
+            <section class="mon-section">
+              <div class="mon-section-head"><h3>诊断导出</h3><span>本地 reports/</span></div>
+              <p class="dw-note">默认不导出原始高频脑电；不含昵称；不会自动上传。</p>
+              <div class="dw-actions">
+                <button id="dw-export-json" class="mon-small-btn" type="button">导出 JSON</button>
+                <button id="dw-export-csv" class="mon-small-btn" type="button">导出 CSV</button>
+              </div>
+              <p id="dw-export-status" class="dw-note"></p>
+            </section>
+          </div>
+        </div>
       </aside>
     </div>
   </div>
@@ -641,6 +754,7 @@
   <script src="assets/wallet.js"></script>
   <script src="assets/focus-round.js"></script>
   <script src="assets/eeg-monitor.js"></script>
+  <script src="assets/dev-workbench.js"></script>
   <script src="assets/dressup.js"></script>
   <script>
     const $ = id => document.getElementById(id);
@@ -716,11 +830,13 @@
     const demoRequested = params.get("demo") === "1";
     const requestedTest = params.get("test");
     const monitorRequested = params.get("dev") === "1";
+    const assessmentRequested = DeveloperTools.canTest && params.get("assessment") === "1";
     const demo = DeveloperTools.canTest && demoRequested;
     const testMode = DeveloperTools.canTest && ["replay", "manual"].includes(requestedTest) ? requestedTest : null;
     // ?dev=1：使用上一次校准的信号源进入开发者监测（真机 / EDF 均可）。
-    const developerRun = demo || !!testMode || (DeveloperTools.canTest && monitorRequested);
-    const deniedTest = (demoRequested || requestedTest || monitorRequested) && !developerRun;
+    // ?assessment=1：同一套游戏画面进入固定协议标准评估，不另造游戏 UI。
+    const developerRun = demo || !!testMode || (DeveloperTools.canTest && (monitorRequested || assessmentRequested));
+    const deniedTest = (demoRequested || requestedTest || monitorRequested || assessmentRequested) && !developerRun;
     const calibrationStore = testMode ? Store.forDeveloperTest() : Store;
     if (!developerRun && !Profile.userId()) {
       const next = "game.html" + location.search;
@@ -755,7 +871,7 @@
       if (!Number.isFinite(n) || n <= 0) return 60;
       return Math.min(DURATION_MAX_SEC, Math.max(DURATION_MIN_SEC, n));
     }
-    const totalSec = readDurationSec();
+    const totalSec = assessmentRequested ? 90 : readDurationSec();
 
     // 计时显示：始终 mm:ss，避免 10 分钟时数字过长
     function formatClock(sec) {
@@ -783,7 +899,7 @@
       actions: {
         timed_jumps: 0, automatic_jumps: 0,
         successful_jumps: 0, missed_jumps: 0, early_taps: 0,
-        cooldown_count: 0,
+        cooldown_count: 0, jump_anim_sec: 0,
         jumps: [],
       },
       signalTime: 0,
@@ -811,6 +927,11 @@
       popups: [],     // 浮动文字 {x,y,text,t}
       droplets: [],
       splashes: [],   // 水花涟漪 {x,y,r0,r1,t,life}
+      assessment: null,
+      assessmentId: null,
+      roundAnimSec: 0,
+      introPauseSec: 0,
+      tutorialPauseSec: 0,
       clouds: [
         { x: 120, y: 52, s: 1.0, v: 8, phase: 0.6 },
         { x: 520, y: 38, s: 0.8, v: 12, phase: 2.4 },
@@ -869,6 +990,25 @@
     let roundConfig = FocusRound.normalizeConfig(Object.assign({}, FocusRound.CONFIG));
     let focusRound = new FocusRound.RoundEngine(roundConfig, Math.random);
     let monitor = null;
+    let workbench = null;
+    let roundRng = Math.random;
+
+    // v1.8.4：标准评估使用服务端返回的 seed 固定黄色区域序列；日常游戏仍用 Math.random。
+    function applyAssessment(res) {
+      const seed = res?.assessment?.seed;
+      if (seed != null) roundRng = FocusRound.makeRng(seed);
+      state.assessment = res?.assessment || null;
+      state.assessmentId = res?.assessment_id || res?.assessment?.assessment_id || null;
+      const banner = $("assessment-banner");
+      if (!banner) return;
+      const isAssessment = !!state.assessment || assessmentRequested;
+      banner.classList.toggle("hidden", !isAssessment);
+      if (!isAssessment) return;
+      $("assessment-banner-title").textContent = "固定难度 1.00";
+      $("assessment-banner-note").textContent =
+        `${Math.round(Number(state.assessment?.planned_sec || totalSec))} 秒 · 不发放商城积分 · 不改变个人难度`;
+      $("assessment-banner-id").textContent = state.assessmentId ? "评估 " + state.assessmentId : "模拟评估";
+    }
 
     // v1.8.3：服务端创建 Session 时锁定难度；前端只消费该范围，局内不改。
     function applyDifficulty(diff) {
@@ -885,7 +1025,7 @@
         roundConfig.firstRoundLoMax = Number(diff.first_zone_low_max);
       }
       roundConfig.difficultyFactor = Number(diff.factor) || 1;
-      focusRound = new FocusRound.RoundEngine(roundConfig, Math.random);
+      focusRound = new FocusRound.RoundEngine(roundConfig, roundRng);
       state.energy = focusRound.energy;
       state.phase = focusRound.phase;
       state.cooldownRemaining = 0;
@@ -925,6 +1065,15 @@
       // baseline 必须随会话一起上报：报告页的橙色虚线与"高于基线占比"都依赖它
       const profileUser = Profile.userId();
       let body = { mode, baseline: calib.baseline, purpose: "game" };
+      if (assessmentRequested) {
+        body.purpose = "assessment";
+        body.assessment = {
+          protocol_version: "standard_v1",
+          planned_sec: 90,
+          seed: params.get("seed") || null,
+          simulation: demo || mode !== "hardware",
+        };
+      }
       if (profileUser) {
         body.user_id = profileUser;
         if (calib.calibration_id) body.calibration_id = calib.calibration_id;
@@ -954,7 +1103,7 @@
       if (calib.device_key) body.device_key = calib.device_key;
       let res;
       try {
-        res = await API.post("/api/session", body);
+        res = await API.post(assessmentRequested ? "/api/assessments" : "/api/session", body);
       } catch (e) {
         if (String(e && e.message || "").includes("daily_calibration_required")) {
           toast("今天还没有完成校准");
@@ -967,9 +1116,11 @@
         API.endAbandonedSession(res.session_id);
         return;
       }
+      applyAssessment(res);
       applyDifficulty(res.difficulty);
-      state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null };
-      if (profileUser) Profile.markGame(res.session_id);
+      state.session = { id: res.session_id, mode, osc_ports: body.osc_ports || null,
+                        assessment_id: res.assessment_id || null };
+      if (profileUser && !assessmentRequested) Profile.markGame(res.session_id);
       $("replay-label").textContent = developerRun ? "开发者测试 · " + describeSignal(res.source) : "";
       $("replay-label").classList.toggle("hidden", !developerRun);
       state.manualMode = mode === "manual";
@@ -993,6 +1144,18 @@
           getRound: () => focusRound,
         });
         monitor.start();
+        if (window.DevWorkbench) {
+          workbench = DevWorkbench.create({
+            sessionId: res.session_id,
+            userId: profileUser,
+            mode,
+            source: res.source,
+            monitor,
+            getState: () => state,
+            getRound: () => focusRound,
+            assessment: res.assessment,
+          });
+        }
       }
 
       // 质量指示：没有 artifact 报告（回放/手动/心率模式）时整项隐藏
@@ -1013,6 +1176,7 @@
           // 质量指示必须放在 valid 判断之前：恰恰是伪迹帧，用户才需要看到提示
           updateQuality(f.artifact || null);
           monitor?.ingestFrame(f);
+          workbench?.onFrame?.(f);
           if (!f.valid || f.focus == null) {
             // 不可用的伪迹窗 / 断流 / 推理异常：冻结蓄力、衰减、单轮计时与子弹时间。
             // 可修复的眨眼仍在后端出分，不会因为一次眨眼就暂停；只有 backend 判为
@@ -1070,6 +1234,7 @@
       }
     });
 
+    const pageStartedAt = performance.now();
     // ---- 游戏主循环 ----
     function loop(ts) {
       if (state.over) return;
@@ -1108,10 +1273,16 @@
     }
 
     function updateGame(dt) {
-      if (state.tutorialOpen) return;   // 教学层打开时先不跑游戏逻辑
+      if (state.tutorialOpen) {          // 教学层打开时先不跑游戏逻辑
+        state.tutorialPauseSec += dt;
+        return;
+      }
       updateAmbient(dt);
       // 开局倒数期间只让画面呼吸：计时、蓄力与判定全部暂停
-      if (state.introOpen) return;
+      if (state.introOpen) {
+        state.introPauseSec += dt;
+        return;
+      }
 
       // 主动任务：本轮金色区域在开始时已生成，进入后由子弹时间接管；
       // 错过后不再顺延或重掷区域，避免“总有下一个目标”削弱持续观察。
@@ -1136,6 +1307,7 @@
       // 单轮状态机：跳跃、落地与平移期间不蓄力，也不把动画时间算进下一轮计时。
       // 有效蓄力条件 = 已进入专注滞回 + 平滑分高于蓄力零点；低于零点绝不产生负增益。
       const animating = state.jumping.active || state.settling || state.pendingSettle;
+      if (animating) state.roundAnimSec += dt;
       if (!animating) {
         const wasDecaying = focusRound.decaying;
         const events = focusRound.update(dt, {
@@ -1266,10 +1438,13 @@
       if (focusRound.phase !== "JUMP_SUCCESS" && focusRound.phase !== "JUMP_MISSED") return;
       const record = focusRound.finishRound();
       if (record) {
+        record.jump_anim_sec = Math.round(state.roundAnimSec * 1000) / 1000;
+        state.actions.jump_anim_sec += state.roundAnimSec;
         monitor?.event("round_start", "开始新一轮蓄力", {
           round: focusRound.roundIndex, last_award: record.awarded,
         });
       }
+      state.roundAnimSec = 0;
       state.energy = focusRound.energy;
       state.phase = focusRound.phase;
       state.cooldownRemaining = 0;
@@ -2048,7 +2223,11 @@
       // 同时切回 CHARGING，防止保存失败重试时重复写入同一条记录。
       let incompleteRound = null;
       if (state.phase === "JUMP_SUCCESS" || state.phase === "JUMP_MISSED") {
-        focusRound.finishRound();
+        const lastRecord = focusRound.finishRound();
+        if (lastRecord) {
+          lastRecord.jump_anim_sec = Math.round(state.roundAnimSec * 1000) / 1000;
+          state.actions.jump_anim_sec += state.roundAnimSec;
+        }
         state.phase = focusRound.phase;
         state.energy = focusRound.energy;
         state.cooldownRemaining = 0;
@@ -2056,6 +2235,9 @@
         // 结束时仍在蓄力/子弹时间：把未完成轮次作为“观察下限”上报，
         // 不把它混入完整轮次，也不让空中位数掩盖“整局没进入区域”。
         incompleteRound = focusRound.pendingRound("time_up");
+        if (incompleteRound) {
+          incompleteRound.jump_anim_sec = Math.round(state.roundAnimSec * 1000) / 1000;
+        }
       }
       // 本局累计积分（state.score）与商城货币（earnedPoints）分离：避免经济系统被放大。
       monitor?.event("score_settle", "积分结算", { score: state.score });
@@ -2083,6 +2265,14 @@
           cooldown_sec: Math.round((rounds.reduce(
             (s, r) => s + (Number(r.cooldown_sec) || 0), 0)
             + focusRound.cooldownSec) * 1000) / 1000,
+          jump_anim_sec: Math.round(state.actions.jump_anim_sec * 1000) / 1000,
+          game_process: {
+            page_elapsed_sec: Math.round((performance.now() - pageStartedAt) / 10) / 100,
+            intro_pause_sec: Math.round(state.introPauseSec * 1000) / 1000,
+            tutorial_pause_sec: Math.round(state.tutorialPauseSec * 1000) / 1000,
+            jump_anim_sec: Math.round(state.actions.jump_anim_sec * 1000) / 1000,
+            denominator_note: "intro/tutorial 不计入 charge/eval；jump_anim 由游戏层回填；不与 core 的 charge_sec 相加",
+          },
           rounds,
           incomplete_round: incompleteRound,
         });
@@ -2099,7 +2289,7 @@
           Wallet.replace(finished.wallet);
         }
         state.session = null;
-        Profile.clearGame();
+        if (!assessmentRequested) Profile.clearGame();
         // 完整玩完一局 → 计入「专注小达人」时长与当天打卡（试玩/演示不计入）
         let fresh = [];
         if (!developerRun && !state.achievementsRecorded) {
@@ -2114,7 +2304,10 @@
             await AchievementCinematic.play(fresh);
           } catch (_) { /* 动画异常不挡着出报告 */ }
         }
-        if (!state.leaving) location.href = "report.html?id=" + sessionId;
+        if (!state.leaving) {
+          location.href = "report.html?id=" + sessionId
+            + (assessmentRequested ? "&assessment=1" : "");
+        }
       } catch (e) {
         hideEndCue();
         if (!state.leaving) showGameError("保存结果失败：" + e.message, "重试保存", finishGame);
@@ -2131,6 +2324,7 @@
       state.leaving = true;
       state.es?.close();
       monitor?.stop();
+      workbench?.destroy?.();
       AchievementCinematic?.stop?.();
       if (state.session && !state.saving) {
         API.endAbandonedSession(state.session.id);

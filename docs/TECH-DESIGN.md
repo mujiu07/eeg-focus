@@ -1,7 +1,7 @@
 # 技术设计：专注判定、蓄力与单轮计分
 
 > 面向本仓库维护者的判定链路说明。系统结构、选型、数据模型与完整实测记录见工作区 `docs/Tech Design.md`；本文只收录“专注 → 分数 → 蓄力 → 子弹时间 → 跳跃 → 计分”这条链路上容易被误读、且改动风险最高的部分。
-> 最后更新：2026-11-27（v1.8.3）
+> 最后更新：2026-11-27（v1.8.4）
 
 ## 1. 判定链路
 
@@ -350,3 +350,50 @@ python tests/selfcheck_denoise.py          # 去噪：既有回归
 - `B=round(20+80×T_ref/(T+T_ref))`、`S=round(B×M)` 未改；`D` 用实际区域距离。
 - 难度降低会增加可完成次数，累计积分/商城货币可能增加；不能把累计积分当脑电表现改善证据。
 - 固定种子模拟见 `scripts/simulate_v183.py` 和 `outputs/v1.8.3/simulation.json`。
+
+
+## 14. v1.8.4 开发者工作台、诊断与标准评估
+
+### 14.1 工作台边界
+
+- `game.html?dev=1` 保留 v1.7.0 三栏；右栏新增 `概览/基线/难度/诊断/评估导出` 标签页。
+- `DevWorkbench` 只在 `developerRun && EEGMonitor` 之后实例化；儿童模式不请求 `/api/dev/workbench`，也不建立额外 SSE。
+- 游戏 Canvas 不被抽屉覆盖；窄屏沿用原有左右侧栏收起按钮。
+
+### 14.2 双基线
+
+- `scorePoints` 同时保存 `daily`（`f.score`/`daily_score`）与 `reference`（`f.reference_score`），两者来自同一 `focus_fused` 与同一帧时间戳。
+- 曲线用断开段表示无效信号/数据缺口；不插值、不把缺失段连成直线。
+- 原始/平滑游戏分数另图展示；长期参考不参与蓄力/得分/商城。
+
+### 14.3 过程统计与诊断
+
+| 字段 | 口径 |
+|---|---|
+| `charge_sec` | 正式计分，含冷却；不含断流/暂停/子弹/跳跃 |
+| `eval_sec` | 评估净用时，不含冷却/断流/暂停/子弹/跳跃 |
+| `charge_active_sec` | 有效蓄力 |
+| `below_threshold_sec` | 低于阈值的非冷却时间 |
+| `energy_gain_total/energy_loss` | 累计正增益/衰减 |
+| `bullet_sec/jump_anim_sec/paused_sec` | 过程观察 |
+
+- `diagnostics.charge_process()` 只汇总报告字段；缺失字段保留 `null`，不用减法伪造。
+- `diagnostics.diagnose()` 返回 9 类可并存的工程状态及证据；`insufficient_data` 在数据不足时优先提示，不输出医学结论。
+- `diagnostics.validate_actions()` 检查重复轮次、负时间、`eval_sec > charge_sec`、`eval_sec > active + below`、Session 时长；异常轮次不参与难度，正式计分链路不重算。
+
+### 14.4 标准评估
+
+- `POST /api/assessments` → `purpose=assessment`、`standard_v1`、90s、固定 1.00、服务端 seed；前端 `FocusRound.makeRng(seed)` 复现黄色区域序列。
+- `assessments` 保存协议/参数/校准/参考/设备/特征/行为/报告；`session_id` 唯一、完成幂等。
+- 真实硬件要求当日有效校准 + 长期参考 + 设备/算法兼容；回放/手动明确 `simulation`，不产生可纵向比较结果。
+- 评估不写难度、不发积分/成就、不改校准/参考；本阶段不做完整成长报告。
+
+### 14.5 导出
+
+- JSON/CSV 由用户主动调用，写数据目录 `reports/`；不含昵称与原始高频 EEG，不自动上传。
+- 导出使用 `data_quality`、`charge_process`、`diagnostics` 与服务端运行时快照；浏览器另行下载同一内容。
+
+### 14.6 Schema v4
+
+- `SCHEMA_VERSION=4`；新增 `assessments`、`sessions.purpose/assessment_id`、`rounds` 过程列。
+- 仍使用 `_ensure_columns()` 原地 `ALTER TABLE`；迁移不重建用户/历史表。

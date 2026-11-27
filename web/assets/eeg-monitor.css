@@ -1,5 +1,5 @@
 /* ============================================================
-   专注小蛙 v1.7 · 开发者实时脑电监测工作台
+   专注小蛙 v1.8.4 · 开发者实时脑电监测工作台
    深色监测面板与浅色池塘分开；儿童模式完全不渲染面板。
    ============================================================ */
 html.monitor-mode .wrap {
@@ -198,3 +198,66 @@ html.monitor-mode .monitor-panel { display: flex; flex-direction: column; gap: 1
 /* 折叠规则必须放在响应式变量之后，否则窄屏媒体查询会重新撑开列宽 */
 html.monitor-mode .game-layout.left-off { --mon-left: 0px; }
 html.monitor-mode .game-layout.right-off { --mon-right: 0px; }
+
+/* v1.8.4 开发者工作台标签页与诊断面板 */
+.dw-tabs {
+  display: flex; gap: 3px; overflow-x: auto; padding: 2px;
+  border: 1px solid rgba(128,183,190,.18); border-radius: 9px;
+  background: #14252b; scrollbar-width: thin;
+}
+.dw-tabs button {
+  flex: 0 0 auto; border: 0; border-radius: 6px; background: transparent;
+  color: #89aeb4; padding: 5px 7px; font: 700 10px/1.2 var(--font);
+  cursor: pointer; white-space: nowrap;
+}
+.dw-tabs button.active { background: #2a5057; color: #eefefe; }
+.dw-panes { min-height: 0; }
+.dw-pane { display: flex; flex-direction: column; gap: 9px; }
+.dw-pane.hidden { display: none !important; }
+.dw-note { margin: 3px 0 0; color: #6f9399; font: 600 9px/1.5 var(--font); }
+.dw-summary {
+  padding: 8px 9px; border-radius: 8px; background: rgba(111,157,166,.08);
+  border: 1px solid rgba(128,183,190,.16); color: #cfe5e6;
+  font: 600 9.5px/1.5 var(--font);
+}
+.dw-kv {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px;
+  font: 600 8.5px/1.25 var(--font);
+}
+.dw-kv .dw-row { display: flex; justify-content: space-between; gap: 5px; min-width: 0;
+  border-bottom: 1px dotted rgba(126,180,187,.10); padding: 1px 0; }
+.dw-kv .dw-row span { color: #789fa6; white-space: nowrap; }
+.dw-kv .dw-row b { color: #def0f0; text-align: right; font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dw-kv .dw-row b.warn { color: #f0c27e; }
+.dw-kv .dw-row b.bad { color: #f0a49b; }
+.dw-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.dw-actions .mon-small-btn { text-decoration: none; display: inline-block; }
+.dw-actions .mon-small-btn:disabled { opacity: .4; cursor: not-allowed; }
+.dw-list { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow: auto; }
+.dw-list .dw-item {
+  border: 1px solid rgba(128,183,190,.12); border-radius: 6px; padding: 4px 6px;
+  color: #a9c8cd; font: 600 8.5px/1.4 var(--font);
+}
+.dw-list .dw-item b { color: #dceff0; }
+.dw-list .dw-item time { color: #658b93; margin-right: 4px; }
+.dw-details { border-top: 1px dashed rgba(126,180,187,.16); padding-top: 5px; }
+.dw-details summary { color: #8ab1b6; cursor: pointer; font: 700 9.5px/1.4 var(--font); }
+.dw-diag-list { display: flex; flex-direction: column; gap: 5px; }
+.dw-diag {
+  border: 1px solid rgba(128,183,190,.16); border-radius: 8px; padding: 5px 7px;
+  background: rgba(111,157,166,.05);
+}
+.dw-diag.active { border-color: rgba(240,162,120,.4); background: rgba(191,112,78,.10); }
+.dw-diag.clear { opacity: .62; }
+.dw-diag .dw-diag-head { display: flex; justify-content: space-between; gap: 5px;
+  color: #dceff0; font: 700 9px/1.3 var(--font); }
+.dw-diag .dw-diag-head em { font-style: normal; color: #f0c27e; font-size: 8px; }
+.dw-diag p { margin: 3px 0 0; color: #8eb1b5; font: 600 8px/1.35 var(--font); }
+.dw-diag .dw-evidence { color: #6f9399; font-size: 7.7px; }
+.dw-runtime { margin-top: 2px; padding-top: 7px; border-top: 1px dashed rgba(126,180,187,.16); }
+.dw-tag { display: inline-block; padding: 1px 5px; border-radius: 99px;
+  background: rgba(143,227,208,.12); color: #8fe3d0; font: 700 8px/1.3 var(--font); }
+.dw-tag.warn { background: rgba(240,194,126,.12); color: #f0c27e; }
+.mon-line-key.daily::before { background: #8fe3d0; }
+.mon-line-key.reference::before { background: #c49bea; }

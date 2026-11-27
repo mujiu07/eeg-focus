@@ -35,7 +35,7 @@ from .calibration import (
 from . import difficulty
 
 APP_NAME = "专注小蛙"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 MAX_PROFILES = 12
 AVATARS = ("frog", "tadpole", "lotus", "fish", "dragonfly", "snail")
 AVATAR_LABELS = {
@@ -360,6 +360,8 @@ class StorageManager:
                     actual_score REAL,
                     valid_signal_ratio REAL,
                     difficulty_snapshot_json TEXT NOT NULL DEFAULT '{}',
+                    purpose TEXT NOT NULL DEFAULT 'game',
+                    assessment_id TEXT,
                     report_json TEXT NOT NULL DEFAULT '{}',
                     finished INTEGER NOT NULL DEFAULT 0,
                     notes TEXT,
@@ -381,8 +383,40 @@ class StorageManager:
                     early_taps INTEGER,
                     cooldown_count INTEGER,
                     cooldown_sec REAL,
+                    eval_sec REAL,
+                    charge_active_sec REAL,
+                    below_threshold_sec REAL,
+                    stale_sec REAL,
+                    decay_events INTEGER,
+                    decay_sec REAL,
+                    energy_gain REAL,
+                    energy_loss REAL,
+                    bullet_sec REAL,
+                    jump_anim_sec REAL,
+                    paused_sec REAL,
                     raw_json TEXT NOT NULL DEFAULT '{}',
                     UNIQUE(session_id, round_no)
+                );
+                CREATE TABLE IF NOT EXISTS assessments (
+                    assessment_id TEXT PRIMARY KEY,
+                    user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+                    session_id TEXT UNIQUE,
+                    protocol_version TEXT NOT NULL DEFAULT 'standard_v1',
+                    planned_sec REAL NOT NULL DEFAULT 90,
+                    fixed_factor REAL NOT NULL DEFAULT 1.0,
+                    seed TEXT,
+                    status TEXT NOT NULL DEFAULT 'running',
+                    simulation INTEGER NOT NULL DEFAULT 0,
+                    started_at TEXT,
+                    ended_at TEXT,
+                    calibration_id TEXT,
+                    reference_baseline_id TEXT,
+                    device_json TEXT NOT NULL DEFAULT '{}',
+                    params_json TEXT NOT NULL DEFAULT '{}',
+                    features_json TEXT NOT NULL DEFAULT '{}',
+                    behavior_json TEXT NOT NULL DEFAULT '{}',
+                    report_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS difficulty_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -461,6 +495,8 @@ class StorageManager:
                 CREATE INDEX IF NOT EXISTS idx_calibrations_user ON calibrations(user_id, calibrated_at_ms);
                 CREATE INDEX IF NOT EXISTS idx_wallet_user ON wallet_transactions(user_id, created_at);
                 CREATE INDEX IF NOT EXISTS idx_rounds_session ON rounds(session_id);
+                CREATE INDEX IF NOT EXISTS idx_assessments_user ON assessments(user_id, created_at);
+                CREATE INDEX IF NOT EXISTS idx_assessments_session ON assessments(session_id);
             """)
             # v1.8.2：在 v1.8.1 数据库上原地补列；不重建表，不触碰用户/积分/历史数据。
             self._ensure_columns(conn, "calibrations", {
@@ -484,6 +520,15 @@ class StorageManager:
                 "reference_baseline_id": "TEXT",
                 "calibration_snapshot_json": "TEXT NOT NULL DEFAULT '{}'",
                 "reference_snapshot_json": "TEXT NOT NULL DEFAULT '{}'",
+                "purpose": "TEXT NOT NULL DEFAULT 'game'",
+                "assessment_id": "TEXT",
+            })
+            self._ensure_columns(conn, "rounds", {
+                "eval_sec": "REAL", "charge_active_sec": "REAL",
+                "below_threshold_sec": "REAL", "stale_sec": "REAL",
+                "decay_events": "INTEGER", "decay_sec": "REAL",
+                "energy_gain": "REAL", "energy_loss": "REAL",
+                "bullet_sec": "REAL", "jump_anim_sec": "REAL", "paused_sec": "REAL",
             })
             # v1.8.3：难度档案与可审计的局间调整记录。保留 v1.8.1 预留的
             # difficulty_history 表，只补列，不重建、不覆盖历史。
@@ -550,6 +595,7 @@ class StorageManager:
                     "sessions": conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
                     "calibrations": conn.execute("SELECT COUNT(*) FROM calibrations").fetchone()[0],
                     "rounds": conn.execute("SELECT COUNT(*) FROM rounds").fetchone()[0],
+                    "assessments": conn.execute("SELECT COUNT(*) FROM assessments").fetchone()[0],
                     "backups": len(list(self.backups_dir.glob("*.db"))),
                 }
                 version = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
@@ -1418,6 +1464,126 @@ class StorageManager:
         return out
 
     # ------------------------------------------------------------------
+    # v1.8.4 标准评估
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _assessment_row(row: sqlite3.Row) -> dict:
+        return {
+            "assessment_id": row["assessment_id"],
+            "user_id": row["user_id"],
+            "session_id": row["session_id"],
+            "protocol_version": row["protocol_version"],
+            "planned_sec": row["planned_sec"],
+            "fixed_factor": row["fixed_factor"],
+            "seed": row["seed"],
+            "status": row["status"],
+            "simulation": bool(row["simulation"]),
+            "started_at": row["started_at"],
+            "ended_at": row["ended_at"],
+            "calibration_id": row["calibration_id"],
+            "reference_baseline_id": row["reference_baseline_id"],
+            "device": _load_json(row["device_json"], {}) or {},
+            "params": _load_json(row["params_json"], {}) or {},
+            "features": _load_json(row["features_json"], {}) or {},
+            "behavior": _load_json(row["behavior_json"], {}) or {},
+            "report": _load_json(row["report_json"], {}) or {},
+            "created_at": row["created_at"],
+        }
+
+    def create_assessment(self, user_id: Optional[str], session_id: str, *,
+                          protocol_version: str = "standard_v1", planned_sec: float = 90.0,
+                          seed: Optional[str] = None, simulation: bool = False,
+                          calibration_id: Optional[str] = None,
+                          reference_baseline_id: Optional[str] = None,
+                          device: Optional[dict] = None, params: Optional[dict] = None) -> dict:
+        """为已创建的 Session 建立标准评估记录；session_id 唯一，重复创建直接返回原记录。"""
+        sid = str(session_id or "").strip()
+        if not sid:
+            raise StorageError("评估缺少 session_id")
+        if user_id:
+            self.ensure_user(user_id)
+        aid = "asm_" + uuid.uuid4().hex[:12]
+        now = _now()
+        with self.lock, self._db() as conn:
+            row = conn.execute("SELECT * FROM assessments WHERE session_id = ?", (sid,)).fetchone()
+            if row:
+                return self._assessment_row(row)
+            conn.execute(
+                "INSERT INTO assessments(assessment_id,user_id,session_id,protocol_version,planned_sec,"
+                "fixed_factor,seed,status,simulation,started_at,calibration_id,reference_baseline_id,"
+                "device_json,params_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (aid, user_id, sid, str(protocol_version), float(planned_sec), 1.0, seed,
+                 "running", 1 if simulation else 0, now, calibration_id, reference_baseline_id,
+                 _json(device or {}), _json(params or {}), now),
+            )
+            row = conn.execute("SELECT * FROM assessments WHERE assessment_id = ?", (aid,)).fetchone()
+        return self._assessment_row(row)
+
+    def complete_assessment(self, session_id: str, report: dict) -> Optional[dict]:
+        """写入评估结果；以 session_id 幂等，重复 finish 不覆盖已保存报告。"""
+        sid = str(session_id or "")
+        if not sid:
+            return None
+        actions = report.get("actions") or {}
+        rounds = actions.get("rounds") or []
+        inc = actions.get("incomplete_round") or None
+        process = report.get("charge_process") or {}
+        features = {
+            "score_mean": report.get("score_mean"), "score_min": report.get("score_min"),
+            "score_max": report.get("score_max"), "score_range": report.get("score_range"),
+            "focus_mean": report.get("focus_mean"),
+            "reference_score_mean": report.get("reference_score_mean"),
+            "valid_signal_ratio": report.get("valid_signal_ratio"),
+            "n_frames": report.get("n_frames"), "n_valid_frames": report.get("n_valid_frames"),
+            "curve_points": len(report.get("curve") or []),
+        }
+        behavior = {
+            "rounds": len(rounds), "incomplete_round": inc,
+            "successful_jumps": actions.get("successful_jumps"),
+            "missed_jumps": actions.get("missed_jumps"),
+            "early_taps": actions.get("early_taps"),
+            "cooldown_sec": actions.get("cooldown_sec"),
+            "charge_process": process,
+        }
+        with self.lock, self._db() as conn:
+            row = conn.execute("SELECT * FROM assessments WHERE session_id = ?", (sid,)).fetchone()
+            if not row:
+                return None
+            if row["status"] == "completed":
+                return self._assessment_row(row)
+            conn.execute(
+                "UPDATE assessments SET status='completed', ended_at=?, features_json=?, "
+                "behavior_json=?, report_json=? WHERE session_id=?",
+                (_now(), _json(features), _json(behavior), _json(report), sid),
+            )
+            row = conn.execute("SELECT * FROM assessments WHERE session_id = ?", (sid,)).fetchone()
+        return self._assessment_row(row)
+
+    def assessments(self, user_id: Optional[str], limit: int = 30) -> list[dict]:
+        with self._db() as conn:
+            if user_id:
+                rows = conn.execute(
+                    "SELECT * FROM assessments WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                    (str(user_id), max(1, min(int(limit), 200))),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM assessments ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                    (max(1, min(int(limit), 200)),),
+                ).fetchall()
+        return [self._assessment_row(r) for r in rows]
+
+    def assessment(self, assessment_id: str, user_id: Optional[str] = None) -> Optional[dict]:
+        with self._db() as conn:
+            row = conn.execute("SELECT * FROM assessments WHERE assessment_id = ?",
+                               (str(assessment_id),)).fetchone()
+        if not row:
+            return None
+        if user_id and row["user_id"] and str(row["user_id"]) != str(user_id):
+            raise StorageError("无权访问其他用户的评估")
+        return self._assessment_row(row)
+
+    # ------------------------------------------------------------------
     # 游戏记录
     # ------------------------------------------------------------------
     def persist_session(self, report: dict, user_id: Optional[str] = None,
@@ -1432,8 +1598,11 @@ class StorageManager:
                 raise StorageError("个人档案不存在或已停用")
         score = report.get("score")
         demo = bool(report.get("demo"))
+        purpose = str(report.get("purpose") or "game")
+        assessment_id = report.get("assessment_id")
         earned = 0
-        if user_id and not demo and score is not None:
+        # 标准评估不发放商城积分；它仍可作为本地历史记录读取。
+        if user_id and not demo and purpose != "assessment" and score is not None:
             try:
                 earned = max(1, int(float(score)) // 30) if float(score) > 0 else 0
             except (TypeError, ValueError):
@@ -1460,20 +1629,23 @@ class StorageManager:
                 "calibration_id,reference_baseline_id,calibration_snapshot_json,reference_snapshot_json,"
                 "algorithm_version,params_json,source_json,demo,total_score,wallet_points,"
                 "jumps,successful_jumps,missed_jumps,eeg_base_score,actual_score,valid_signal_ratio,"
-                "difficulty_snapshot_json,report_json,finished,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                "difficulty_snapshot_json,purpose,assessment_id,report_json,finished,notes,created_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                 "ON CONFLICT(session_id) DO UPDATE SET ended_at=excluded.ended_at, played_sec=excluded.played_sec, "
                 "duration_sec=excluded.duration_sec, report_json=excluded.report_json, finished=1, "
                 "total_score=COALESCE(excluded.total_score, sessions.total_score), notes=excluded.notes, "
                 "reference_baseline_id=COALESCE(excluded.reference_baseline_id, sessions.reference_baseline_id), "
                 "calibration_snapshot_json=excluded.calibration_snapshot_json, "
-                "reference_snapshot_json=excluded.reference_snapshot_json",
+                "reference_snapshot_json=excluded.reference_snapshot_json, "
+                "purpose=excluded.purpose, assessment_id=excluded.assessment_id",
                 (sid, user_id, started, ended, report.get("duration_sec"), report.get("played_sec"),
                  calibration_id, reference_baseline_id, _json(calibration_snapshot), _json(reference_snapshot),
                  str(report.get("algorithm_version") or "unknown"), _json(params), _json(source),
                  1 if demo else 0, int(score) if score is not None else None, already_points,
                  actions.get("timed_jumps"), actions.get("successful_jumps"), actions.get("missed_jumps"),
                  report.get("eeg_base_score"), report.get("actual_score"), valid_ratio,
-                 _json(report.get("difficulty_snapshot") or {}), _json(report), 1, report.get("notes"), _now()),
+                 _json(report.get("difficulty_snapshot") or {}), purpose, assessment_id,
+                 _json(report), 1, report.get("notes"), _now()),
             )
             for idx, rnd in enumerate(rounds):
                 if not isinstance(rnd, dict):
@@ -1481,19 +1653,33 @@ class StorageManager:
                 rno = rnd.get("round", idx)
                 conn.execute(
                     "INSERT INTO rounds(session_id,user_id,round_no,charge_sec,reaction_sec,potential,awarded,"
-                    "success,multiplier,mean_score,above_ratio,early_taps,cooldown_count,cooldown_sec,raw_json) "
-                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,round_no) DO UPDATE SET "
+                    "success,multiplier,mean_score,above_ratio,early_taps,cooldown_count,cooldown_sec,"
+                    "eval_sec,charge_active_sec,below_threshold_sec,stale_sec,decay_events,decay_sec,"
+                    "energy_gain,energy_loss,bullet_sec,jump_anim_sec,paused_sec,raw_json) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(session_id,round_no) DO UPDATE SET "
                     "charge_sec=excluded.charge_sec,reaction_sec=excluded.reaction_sec,potential=excluded.potential,"
                     "awarded=excluded.awarded,success=excluded.success,multiplier=excluded.multiplier,"
                     "mean_score=excluded.mean_score,above_ratio=excluded.above_ratio,early_taps=excluded.early_taps,"
-                    "cooldown_count=excluded.cooldown_count,cooldown_sec=excluded.cooldown_sec,raw_json=excluded.raw_json",
+                    "cooldown_count=excluded.cooldown_count,cooldown_sec=excluded.cooldown_sec,"
+                    "eval_sec=excluded.eval_sec,charge_active_sec=excluded.charge_active_sec,"
+                    "below_threshold_sec=excluded.below_threshold_sec,stale_sec=excluded.stale_sec,"
+                    "decay_events=excluded.decay_events,decay_sec=excluded.decay_sec,"
+                    "energy_gain=excluded.energy_gain,energy_loss=excluded.energy_loss,"
+                    "bullet_sec=excluded.bullet_sec,jump_anim_sec=excluded.jump_anim_sec,"
+                    "paused_sec=excluded.paused_sec,raw_json=excluded.raw_json",
                     (sid, user_id, rno, rnd.get("charge_sec"), rnd.get("reaction_sec"), rnd.get("potential"),
                      rnd.get("awarded"), 1 if rnd.get("success") else 0, rnd.get("multiplier"),
                      rnd.get("mean_score"), rnd.get("above_ratio"), rnd.get("early_taps"),
-                     rnd.get("cooldown_count"), rnd.get("cooldown_sec"), _json(rnd)),
+                     rnd.get("cooldown_count"), rnd.get("cooldown_sec"), rnd.get("eval_sec"),
+                     rnd.get("charge_active_sec"), rnd.get("below_threshold_sec"), rnd.get("stale_sec"),
+                     rnd.get("decay_events"), rnd.get("decay_sec"), rnd.get("energy_gain"),
+                     rnd.get("energy_loss"), rnd.get("bullet_sec"), rnd.get("jump_anim_sec"),
+                     rnd.get("paused_sec"), _json(rnd)),
                 )
             if user_id:
-                self._apply_session_wallet(conn, user_id, sid, earned, demo)
+                if purpose != "assessment":
+                    self._apply_session_wallet(conn, user_id, sid, earned, demo)
                 conn.execute("UPDATE sessions SET wallet_points = ? WHERE session_id = ?", (earned, sid))
                 conn.execute("UPDATE users SET last_used_at = ? WHERE user_id = ?", (_now(), user_id))
                 wallet_row = conn.execute(
@@ -1539,8 +1725,8 @@ class StorageManager:
             if user_id:
                 rows = conn.execute(
                     "SELECT session_id, started_at, ended_at, duration_sec, played_sec, total_score, "
-                    "wallet_points, finished, source_json, report_json, demo FROM sessions "
-                    "WHERE user_id = ? AND finished = 1 ORDER BY ended_at DESC LIMIT ?", (str(user_id), int(limit))
+                    "wallet_points, finished, source_json, report_json, demo, purpose, assessment_id "
+                    "FROM sessions WHERE user_id = ? AND finished = 1 ORDER BY ended_at DESC LIMIT ?", (str(user_id), int(limit))
                 ).fetchall()
             else:
                 rows = []

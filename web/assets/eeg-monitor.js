@@ -102,6 +102,7 @@
       this.currentBands = null;
       this.bandHistory = [];
       this.scorePoints = [];
+      this.baselinePoints = [];
       this.events = [];
       this.eventFilter = "all";
       this.latestGameT = null;
@@ -216,7 +217,8 @@
         const tip = this.$("mon-score-tip"); if (tip) tip.style.display = "none";
       });
       this.resizeObserver = new ResizeObserver(() => this.draw());
-      [this.$("mon-wave-canvas"), this.$("mon-score-canvas"), this.$("mon-band-canvas")]
+      [this.$("mon-wave-canvas"), this.$("mon-score-canvas"), this.$("mon-band-canvas"),
+       this.$("mon-baseline-canvas")]
         .filter(Boolean).forEach(c => c.parentElement && this.resizeObserver.observe(c.parentElement));
       this._buildBandLegend();
     }
@@ -445,15 +447,20 @@
       const prev = this.scorePoints[this.scorePoints.length - 1];
       if (prev && t < prev.t - 0.05) this.scorePoints = [];
       const valid = !!f.valid && f.focus != null;
-      this.scorePoints.push({
+      const point = {
         t, valid,
         raw: finite(f.score_raw) ? Number(f.score_raw) : (finite(f.raw) ? Number(f.raw) * 100 : null),
         smooth: finite(f.score_smooth) ? Number(f.score_smooth) : (finite(f.score) ? Number(f.score) : null),
         game: finite(f.score) ? Number(f.score) : null,
+        daily: finite(f.daily_score) ? Number(f.daily_score) : (finite(f.score) ? Number(f.score) : null),
+        reference: finite(f.reference_score) ? Number(f.reference_score) : null,
         reason: f.reason || "",
-      });
+      };
+      this.scorePoints.push(point);
+      this.baselinePoints.push(point);
       const cutoff = t - 31.5;
       this.scorePoints = this.scorePoints.filter(p => p.t >= cutoff).slice(-140);
+      this.baselinePoints = this.baselinePoints.filter(p => p.t >= cutoff).slice(-140);
     }
 
     event(type, label, extra) {
@@ -518,6 +525,7 @@
       if (this._isSideVisible("right")) {
         this.drawBands();
         this.drawScore();
+        this.drawBaseline();
       }
     }
 
@@ -777,6 +785,75 @@
       ctx.fillStyle = "rgba(226,181,111,.7)";
       ctx.fillText(String(this.thresholds.enter), plot.x1 - 14, yOf(this.thresholds.enter));
       ctx.fillText(String(this.thresholds.exit), plot.x1 - 14, yOf(this.thresholds.exit));
+    }
+
+    drawBaseline() {
+      const canvas = this.$("mon-baseline-canvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const { w, h } = canvasSize(canvas, ctx);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0a1217"; ctx.fillRect(0, 0, w, h);
+      const tNow = this.latestGameT ?? this.latestT;
+      if (!finite(tNow)) {
+        ctx.fillStyle = "#5f858c"; ctx.font = "10px Menlo, monospace";
+        ctx.fillText("等待同一算法输出的双基线…", 10, h / 2);
+        return;
+      }
+      const tStart = tNow - 30;
+      const plot = { x0: 27, x1: w - 5, y0: 8, y1: h - 17 };
+      const xOf = t => plot.x0 + (plot.x1 - plot.x0) * clamp((t - tStart) / 30, 0, 1);
+      const yOf = v => plot.y1 - (plot.y1 - plot.y0) * clamp(v, 0, 100) / 100;
+      ctx.font = "8px Menlo, Consolas, monospace";
+      ctx.textBaseline = "middle";
+      [0, 50, 100].forEach(v => {
+        const y = yOf(v);
+        ctx.strokeStyle = "rgba(127,183,190,.13)";
+        ctx.beginPath(); ctx.moveTo(plot.x0, y); ctx.lineTo(plot.x1, y); ctx.stroke();
+        ctx.fillStyle = "#5f858c"; ctx.fillText(String(v), 2, y);
+      });
+      // 无效信号区间只标底，不跨越断流连线；不插值。
+      for (let i = 1; i < this.baselinePoints.length; i++) {
+        const a = this.baselinePoints[i - 1], b = this.baselinePoints[i];
+        if (!a.valid || !b.valid || b.t - a.t > 1.5) {
+          ctx.fillStyle = "rgba(208,111,104,.14)";
+          ctx.fillRect(xOf(a.t), plot.y0, Math.max(2, xOf(b.t) - xOf(a.t)),
+                       plot.y1 - plot.y0);
+        }
+      }
+      const line = (key, color, width, dashed) => {
+        ctx.strokeStyle = color; ctx.lineWidth = width;
+        ctx.setLineDash(dashed ? [4, 3] : []);
+        ctx.beginPath();
+        let open = false, prevT = null;
+        this.baselinePoints.forEach(p => {
+          const value = p[key];
+          if (!p.valid || !finite(value)) { open = false; return; }
+          if (p.t < tStart || p.t > tNow) { open = false; return; }
+          if (prevT != null && p.t - prevT > 1.5) open = false;
+          prevT = p.t;
+          const x = xOf(p.t), y = yOf(value);
+          if (!open) { ctx.moveTo(x, y); open = true; } else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      };
+      line("daily", "#8fe3d0", 2.0, false);
+      line("reference", "#c49bea", 1.6, true);
+      // 末端点标记：即使两条线短暂重合，也能看出各自最新值。
+      const latest = this.baselinePoints[this.baselinePoints.length - 1];
+      if (latest && latest.valid) {
+        [[latest.daily, "#8fe3d0"], [latest.reference, "#c49bea"]].forEach(([v, color]) => {
+          if (!finite(v)) return;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(xOf(latest.t), yOf(v), 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+      ctx.fillStyle = "#5f858c";
+      ctx.fillText("-30s", plot.x0, h - 6);
+      ctx.fillText("now", plot.x1 - 18, h - 6);
     }
 
     _showScoreTip(e) {

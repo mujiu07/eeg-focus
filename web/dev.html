@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>开发者模式 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
@@ -119,6 +120,23 @@
         <button id="diff-reset" class="btn btn-sm btn-ghost" type="button" disabled>恢复标准 1.00</button>
       </div>
       <p class="hint" style="margin-top:8px;font-size:12.5px">难度只改变黄色区域起点；改动只对下一局生效，不影响已保存记录。完整面板留待 v1.8.4。</p>
+    </div>
+
+    <div class="card" id="workbench-card">
+      <div class="section-title"><span class="dot"></span>🧪 v1.8.4 开发者工作台</div>
+      <p class="hint">三栏实时工作台仍使用现有游戏画面，不复制游戏 UI。概览、双基线、难度历史、瓶颈诊断和标准评估分别放在右侧标签页。</p>
+      <div class="btn-row" style="margin-top:10px">
+        <a class="btn btn-primary" href="game.html?dev=1&amp;sec=180">打开实时工作台</a>
+        <a class="btn btn-ghost" href="game.html?assessment=1&amp;sec=90">标准评估 90s</a>
+        <button id="wb-refresh" class="btn btn-sm btn-ghost" type="button">刷新最近报告</button>
+      </div>
+      <div id="wb-status" class="hint" style="margin-top:10px">读取工作台状态……</div>
+      <div id="wb-latest" style="margin-top:10px"></div>
+      <div class="btn-row" style="margin-top:8px">
+        <button id="wb-export-json" class="btn btn-sm btn-ghost" type="button">导出最近诊断 JSON</button>
+        <button id="wb-export-csv" class="btn btn-sm btn-ghost" type="button">导出最近诊断 CSV</button>
+      </div>
+      <p id="wb-export-status" class="hint"></p>
     </div>
 
     <div class="card hidden" id="mock-heart-card">
@@ -471,8 +489,55 @@
       });
     }
 
+    async function loadWorkbench() {
+      const uid = typeof activeUserId === "function" ? activeUserId() : null;
+      const status = $("wb-status");
+      const box = $("wb-latest");
+      try {
+        const q = new URLSearchParams();
+        if (uid) q.set("user_id", uid);
+        const d = await API.get("/api/dev/workbench?" + q.toString());
+        const r = d.runtime || {};
+        status.innerHTML = `版本 <b>${d.app?.version || "—"}</b> · Schema <b>v${d.app?.schema_version ?? "—"}</b> · 实时 Session <b>${r.session_id || "无"}</b> · 监测订阅 ${r.monitor_clients ?? 0}`;
+        const rep = d.latest_report;
+        if (rep) {
+          const items = (d.diagnostics?.items || []).filter(x => x.active);
+          box.innerHTML = `<div class="hint">最近报告：<span class="mono">${rep.session_id}</span> · ${rep.purpose || "game"} · ${rep.played_sec ?? "—"}s · 诊断：${items.length ? items.map(x => x.label).join("；") : "未发现达到阈值的瓶颈"}</div>`
+            + (items.length ? `<ul class="hint" style="margin:6px 0 0 18px">${items.map(x => {
+              const ev = Object.entries(x.evidence || {}).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(" · ");
+              return `<li><b>${x.label}</b>：${ev}</li>`;
+            }).join("")}</ul>` : "");
+          $("wb-status").dataset.session = rep.session_id;
+        } else {
+          box.innerHTML = `<div class="hint">没有已完成报告；先运行一局或打开实时工作台。</div>`;
+          delete $("wb-status").dataset.session;
+        }
+      } catch (e) {
+        status.textContent = "工作台读取失败：" + e.message;
+      }
+    }
+    async function exportWorkbench(fmt) {
+      const sid = $("wb-status").dataset.session;
+      const out = $("wb-export-status");
+      if (!sid) { out.textContent = "没有可导出的已完成报告。"; return; }
+      try {
+        const res = await API.post(`/api/dev/diagnostics/${encodeURIComponent(sid)}/export?fmt=${fmt}`);
+        const blob = new Blob([res.content], { type: res.media_type || "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = res.filename;
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        out.textContent = "已写入 " + res.path + "；已开始下载 " + res.filename;
+      } catch (e) { out.textContent = "导出失败：" + e.message; }
+    }
+    $("wb-refresh").addEventListener("click", () => { loadWorkbench(); loadDifficulty(); });
+    $("wb-export-json").addEventListener("click", () => exportWorkbench("json"));
+    $("wb-export-csv").addEventListener("click", () => exportWorkbench("csv"));
+
     init();
     loadDifficulty();
+    loadWorkbench();
   </script>
   <script src="assets/music.js" defer></script>
 </body>

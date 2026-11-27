@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>训练报告 - 专注小蛙</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/vinyl.css">
@@ -883,7 +884,9 @@
         $("btn-home").href = "dev.html";
       }
       const recorded = source.name === "hardware" || source.name === "heart";
-      const srcName = r.demo ? "无设备试玩 · 手动模拟" : describeSignal(source);
+      const isAssessment = r.purpose === "assessment" || !!r.assessment;
+      const srcName = (r.demo ? "无设备试玩 · 手动模拟" : describeSignal(source))
+        + (isAssessment ? " · 标准评估（固定难度 1.00，不发放积分）" : "");
       $("actions-card").classList.toggle("hidden", !r.actions);
       if (r.actions) {
         const { timed_jumps, automatic_jumps, successful_jumps, missed_jumps,
@@ -942,6 +945,9 @@
         </p>
       `;
       $("report-source").textContent = "信号来源 · " + srcName;
+      if (isAssessment) {
+        $("report-source").textContent += " · 评估 " + (r.assessment_id || r.assessment?.protocol_version || "");
+      }
       const scoreCurve = (r.curve || []).map(p => {
         const v = (p.score != null) ? p.score
           : ((p.focus_fused != null ? p.focus_fused : p.focus) != null

@@ -1,0 +1,118 @@
+{
+  "cycles": 28,
+  "start": "2026-11-27T13:20:43.314Z",
+  "end": "2026-11-27T13:51:12.352Z",
+  "fps": {
+    "min": 60,
+    "max": 61,
+    "median": 61.0,
+    "first": 60,
+    "last": 61,
+    "n": 28
+  },
+  "dom": {
+    "min": 734,
+    "max": 734,
+    "median": 734.0,
+    "first": 734,
+    "last": 734,
+    "n": 28
+  },
+  "heap_used_mb": {
+    "min": 2,
+    "max": 4,
+    "median": 3.0,
+    "first": 3,
+    "last": 2,
+    "n": 28
+  },
+  "heap_total_mb": {
+    "min": 6,
+    "max": 9,
+    "median": 8.0,
+    "first": 6,
+    "last": 9,
+    "n": 28
+  },
+  "server_rss_mb": {
+    "min": 159,
+    "max": 164,
+    "median": 163.0,
+    "first": 159,
+    "last": 164,
+    "n": 28
+  },
+  "memory_sessions_reported": {
+    "min": 1,
+    "max": 5,
+    "median": 5.0,
+    "first": 1,
+    "last": 5,
+    "n": 28
+  },
+  "db_sessions": {
+    "min": 0,
+    "max": 27,
+    "median": 13.5,
+    "first": 0,
+    "last": 27,
+    "n": 28
+  },
+  "db_rounds": {
+    "min": 0,
+    "max": 0,
+    "median": 0.0,
+    "first": 0,
+    "last": 0,
+    "n": 28
+  },
+  "monitor_clients": {
+    "min": 0,
+    "max": 0,
+    "median": 0.0,
+    "first": 0,
+    "last": 0,
+    "n": 28
+  },
+  "schema": [
+    4
+  ],
+  "console_errors": [
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "events": [
+    {
+      "ts": "2026-11-27T13:20:43.314Z",
+      "event": "start",
+      "cycles": 28,
+      "cycle_ms": 65000,
+      "server_pid": "3346",
+      "node": "v24.19.0"
+    },
+    {
+      "ts": "2026-11-27T13:51:12.352Z",
+      "event": "end",
+      "errors": [
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ]
+    }
+  ]
+}

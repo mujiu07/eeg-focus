@@ -22,7 +22,7 @@ from copy import copy
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, NonNegativeInt
@@ -37,6 +37,8 @@ from .heart import heart
 from .accounts import router as accounts_router
 from .storage import StorageError, storage
 from . import difficulty
+from . import diagnostics
+from . import dev_export
 from . import calibration as calib_engine
 
 # 心率采集链路依赖 macOS 专属的 AirPods 心率进程（hrd），其他系统没有对应实现，
@@ -49,7 +51,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.3")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.8.4")
 
 # 已完成会话在内存中保留的宽限时间；报告/逐轮数据先写入 SQLite，
 # 到期后释放 EDF 原始数组和监测批次，历史报告仍可从数据库读取。
@@ -140,6 +142,8 @@ class Session:
         self.user_id = config.get("user_id") if isinstance(config, dict) else None
         self.calibration_id = config.get("calibration_id") if isinstance(config, dict) else None
         self.purpose = (config.get("purpose") or "game") if isinstance(config, dict) else "game"
+        self.assessment = config.get("assessment") if isinstance(config, dict) else None
+        self.assessment_id = config.get("assessment_id") if isinstance(config, dict) else None
         self.reference_baseline_id = config.get("reference_baseline_id") if isinstance(config, dict) else None
         self.calibration_snapshot = None
         self.reference_snapshot = None
@@ -209,6 +213,7 @@ class Session:
         """固定本局使用的当日校准与长期参考快照。"""
         if cal:
             self.calibration_id = cal.get("id")
+            self.calibration = cal
             self.calibration_snapshot = cal
             rng = cal.get("range") or {}
             if rng.get("low") is not None and rng.get("high") is not None:
@@ -443,6 +448,12 @@ class Session:
         hr_summary = heart.summary()
         hr_summary["n_frames"] = len(hr_vals)
         hr_summary["coverage"] = round(len(hr_vals) / len(valid), 3) if valid else 0.0
+        # v1.8.4：客户端逐轮数据先做边界/一致性检查；异常轮次不参与自动难度。
+        data_quality = diagnostics.validate_actions(actions, planned_sec, played_sec)
+        if actions:
+            actions = dict(actions)
+            actions["rounds"] = data_quality["accepted_rounds"]
+            actions["incomplete_round"] = data_quality["accepted_incomplete"]
         self.stats = {
             "session_id": self.id,
             "created_at": datetime.fromtimestamp(self.created_at).isoformat(timespec="seconds"),
@@ -451,6 +462,7 @@ class Session:
             "score": score,
             "notes": notes,
             "actions": actions,
+            "data_quality": data_quality,
             "demo": demo,
             "purpose": self.purpose,
             "planned_sec": planned_sec,
@@ -464,6 +476,7 @@ class Session:
                 1 for e in self.history if e.get("reason") == "artifact"),
             "baseline": self.baseline,
             "calibration": self.calibration,
+            "calibration_status": (self.calibration_snapshot or {}).get("status") or "legacy",
             "n_frames": len(self.history),
             "n_valid_frames": len(valid),
             "n_invalid_frames": n_invalid,
@@ -486,9 +499,12 @@ class Session:
             "reference_score_max": round(float(max(reference_scores)), 1) if reference_scores else None,
             "reference_score_min": round(float(min(reference_scores)), 1) if reference_scores else None,
             "reference_baseline_id": self.reference_baseline_id,
+            "device_key": self.config.get("device_key") if isinstance(self.config, dict) else None,
             "calibration_snapshot": self.calibration_snapshot,
             "reference_snapshot": self.reference_snapshot,
             "difficulty_snapshot": self.difficulty_snapshot,
+            "assessment_id": self.assessment_id,
+            "assessment": self.assessment,
             "heart": hr_summary,
             "hr_curve": heart.curves(self._mono0),
             "curve": [{"t": e["t"], "focus": e["focus"], "raw": e["raw"],
@@ -501,6 +517,15 @@ class Session:
         }
         self.stats["user_id"] = self.user_id
         self.stats["calibration_id"] = self.calibration_id
+        try:
+            metrics = difficulty.compute_metrics(self.stats)
+            self.stats["charge_process"] = diagnostics.charge_process(self.stats)
+            self.stats["diagnostics"] = diagnostics.diagnose(self.stats, metrics)
+        except Exception as exc:  # 诊断不能阻止已经生成的正式报告落库
+            self.stats["diagnostics"] = {"items": [], "active": [],
+                                         "summary": "诊断计算失败", "error": str(exc),
+                                         "engineering_only": True}
+            self.stats["charge_process"] = diagnostics.charge_process(self.stats)
         if self._task:
             self._task.cancel()
         return self
@@ -536,11 +561,14 @@ class Session:
             "user_id": self.user_id,
             "calibration_id": self.calibration_id,
             "purpose": self.purpose,
+            "assessment": self.assessment,
+            "assessment_id": self.assessment_id,
             "reference_baseline_id": self.reference_baseline_id,
             "calibration_snapshot": self.calibration_snapshot,
             "reference_snapshot": self.reference_snapshot,
             "difficulty": self.difficulty_snapshot,
             "finished": self.finished,
+            "monitor_clients": self.monitor_clients,
             "monitor_available": self.source.name in ("hardware", "replay"),
         }
 
@@ -553,6 +581,13 @@ def np_mean(xs):
 # ---------------------------------------------------------------------------
 # 请求模型
 # ---------------------------------------------------------------------------
+class AssessmentConfig(BaseModel):
+    protocol_version: str = "standard_v1"
+    planned_sec: float = Field(default=90.0, ge=30.0, le=180.0)
+    seed: Optional[str] = Field(default=None, max_length=128)
+    simulation: bool = False
+
+
 class SessionCreate(BaseModel):
     mode: str = "replay"          # replay | manual | hardware | heart（仅心率）
     file: Optional[str] = None    # replay 模式下的 EDF 文件路径
@@ -571,6 +606,16 @@ class SessionCreate(BaseModel):
     purpose: str = "game"                   # game | calibration
     device_key: Optional[str] = None        # v1.8.2：设备/信号源指纹
     timezone_offset_min: Optional[int] = None  # v1.8.2：浏览器本地时区偏移
+    assessment: Optional[AssessmentConfig] = None  # v1.8.4：标准评估参数
+
+
+class AssessmentCreate(SessionCreate):
+    """独立入口；服务端强制 purpose=assessment。"""
+    purpose: str = "assessment"
+    protocol_version: str = "standard_v1"
+    planned_sec: float = Field(default=90.0, ge=30.0, le=180.0)
+    seed: Optional[str] = Field(default=None, max_length=128)
+    simulation: bool = False
 
 
 class HeartStart(BaseModel):
@@ -630,6 +675,15 @@ class RoundRecord(BaseModel):
     cooldown_count: Optional[NonNegativeInt] = None
     cooldown_sec: Optional[float] = Field(default=None, ge=0)
     energy_gain: Optional[float] = Field(default=None, ge=0)
+    energy_gain_total: Optional[float] = Field(default=None, ge=0)
+    energy_loss: Optional[float] = Field(default=None, ge=0)
+    energy_net: Optional[float] = None
+    charge_active_sec: Optional[float] = Field(default=None, ge=0)
+    below_threshold_sec: Optional[float] = Field(default=None, ge=0)
+    stale_sec: Optional[float] = Field(default=None, ge=0)
+    bullet_sec: Optional[float] = Field(default=None, ge=0)
+    jump_anim_sec: Optional[float] = Field(default=None, ge=0)
+    paused_sec: Optional[float] = Field(default=None, ge=0)
 
 
 class IncompleteRound(BaseModel):
@@ -646,6 +700,13 @@ class IncompleteRound(BaseModel):
     energy_gain: Optional[float] = Field(default=None, ge=0)
     potential: Optional[NonNegativeInt] = None
     cooldown_sec: Optional[float] = Field(default=None, ge=0)
+    energy_loss: Optional[float] = Field(default=None, ge=0)
+    charge_active_sec: Optional[float] = Field(default=None, ge=0)
+    below_threshold_sec: Optional[float] = Field(default=None, ge=0)
+    stale_sec: Optional[float] = Field(default=None, ge=0)
+    bullet_sec: Optional[float] = Field(default=None, ge=0)
+    jump_anim_sec: Optional[float] = Field(default=None, ge=0)
+    paused_sec: Optional[float] = Field(default=None, ge=0)
     ended_reason: Optional[str] = None
 
 
@@ -664,15 +725,16 @@ class GameActions(BaseModel):
     rounds: Optional[list[RoundRecord]] = Field(default=None, max_length=2000)
     incomplete_round: Optional[IncompleteRound] = None
     jumps: Optional[list[JumpEvent]] = Field(default=None, max_length=3600)
+    game_process: Optional[dict] = None
 
 
 class SessionFinish(BaseModel):
     actions: Optional[GameActions] = None
     demo: bool = False
-    score: Optional[int] = None
-    played_sec: Optional[float] = None
-    planned_sec: Optional[float] = None
-    notes: Optional[str] = None
+    score: Optional[int] = Field(default=None, ge=0, le=1000000)
+    played_sec: Optional[float] = Field(default=None, ge=0, le=7200)
+    planned_sec: Optional[float] = Field(default=None, ge=0, le=7200)
+    notes: Optional[str] = Field(default=None, max_length=2000)
 
 
 class ExportRequest(BaseModel):
@@ -836,8 +898,8 @@ async def create_session(body: SessionCreate):
         body.heart_mode = "hrd"
     user_id = (body.user_id or "").strip() or None
     purpose = (body.purpose or "game").strip()
-    if purpose not in ("game", "calibration"):
-        raise HTTPException(400, "purpose 必须是 game 或 calibration")
+    if purpose not in ("game", "calibration", "assessment"):
+        raise HTTPException(400, "purpose 必须是 game、calibration 或 assessment")
     if user_id:
         try:
             storage.ensure_user(user_id)
@@ -852,13 +914,35 @@ async def create_session(body: SessionCreate):
                 raise HTTPException(403, "校准记录不属于当前档案")
         except StorageError as exc:
             raise HTTPException(400, str(exc))
-    # v1.8.2：真实 EEG 正式游戏必须拥有当天有效校准。校准会话本身不拦截；
-    # 测试/回放/手动/仅心率也不被这条规则误伤。
+    # v1.8.2/v1.8.4：真实 EEG 正式游戏与真实标准评估必须拥有当天有效校准。
+    # 校准会话本身不拦截；测试/回放/手动/仅心率也不被这条规则误伤。
     daily = None
     dev_key = body.device_key or calib_engine.device_key(body.mode, {
         "osc_ports": body.osc_ports, "osc_fs": body.osc_fs, "osc_channels": body.osc_channels,
     })
-    if user_id and purpose == "game" and body.mode == "hardware":
+    is_assessment = purpose == "assessment"
+    assessment_cfg = (body.assessment.model_dump() if body.assessment
+                      else {"protocol_version": "standard_v1", "planned_sec": 90.0,
+                            "seed": None, "simulation": body.mode != "hardware"})
+    assessment_id = None
+    reference_for_assessment = None
+    if is_assessment:
+        # 标准评估只允许固定难度与固定协议；随机种子由服务端生成/回显。
+        if body.mode == "hardware":
+            if not user_id:
+                raise HTTPException(400, "真实硬件标准评估必须指定 user_id")
+            reference_for_assessment = storage.reference_baseline(user_id)
+            if not reference_for_assessment:
+                raise HTTPException(409, "assessment_reference_required: 缺少长期参考基线，不能生成可纵向比较的结果")
+            ref_device = reference_for_assessment.get("device_key")
+            if ref_device and dev_key and str(ref_device) != str(dev_key):
+                raise HTTPException(409, "assessment_reference_incompatible: 长期参考基线与当前设备不匹配")
+            # 校准/算法兼容性在 daily 查询后再次检查，避免把不兼容结果标成可纵向比较。
+        assessment_cfg["simulation"] = bool(assessment_cfg.get("simulation")
+                                            or body.mode != "hardware")
+        assessment_cfg["seed"] = assessment_cfg.get("seed") or uuid.uuid4().hex[:12]
+        assessment_id = "asm_" + uuid.uuid4().hex[:12]
+    if user_id and purpose in ("game", "assessment") and body.mode == "hardware":
         daily = storage.calibration_status(user_id, mode=body.mode, device=dev_key,
                                             tz_offset_min=body.timezone_offset_min)
         if not daily.get("valid"):
@@ -867,6 +951,11 @@ async def create_session(body: SessionCreate):
                 "daily_calibration_required: " + str(daily.get("status_text") or "今日尚未校准"),
             )
         calibration_id = (daily.get("calibration") or {}).get("id") or calibration_id
+    if is_assessment and body.mode == "hardware" and reference_for_assessment:
+        ref_algo = reference_for_assessment.get("algorithm_version")
+        cal_algo = (daily.get("calibration") or {}).get("algorithm_version") if daily else None
+        if ref_algo and cal_algo and str(ref_algo) != str(cal_algo):
+            raise HTTPException(409, "assessment_reference_incompatible: 长期参考基线与当前算法不匹配")
     config = {
         "mode": body.mode,
         "file": body.file,
@@ -877,6 +966,8 @@ async def create_session(body: SessionCreate):
         "user_id": user_id,
         "calibration_id": calibration_id,
         "purpose": purpose,
+        "assessment": assessment_cfg if is_assessment else None,
+        "assessment_id": assessment_id,
         "device_key": dev_key,
         "timezone_offset_min": body.timezone_offset_min,
     }
@@ -919,13 +1010,15 @@ async def create_session(body: SessionCreate):
         except StorageError as exc:
             raise HTTPException(500, f"读取难度档案失败：{exc}")
     # 游戏会话使用服务端当日校准记录，而不是信任前端缓存里的旧区间。
-    if user_id and purpose == "game":
+    if user_id and purpose in ("game", "assessment"):
         try:
             cal = (daily or {}).get("calibration") if daily else None
             if not cal and calibration_id:
                 cal = storage.get_calibration(user_id, calibration_id)
             if cal:
-                s.apply_calibration(cal, storage.reference_baseline(user_id) if body.mode == "hardware" else None)
+                ref_to_apply = (reference_for_assessment if is_assessment and reference_for_assessment
+                                else storage.reference_baseline(user_id))
+                s.apply_calibration(cal, ref_to_apply)
         except StorageError:
             pass
     elif user_id and purpose == "calibration":
@@ -952,11 +1045,71 @@ async def create_session(body: SessionCreate):
     _sessions[s.id] = s
     try:
         await s.start()
+        if is_assessment:
+            row = storage.create_assessment(
+                user_id, s.id, protocol_version=str(assessment_cfg.get("protocol_version") or "standard_v1"),
+                planned_sec=float(assessment_cfg.get("planned_sec") or 90),
+                seed=assessment_cfg.get("seed"), simulation=bool(assessment_cfg.get("simulation")),
+                calibration_id=s.calibration_id,
+                reference_baseline_id=getattr(s, "reference_baseline_id", None),
+                device={"device_key": dev_key, "mode": body.mode,
+                        "source": source.describe(), "osc_ports": body.osc_ports,
+                        "osc_fs": body.osc_fs, "osc_channels": body.osc_channels},
+                params={"difficulty": s.difficulty_snapshot, "protocol": assessment_cfg},
+            )
+            s.assessment_id = row["assessment_id"]
+            s.assessment = dict(assessment_cfg)
+            assessment_id = row["assessment_id"]
+    except StorageError as e:
+        try:
+            await s.finish(notes="assessment-record-failed")
+        except Exception:
+            pass
+        _sessions.pop(s.id, None)
+        raise HTTPException(500, f"标准评估记录创建失败：{e}")
     except Exception as e:  # noqa: BLE001 - 端口占用/依赖缺失时给出可读错误
         _sessions.pop(s.id, None)
         raise HTTPException(400, f"信号源启动失败: {e}")
     return {"session_id": s.id, "source": source.describe(),
-            "difficulty": s.difficulty_snapshot}
+            "difficulty": s.difficulty_snapshot, "assessment_id": assessment_id,
+            "assessment": s.assessment if is_assessment else None}
+
+
+@app.post("/api/assessments")
+async def create_assessment(body: AssessmentCreate):
+    """标准评估入口：固定 1.00、固定协议、隔离奖励与个人难度。"""
+    body.purpose = "assessment"
+    if body.assessment is None:
+        body.assessment = AssessmentConfig(
+            protocol_version=body.protocol_version,
+            planned_sec=body.planned_sec,
+            seed=body.seed,
+            simulation=body.simulation,
+        )
+    return await create_session(body)
+
+
+@app.get("/api/assessments")
+def list_assessments(user_id: Optional[str] = Query(None), limit: int = Query(20, ge=1, le=100)):
+    if not user_id:
+        raise HTTPException(400, "列出评估必须指定 user_id")
+    try:
+        return {"assessments": storage.assessments(user_id, limit)}
+    except StorageError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.get("/api/assessments/{assessment_id}")
+def get_assessment(assessment_id: str, user_id: Optional[str] = Query(None)):
+    if not user_id:
+        raise HTTPException(400, "读取评估必须指定 user_id")
+    try:
+        item = storage.assessment(assessment_id, user_id)
+    except StorageError as exc:
+        raise HTTPException(403, str(exc))
+    if not item:
+        raise HTTPException(404, "评估记录不存在")
+    return {"assessment": item}
 
 
 @app.post("/api/session/{sid}/manual")
@@ -1339,20 +1492,27 @@ async def finish_session(sid: str, body: SessionFinish,
     wallet = None
     earned = 0
     difficulty_result = {"applied": False, "reason": "no_user"}
+    assessment_result = None
     try:
         saved = storage.persist_session(
             s.stats, user_id=s.user_id, calibration_id=s.calibration_id,
         )
         wallet, earned = saved.get("wallet"), saved.get("earned_points", 0)
-        # 只有报告成功落库后才评估下一局；record_difficulty 以 session_id 幂等。
-        difficulty_result = storage.record_difficulty(s.stats, s.user_id)
+        # 标准评估不写个人难度、不发商城积分；只完成独立评估记录。
+        if s.purpose == "assessment":
+            assessment_result = storage.complete_assessment(s.id, s.stats)
+            difficulty_result = {"applied": False, "reason": "assessment_isolated"}
+        else:
+            # 只有报告成功落库后才评估下一局；record_difficulty 以 session_id 幂等。
+            difficulty_result = storage.record_difficulty(s.stats, s.user_id)
     except StorageError as exc:
         # 游戏结果已经生成；明确报错，不静默假装已经结算。
         raise HTTPException(500, f"本局记录保存失败：{exc}")
     # 兼容旧版本的 outputs/sessions 仅供本地旧报告迁移读取；新报告以 SQLite 为主。
     # 不再重复写入仓库目录，避免个人数据出现在源码工作区。
     return {"ok": True, "report": s.stats, "wallet": wallet, "earned_points": earned,
-            "user_id": s.user_id, "difficulty": difficulty_result}
+            "user_id": s.user_id, "difficulty": difficulty_result,
+            "assessment": assessment_result}
 
 
 @app.get("/api/report/{sid}")
@@ -1434,6 +1594,263 @@ def music_track_url(track_id: str):
         return music.url_for(track_id)
     except Exception as e:
         raise HTTPException(502, str(e))
+
+
+def _iso_seconds(value):
+    try:
+        return datetime.fromtimestamp(float(value)).astimezone().isoformat(timespec="seconds")
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _small_report(report: Optional[dict]) -> Optional[dict]:
+    if not report:
+        return None
+    metrics = {}
+    try:
+        metrics = difficulty.compute_metrics(report)
+    except Exception:
+        pass
+    diag = report.get("diagnostics") or diagnostics.diagnose(report, metrics)
+    return {
+        "session_id": report.get("session_id"),
+        "user_id": report.get("user_id"),
+        "created_at": report.get("created_at"),
+        "purpose": report.get("purpose") or "game",
+        "assessment_id": report.get("assessment_id"),
+        "planned_sec": report.get("planned_sec"),
+        "played_sec": report.get("played_sec"),
+        "duration_sec": report.get("duration_sec"),
+        "score": report.get("score"),
+        "demo": report.get("demo"),
+        "source": report.get("source"),
+        "score_mean": report.get("score_mean"),
+        "above_mid_ratio": report.get("above_mid_ratio"),
+        "valid_signal_ratio": report.get("valid_signal_ratio"),
+        "metrics": metrics,
+        "charge_process": report.get("charge_process") or diagnostics.charge_process(report),
+        "diagnostics": diag,
+        "difficulty_snapshot": report.get("difficulty_snapshot"),
+        "data_quality": report.get("data_quality"),
+        "calibration_id": report.get("calibration_id"),
+        "reference_baseline_id": report.get("reference_baseline_id"),
+        "assessment": report.get("assessment"),
+    }
+
+
+def _assessment_eligibility(user_id: Optional[str], mode: str, device: Optional[str],
+                            tz_offset_min: Optional[int] = None, simulation: bool = False) -> dict:
+    reasons = []
+    comparable = False
+    daily = None
+    reference = None
+    if not user_id:
+        reasons.append("未选择个人档案")
+    if mode != "hardware":
+        reasons.append("当前不是真实硬件 EEG；只能生成明确标记的模拟评估")
+        simulation = True
+    if user_id:
+        try:
+            daily = storage.calibration_status(user_id, mode=mode, device=device,
+                                                tz_offset_min=tz_offset_min)
+            reference = storage.reference_baseline(user_id)
+        except StorageError as exc:
+            reasons.append(str(exc))
+    if mode == "hardware" and user_id:
+        if not daily or not daily.get("valid"):
+            reasons.append("缺少当日有效校准")
+        if not reference:
+            reasons.append("缺少长期参考基线")
+        elif device and reference.get("device_key") and str(reference["device_key"]) != str(device):
+            reasons.append("长期参考基线与当前设备不匹配")
+        elif daily and reference.get("algorithm_version"):
+            cal = daily.get("calibration") or {}
+            if cal.get("algorithm_version") and cal["algorithm_version"] != reference["algorithm_version"]:
+                reasons.append("长期参考基线与当前算法不匹配")
+        comparable = not reasons
+    return {
+        "eligible": bool(user_id) and (mode != "hardware" or comparable),
+        "comparable": comparable,
+        "simulation": bool(simulation or mode != "hardware"),
+        "reasons": reasons,
+        "daily": daily,
+        "reference": reference,
+        "protocol": {"version": "standard_v1", "planned_sec": 90, "fixed_factor": 1.0},
+    }
+
+
+def _workbench_payload(*, user_id: Optional[str], session_id: Optional[str],
+                       tz_offset_min: Optional[int] = None) -> dict:
+    active = None
+    if session_id:
+        active = _session_for(session_id, user_id, require_user=bool(user_id))
+    elif user_id:
+        owned = [s for s in _sessions.values() if s.user_id == user_id and not s.finished]
+        active = owned[-1] if owned else None
+    report = None
+    if active and active.finished:
+        report = active.stats or None
+    elif user_id:
+        # 活动 Session 期间仍展示最近一份已完成报告，便于对照诊断；
+        # 不把进行中的前端状态伪装成已完成结果。
+        try:
+            recent = storage.list_sessions(user_id, 1)
+            report = recent[0].get("report") if recent else None
+        except StorageError:
+            report = None
+    runtime_source = (active.source.describe() if active else
+                      (report or {}).get("source") or {})
+    source_name = str(runtime_source.get("name") or (report or {}).get("source", {}).get("name") or "—")
+    purpose = (active.purpose if active else (report or {}).get("purpose") or "game")
+    device = active.config.get("device_key") if active else (report or {}).get("device_key")
+    started = active.created_at if active else None
+    elapsed = None
+    if active and not active.finished:
+        elapsed = round(time.time() - active.created_at, 1)
+    elif (report or {}).get("duration_sec") is not None:
+        elapsed = report.get("duration_sec")
+    calib_snapshot = (active.calibration_snapshot if active else
+                      (report or {}).get("calibration_snapshot") or (report or {}).get("calibration"))
+    ref_snapshot = (active.reference_snapshot if active else (report or {}).get("reference_snapshot"))
+    diff_snapshot = (active.difficulty_snapshot if active else (report or {}).get("difficulty_snapshot"))
+    user = None
+    if user_id:
+        try:
+            user = storage.get_user(user_id)
+        except StorageError:
+            user = None
+    status = storage.status()
+    daily = None
+    cal_history = []
+    ref_history = []
+    diff_profile = None
+    diff_history = []
+    if user_id:
+        try:
+            # 回放/测试会复用一条硬件校准；状态仍按该校准的硬件设备与应用条件检查，
+            # 不把回放源误标成“今日硬件校准失效”。
+            daily_mode = "hardware" if source_name == "replay" else source_name
+            daily_device = (calib_snapshot or {}).get("device_key") or device
+            daily = storage.calibration_status(user_id, mode=daily_mode,
+                                                device=daily_device, tz_offset_min=tz_offset_min)
+            cal_history = storage.calibration_history(user_id, 12)
+            ref_history = storage.reference_baselines(user_id)
+            diff_profile = storage.difficulty_profile(user_id, history_limit=20)
+            diff_history = storage.difficulty_history(user_id, 20)
+        except StorageError:
+            pass
+    assessment = _assessment_eligibility(
+        user_id, source_name, device, tz_offset_min,
+        simulation=bool((report or {}).get("demo") or (report or {}).get("assessment", {}).get("simulation")))
+    recent_assessments = []
+    if user_id:
+        try:
+            recent_assessments = storage.assessments(user_id, 8)
+        except StorageError:
+            recent_assessments = []
+    # 工作台只暴露最近评估摘要，避免把整份逐轮报告塞进每 3 秒轮询。
+    recent_assessments = [{
+        "assessment_id": a["assessment_id"], "session_id": a["session_id"],
+        "status": a["status"], "simulation": a["simulation"],
+        "protocol_version": a["protocol_version"], "planned_sec": a["planned_sec"],
+        "fixed_factor": a["fixed_factor"], "seed": a["seed"],
+        "started_at": a["started_at"], "ended_at": a["ended_at"],
+    } for a in recent_assessments]
+    latest = _small_report(report)
+    if latest and not latest.get("diagnostics"):
+        latest["diagnostics"] = diagnostics.diagnose(report or {}, latest.get("metrics"))
+    return {
+        "ok": True,
+        "app": {"name": "专注小蛙", "version": app.version,
+                "schema_version": status.get("schema_version"), "encrypted": False},
+        "storage": {"data_dir": status.get("data_dir"), "counts": status.get("counts"),
+                    "scope_note": status.get("scope_note")},
+        "user": ({"user_id": user.get("user_id"), "nickname": user.get("nickname"),
+                  "avatar": user.get("avatar"), "status": user.get("status")} if user else None),
+        "runtime": {
+            "session_id": active.id if active else (report or {}).get("session_id"),
+            "purpose": purpose,
+            "mode": source_name,
+            "source": runtime_source,
+            "device_key": device,
+            "device": runtime_source.get("device") or runtime_source.get("address"),
+            "channels": runtime_source.get("channels") or (active.source.ch_names if active else []),
+            "fs": runtime_source.get("fs") or (getattr(active.source, "fs", None) if active else None),
+            "started_at": _iso_seconds(started) if started else (report or {}).get("created_at"),
+            "elapsed_sec": elapsed,
+            "monitor_clients": active.monitor_clients if active else 0,
+            "source_is_real": source_name == "hardware",
+            "session_count": len(_sessions),
+            "assessment": active.assessment if active else (report or {}).get("assessment"),
+        },
+        "calibration": {
+            "current": calib_snapshot,
+            "daily": daily,
+            "history": cal_history,
+            "reference": ref_snapshot or (ref_history[0] if ref_history else None),
+            "reference_history": ref_history,
+        },
+        "difficulty": {
+            "profile": diff_profile,
+            "history": diff_history,
+            "snapshot": diff_snapshot,
+        },
+        "assessment": {**assessment, "recent": recent_assessments},
+        "latest_report": latest,
+        "diagnostics": (latest or {}).get("diagnostics") if latest else None,
+        "raw_wave_exported": False,
+    }
+
+
+@app.get("/api/dev/workbench")
+def dev_workbench(session_id: Optional[str] = Query(None),
+                  user_id: Optional[str] = Query(None),
+                  tz_offset_min: Optional[int] = Query(None),
+                  x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    uid = (user_id or x_user_id or "").strip() or None
+    try:
+        return _workbench_payload(user_id=uid, session_id=session_id,
+                                  tz_offset_min=tz_offset_min)
+    except HTTPException:
+        raise
+    except StorageError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.get("/api/dev/diagnostics/{sid}")
+def dev_diagnostics(sid: str, user_id: Optional[str] = Query(None),
+                    x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    uid = (user_id or x_user_id or "").strip() or None
+    report = _load_report(sid, uid)
+    metrics = difficulty.compute_metrics(report)
+    return {
+        "ok": True,
+        "session_id": sid,
+        "diagnostics": report.get("diagnostics") or diagnostics.diagnose(report, metrics),
+        "charge_process": report.get("charge_process") or diagnostics.charge_process(report),
+        "metrics": metrics,
+        "rounds": diagnostics.summarize_rounds(report),
+        "assessment": report.get("assessment"),
+        "privacy": {"raw_eeg_exported": False, "nickname_exported": False},
+    }
+
+
+@app.post("/api/dev/diagnostics/{sid}/export")
+def dev_export_diagnostics(sid: str, fmt: str = Query("json"),
+                           user_id: Optional[str] = Query(None),
+                           x_user_id: Optional[str] = Header(None, alias="X-User-Id")):
+    uid = (user_id or x_user_id or "").strip() or None
+    report = _load_report(sid, uid)
+    runtime = _workbench_payload(user_id=uid, session_id=None).get("app", {})
+    payload = dev_export.build_payload(report, user_id=uid, runtime=runtime)
+    fmt = "csv" if str(fmt).lower() == "csv" else "json"
+    item = dev_export.write_export(storage.reports_dir, sid, fmt, payload)
+    return {
+        "ok": True, "format": fmt, "filename": item["filename"],
+        "path": item["path"], "media_type": item["media_type"],
+        "content": item["content"].decode("utf-8-sig" if fmt == "csv" else "utf-8"),
+        "raw_eeg_exported": False, "nickname_exported": False,
+    }
 
 
 @app.get("/api/dev/current")

@@ -200,6 +200,20 @@
     return Math.round(v * 1000) / 1000;
   }
 
+  /** 标准评估用确定性随机源；同一个 seed 在 Node/浏览器产生同一组黄色区域。 */
+  function makeRng(seed) {
+    let state = 2166136261;
+    const text = String(seed == null ? "" : seed);
+    for (let i = 0; i < text.length; i++) {
+      state ^= text.charCodeAt(i);
+      state = Math.imul(state, 16777619) >>> 0;
+    }
+    return function () {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+  }
+
   class RoundEngine {
     /**
      * @param {object} [config] 覆盖 CONFIG 的参数（便于真机调参）
@@ -233,10 +247,17 @@
       this.chargeSec = 0;             // 计分用时：含等待/宽容/衰减/冷却，不含异常与子弹时间
       this.evalSec = 0;               // v1.8.3 评估用时：排除冷却，仍含等待/宽容/衰减
       this.belowSec = 0;              // 连续低于阈值的时长
+      this.chargeActiveSec = 0;       // v1.8.4：有效蓄力净时间
+      this.belowThresholdSec = 0;     // v1.8.4：低于蓄力条件的非冷却时间
       this.decaying = false;
       this.decayEvents = 0;
       this.decaySec = 0;
+      this.energyGainTotal = 0;       // v1.8.4：累计正增益
+      this.energyLossTotal = 0;       // v1.8.4：累计衰减
       this.staleSec = 0;              // 本轮信号异常累计时长
+      this.bulletSec = 0;             // v1.8.4：子弹时间
+      this.jumpAnimSec = 0;           // v1.8.4：由游戏层在跳跃/归位时回填
+      this.pausedSec = 0;             // v1.8.4：主动暂停/开局倒数
       this.bulletElapsed = 0;
       this.potential = null;
       this.awarded = null;
@@ -275,7 +296,10 @@
         this.staleSec += step;
         return out;
       }
-      if (paused) return out;
+      if (paused) {
+        this.pausedSec += step;
+        return out;
+      }
 
       const score = finite(input && input.score, c.chargeZeroScore);
 
@@ -302,9 +326,14 @@
         if (input && input.charging) {
           this.belowSec = 0;
           this.decaying = false;
+          this.chargeActiveSec += activeStep;
           const gain = chargeSpeed(score, c) * activeStep;
-          if (gain > 0) this.energy += gain;   // 负增益已被 chargeSpeed 钳成 0
+          if (gain > 0) {
+            this.energy += gain;               // 负增益已被 chargeSpeed 钳成 0
+            this.energyGainTotal += gain;
+          }
         } else {
+          this.belowThresholdSec += activeStep;
           const prevBelow = this.belowSec;
           this.belowSec += step;
           if (activeStep > 0 && this.belowSec >= c.graceSec) {
@@ -317,8 +346,10 @@
                 this.decaying = true;
                 this.decayEvents += 1;
               }
-              this.energy -= decaySpeed(c) * decayStep;
+              const loss = decaySpeed(c) * decayStep;
+              this.energy -= loss;
               this.decaySec += decayStep;
+              this.energyLossTotal += loss;
             }
           }
         }
@@ -340,6 +371,7 @@
 
       if (this.phase === "BULLET_TIME") {
         // 固定时长穿过整个金色区域：slowSpeed = width / bulletTimeSec。
+        this.bulletSec += step;
         this.bulletElapsed = Math.min(c.bulletTimeSec, this.bulletElapsed + step);
         const k = c.bulletTimeSec > 0 ? this.bulletElapsed / c.bulletTimeSec : 1;
         this.energy = clamp(this.zone.lo + this.zone.width * k, this.zone.lo, this.zone.hi);
@@ -420,6 +452,14 @@
           difficulty_factor: round3(finite(this.config.difficultyFactor, 1.0)),
           zone_width: round3(this.zone.width),
           energy_gain: round3(Math.max(0, this.energy - this.startEnergy)),
+          energy_gain_total: round3(this.energyGainTotal),
+          energy_loss: round3(this.energyLossTotal),
+          energy_net: round3(this.energy - this.startEnergy),
+          charge_active_sec: round3(this.chargeActiveSec),
+          below_threshold_sec: round3(this.belowThresholdSec),
+          bullet_sec: round3(this.bulletSec),
+          jump_anim_sec: round3(this.jumpAnimSec),
+          paused_sec: round3(this.pausedSec),
           zone_lo: round3(this.zone.lo),
           zone_hi: round3(this.zone.hi),
           t_ref: round3(referenceTime(distance, c)),
@@ -458,6 +498,15 @@
         energy: round3(this.energy),
         start_energy: round3(this.startEnergy),
         energy_gain: round3(Math.max(0, this.energy - this.startEnergy)),
+        energy_gain_total: round3(this.energyGainTotal),
+        energy_loss: round3(this.energyLossTotal),
+        energy_net: round3(this.energy - this.startEnergy),
+        charge_active_sec: round3(this.chargeActiveSec),
+        below_threshold_sec: round3(this.belowThresholdSec),
+        stale_sec: round3(this.staleSec),
+        bullet_sec: round3(this.bulletSec),
+        jump_anim_sec: round3(this.jumpAnimSec),
+        paused_sec: round3(this.pausedSec),
         potential: this.potential,
         cooldown_sec: round3(this.cooldownSec),
         ended_reason: String(reason || "time_up"),
@@ -473,6 +522,13 @@
         chargeSec: round3(this.chargeSec),
         evalSec: round3(this.evalSec),
         belowSec: round3(this.belowSec),
+        chargeActiveSec: round3(this.chargeActiveSec),
+        belowThresholdSec: round3(this.belowThresholdSec),
+        energyGainTotal: round3(this.energyGainTotal),
+        energyLossTotal: round3(this.energyLossTotal),
+        bulletSec: round3(this.bulletSec),
+        jumpAnimSec: round3(this.jumpAnimSec),
+        pausedSec: round3(this.pausedSec),
         decaying: this.decaying,
         decayEvents: this.decayEvents,
         decaySec: round3(this.decaySec),
@@ -506,5 +562,6 @@
     pointsForScore,
     validateConfig,
     normalizeConfig,
+    makeRng,
   };
 });

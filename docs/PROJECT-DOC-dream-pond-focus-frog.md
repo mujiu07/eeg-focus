@@ -2,7 +2,7 @@
 
 > 文档类型：Proposal + MVP PRD + Technical Design + AI Workflow（四合一，对应课程 Project Documentation Guidelines Part 1–4）
 > 游戏名：专注小蛙 · 梦境池塘（Dream Pond Focus Frog）
-> 代码版本：v1.8.3（2026-11-27）
+> 代码版本：v1.8.4（2026-11-27）
 > 仓库：`eeg-focus/`（GitHub: `mujiu07/eeg-focus`）
 > 说明：本文件是评审入口；更细的架构、技术栈、隐私与硬件内容见 `docs/` 下对应文档。
 
@@ -108,6 +108,7 @@ ADHD 儿童注意力维持困难、缺乏对自身专注状态的觉察；传统
 | 档案 | 每个档案独立 `user_id`；校准/游戏/钱包/装扮/成就按档案隔离 | `app/storage.py`、`web/profiles.html` |
 | 数据边界 | 脑电/档案/校准/参考/难度均在本机 `专注小蛙/`；SQLite 未加密；仅可选音乐联网 | `docs/usage-and-privacy.md` §6、`docs/DEV-REPORT-v1.8.2.md`、`docs/DEV-REPORT-v1.8.3.md` |
 | 自适应难度（v1.8.3） | 只调黄色区域起点；Session 锁定；净蓄力排除冷却/断流/暂停/子弹/动画；连续 2 局偏高降 10%、3 局偏低升 10%；测试源不写真实档案 | `app/difficulty.py`、`web/game.html`、`web/dev.html`、`tests/selfcheck_v183.py` |
+| 开发者工作台（v1.8.4） | 三栏+五标签；双基线/难度历史/9 类瓶颈诊断/过程统计；90s 标准评估；JSON/CSV 脱敏导出 | `app/diagnostics.py`、`app/dev_export.py`、`web/assets/dev-workbench.js`、`tests/selfcheck_v184*` |
 
 ### 2.4 可测试的验收标准
 
@@ -240,7 +241,7 @@ outputs/models/*.joblib ← scripts/preprocess.py + train.py ← data/eegmat/
 
 ### 4.2 上下文管理
 
-- 长期上下文：`README.md`（能力与启动）、`docs/ARCHITECTURE.md`（结构）、`docs/tech-stack.md`（选型）、`docs/DEV-REPORT-v1.8.3.md`（难度）、`docs/xmuse-hardware-integration.md`（硬件证据）
+- 长期上下文：`README.md`（能力与启动）、`docs/ARCHITECTURE.md`（结构）、`docs/tech-stack.md`（选型）、`docs/DEV-REPORT-v1.8.3.md`（难度）、`docs/DEV-REPORT-v1.8.4.md`（工作台/评估）、`docs/xmuse-hardware-integration.md`（硬件证据）
 - 会话内上下文：先定位模块，再读该模块与相邻测试/文档；避免整库通读
 - 交付前：用 `CHANGELOG` 对照实际改动，防止"文档写了、代码没做"
 

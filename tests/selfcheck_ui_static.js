@@ -91,7 +91,7 @@ check("报告与导出区分脑电基础分、实际分和冷却数据", () => {
 });
 
 check("后端版本与逐轮字段已同步", () => {
-  assert.ok(serverPy.includes('version="1.8.3"'));
+  assert.ok(serverPy.includes('version="1.8.4"'));
   assert.ok(serverPy.includes("multiplier: Optional[float]"));
   assert.ok(serverPy.includes("cooldown_count: Optional[NonNegativeInt]"));
   assert.ok(serverPy.includes("cooldown_sec: Optional[float]"));
