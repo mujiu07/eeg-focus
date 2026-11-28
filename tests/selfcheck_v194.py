@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app import calibration as ce  # noqa: E402
+from app import difficulty, growth  # noqa: E402
 from app.storage import StorageManager, SCHEMA_VERSION  # noqa: E402
 
 passed = []
@@ -148,6 +149,32 @@ def main():
     special = [p for p in prices if p > 150]
     check("价格形成四档差异", len(entry) >= 15 and len(normal) >= 10 and len(rare) >= 6 and len(special) >= 3,
           f"{len(entry)}/{len(normal)}/{len(rare)}/{len(special)}")
+
+    # ---- v1.9.4 补充：10% 起点、难度安全与标准评估条件 ----
+    check("服务端起始蓄力同步为 10%", difficulty.CONFIG["start_energy"] == 10.0)
+    low = difficulty.zone_bounds(0.6)
+    first_low = difficulty.zone_bounds(0.6, first_round=True)
+    check("最低难度金区仍高于 10% 起点 2 个百分点",
+          low["zone_low_min"] >= 12.0 and first_low["zone_low_min"] >= 12.0,
+          (low, first_low))
+    base_rec = {"protocol_version": "standard_v1", "planned_sec": 90,
+                "fixed_factor": 1.0, "reference_baseline_id": "ref-1",
+                "device_key": "dev-1"}
+    report = {"algorithm_version": "algo-v1", "mapping_version": "map-v2"}
+    ref = {"version": 1, "reference_baseline_id": "ref-1", "device_key": "dev-1"}
+    old_cond = growth._conditions(base_rec, report, ref, {}, {"device_key": "dev-1"}, {
+        "difficulty": {"params_version": "v1.8.3", "game_params_version": "v1.8.3",
+                       "strategy_version": "adaptive_v1", "start_energy": 15.0}})
+    new_cond = growth._conditions(base_rec, report, ref, {}, {"device_key": "dev-1"}, {
+        "difficulty": {"params_version": "v1.9.4", "game_params_version": "v1.9.4",
+                       "strategy_version": "adaptive_v1", "start_energy": 10.0}})
+    check("15% 与 10% 评估记录不进入同一趋势条件",
+          old_cond["key"] and new_cond["key"] and old_cond["key"] != new_cond["key"],
+          (old_cond, new_cond))
+    check("评估条件显式记录起始蓄力与玩法参数版本",
+          new_cond["values"]["start_energy"] == 10.0
+          and new_cond["values"]["game_params_version"] == "v1.9.4"
+          and "起始蓄力 10%" in new_cond["label"], new_cond)
 
     server = read("app/server.py")
     check("工作台 report.assessment=null 防御",

@@ -29,7 +29,8 @@
     chargeZeroScore: 42,          // 低于此分蓄力速度为 0（原公式的零点）
     chargeGainPerScoreSec: 0.16,  // 每 1 分超出零点，每秒增加的蓄力百分点
     vRefScore: 65,                // 基准蓄力速度对应的映射分数
-    startEnergy: 15,              // 每轮起始蓄力值（原实现落地后为 15）
+    startEnergy: 10,              // v1.9.4：每次跳跃结束后的统一起始蓄力值
+    gameParamsVersion: "v1.9.4",  // 玩法参数版本；评估趋势按此区分新旧任务
 
     // ---- 宽容期与衰减 ----
     graceSec: 1.5,                // 连续低于阈值多久后开始衰减
@@ -42,6 +43,12 @@
     firstRoundLoMin: 22,          // 第一轮稍早出现，避免开局干等
     firstRoundLoMax: 34,
     zoneHiMax: 92,                // 金色区域末端上限，避免贴满
+    minZoneDistance: 2,           // 起始蓄力与金色区域起点之间的最小安全距离
+
+    // ---- 归零休息（只影响视觉，不产生惩罚） ----
+    restAfterSec: 2.0,            // 有效信号下蓄力持续为 0 多久进入休息姿态
+    restExitEnergy: 2.5,          // 蓄力恢复到该值才退出，避免 0 附近反复切换
+    restTransitionSec: 0.4,       // 300–500ms 的自然过渡
 
     // ---- 子弹时间与点击时机 ----
     bulletTimeSec: 2.5,
@@ -103,6 +110,18 @@
     if (!(finite(c.gainCueSec, -1) >= 0)) {
       errors.push("gainCueSec 不能为负");
     }
+    if (!(finite(c.startEnergy, -1) >= 0 && finite(c.startEnergy, 101) <= 100)) {
+      errors.push("startEnergy 必须在 0–100 之间");
+    }
+    if (!(finite(c.restAfterSec, -1) >= 0)) {
+      errors.push("restAfterSec 不能为负");
+    }
+    if (!(finite(c.restExitEnergy, 0) > 0)) {
+      errors.push("restExitEnergy 必须大于 0");
+    }
+    if (!(finite(c.restTransitionSec, 0) > 0)) {
+      errors.push("restTransitionSec 必须大于 0");
+    }
     return errors;
   }
 
@@ -118,6 +137,13 @@
     c.graceSec = Math.max(0, finite(c.graceSec, CONFIG.graceSec));
     c.decayRatio = clamp(finite(c.decayRatio, CONFIG.decayRatio), 0, 1);
     c.gainCueSec = Math.max(0, finite(c.gainCueSec, CONFIG.gainCueSec));
+    c.startEnergy = clamp(finite(c.startEnergy, CONFIG.startEnergy), 0, 100);
+    c.minZoneDistance = Math.max(0, finite(c.minZoneDistance, CONFIG.minZoneDistance));
+    c.restAfterSec = Math.max(0, finite(c.restAfterSec, CONFIG.restAfterSec));
+    c.restExitEnergy = Math.max(
+      0.01, finite(c.restExitEnergy, CONFIG.restExitEnergy));
+    c.restTransitionSec = Math.max(
+      0.05, finite(c.restTransitionSec, CONFIG.restTransitionSec));
     return c;
   }
 
@@ -236,7 +262,11 @@
         ? Math.max(loMin, c.firstRoundLoMax)
         : Math.max(loMin, c.zoneLoMax);
       const r = clamp(finite(this.rng(), 0.5), 0, 1);
-      const lo = loMin + (loMax - loMin) * r;
+      // 安全下限：即使服务端/测试传入了过低的区域范围，也不允许金色区域
+      // 与初始蓄力重合。正常配置不会触发，随机分布仅在边界处被抬起。
+      const maxStart = Math.max(0, Math.min(100, c.zoneHiMax) - c.zoneWidth);
+      const floor = Math.min(maxStart, c.startEnergy + c.minZoneDistance);
+      const lo = clamp(Math.max(loMin + (loMax - loMin) * r, floor), 0, maxStart);
       const hi = Math.min(c.zoneHiMax, lo + c.zoneWidth);
 
       this.roundIndex += 1;
@@ -244,6 +274,9 @@
       this.zone = { lo: round3(lo), hi: round3(hi), width: round3(hi - lo) };
       this.startEnergy = c.startEnergy;
       this.energy = c.startEnergy;
+      this.zeroSec = 0;               // v1.9.4：有效信号下蓄力连续为 0 的时长
+      this.resting = false;           // 归零休息姿态（只影响视觉）
+      this.restEvents = 0;
       this.chargeSec = 0;             // 计分用时：含等待/宽容/衰减/冷却，不含异常与子弹时间
       this.evalSec = 0;               // v1.8.3 评估用时：排除冷却，仍含等待/宽容/衰减
       this.belowSec = 0;              // 连续低于阈值的时长
@@ -356,6 +389,24 @@
 
         this.energy = clamp(this.energy, 0, 100);
 
+        // v1.9.4：只统计有效信号、非暂停、非冷却中的归零时长。
+        // 信号异常/主动暂停在上面已提前返回，不累计；冷却也不计入。
+        if (this.energy <= 1e-9) {
+          if (activeStep > 0) this.zeroSec += activeStep;
+          if (!this.resting && this.zeroSec >= c.restAfterSec) {
+            this.resting = true;
+            this.restEvents += 1;
+            out.push({ type: "rest_start" });
+          }
+        } else {
+          this.zeroSec = 0;
+          // 退出阈值高于 0，避免蓄力在 0% 附近波动时休息动画反复切换。
+          if (this.resting && this.energy >= c.restExitEnergy) {
+            this.resting = false;
+            out.push({ type: "rest_end" });
+          }
+        }
+
         // 首次进入金色区域：立即锁定本帧位置与脑电基础得分，进入子弹时间。
         // 冷却期间不进入；冷却结束后若已达标，下一帧再进入。
         if (this.cooldownRemaining <= 1e-9 && this.energy >= this.zone.lo) {
@@ -447,8 +498,12 @@
         const distance = Math.max(0, this.zone.lo - this.startEnergy);
         record = {
           round: this.roundIndex,
+          game_params_version: c.gameParamsVersion,
+          start_energy: round3(this.startEnergy),
           charge_sec: round3(this.chargeSec),
           eval_sec: round3(this.evalSec),
+          zero_sec: round3(this.zeroSec),
+          rest_events: this.restEvents,
           difficulty_factor: round3(finite(this.config.difficultyFactor, 1.0)),
           zone_width: round3(this.zone.width),
           energy_gain: round3(Math.max(0, this.energy - this.startEnergy)),
@@ -489,6 +544,7 @@
       if (this.phase !== "CHARGING" && this.phase !== "BULLET_TIME") return null;
       return {
         round: this.roundIndex,
+        game_params_version: this.config.gameParamsVersion,
         phase: this.phase,
         entered: this.phase === "BULLET_TIME" || this.potential != null,
         charge_sec: round3(this.chargeSec),
@@ -501,6 +557,8 @@
         energy_gain_total: round3(this.energyGainTotal),
         energy_loss: round3(this.energyLossTotal),
         energy_net: round3(this.energy - this.startEnergy),
+        zero_sec: round3(this.zeroSec),
+        rest_events: this.restEvents,
         charge_active_sec: round3(this.chargeActiveSec),
         below_threshold_sec: round3(this.belowThresholdSec),
         stale_sec: round3(this.staleSec),
@@ -517,6 +575,7 @@
     snapshot() {
       return {
         phase: this.phase,
+        game_params_version: this.config.gameParamsVersion,
         energy: round3(this.energy),
         zone: Object.assign({}, this.zone),
         chargeSec: round3(this.chargeSec),
@@ -540,6 +599,9 @@
         reactionSec: this.reactionSec,
         earlyTaps: this.earlyTaps,
         cooldownRemaining: round3(this.cooldownRemaining),
+        resting: this.resting,
+        zeroSec: round3(this.zeroSec),
+        restEvents: this.restEvents,
         cooldownCount: this.cooldownCount,
         cooldownSec: round3(this.cooldownSec),
         paused: this.paused,

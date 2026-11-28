@@ -89,7 +89,8 @@ check("轮次记录包含评估时间、难度快照和区域宽度", () => {
     zoneLoMin: 24, zoneLoMax: 24, firstRoundLoMin: 24, firstRoundLoMax: 24,
     difficultyFactor: .8,
   }), () => .5);
-  e.update(2, { signalOk: true, charging: true, score: 85 });
+  // v1.9.4 起点 10%：2 秒只能到约 23.8，必须多给一点时间才进入 24% 区域。
+  e.update(2.5, { signalOk: true, charging: true, score: 85 });
   e.tap();
   const rec = e.finishRound();
   assert.ok(rec.eval_sec > 0);

@@ -28,6 +28,10 @@
 | `after/game-start-cue-800.png` | 800×600 矮屏转场覆盖视口 |
 | `after/game-dev-none-1920-final.png` | 顶部栏/画布 1120px 居中 |
 | `after/game-bullet-1920.png` | 子弹时间径向压暗（250ms 过渡） |
+| `after/game-rest-1920.png` | 蓄力归零 2 秒：小蛙降低重心休息，状态「休息中」 |
+| `after/game-rest-recovered-1920.png` | 蓄力恢复：自动回到准备姿态 |
+| `after/game-rest-canvas-1920.png` | 休息姿态画布特写（降低重心与轻微压扁） |
+| `after/game-rest-recovered-canvas-1920.png` | 恢复准备姿态画布特写 |
 | `after/shop-1440.png` | 逐件定价后的商城 |
 
 ## 复现命令
@@ -37,11 +41,15 @@ FOCUS_FROG_DATA_DIR="$PWD/.deepworks/testdata" \
   .venv/bin/python -m uvicorn app.server:app --host 127.0.0.1 --port 8020
 
 PYTHONPATH="$PWD" .venv/bin/python tests/selfcheck_v194.py
+node tests/selfcheck_v194_charge.js
+node tests/econ_v194.js
 PYTHONPATH="$PWD" .venv/bin/python tests/browser_ui_v194.py \
   --base http://127.0.0.1:8020 --cdp http://127.0.0.1:9333 \
   --out .deepworks/tmp/v194/browser --user-id <隔离 fixture B>
+PYTHONPATH="$PWD" .venv/bin/python tests/browser_ui_v194_rest.py \
+  --base http://127.0.0.1:8020 --cdp http://127.0.0.1:9333
 ```
 
-浏览器验收需要带 `--remote-debugging-port=9333` 的 Edge/Chromium。截图为 1440×900 或 1920×1080、800×600；完整结果见 `browser-result.json`。
+浏览器验收需要带 `--remote-debugging-port=9333` 的 Edge/Chromium。截图为 1440×900 或 1920×1080、800×600；完整结果见 `browser-result.json`，归零休息结果见 `rest-result.json`（51 + 8 项通过）。
 
-价格明细见 `price-comparison.csv` 与 `docs/PRICE-v1.9.4.md`。
+价格明细见 `price-comparison.csv` 与 `docs/PRICE-v1.9.4.md`；10% vs 15% 的逐行模拟见 `economy-10-vs-15.csv` / `.json`。

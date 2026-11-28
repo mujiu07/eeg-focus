@@ -1,0 +1,19 @@
+{
+  "rest": {
+    "energy": "0%",
+    "resting": true,
+    "lamp": "休息中",
+    "warn": false,
+    "phase": "zone-visible"
+  },
+  "recovered": {
+    "energy": "9%",
+    "resting": false,
+    "lamp": "跟上了",
+    "warn": false,
+    "phase": "zone-visible"
+  },
+  "passed": 8,
+  "failed": [],
+  "note": "manual simulation on isolated data dir; not real EEG"
+}

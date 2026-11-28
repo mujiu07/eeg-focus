@@ -12,7 +12,7 @@ import math
 from typing import Any, Iterable, Optional
 
 STRATEGY_VERSION = "adaptive_v1"
-PARAMS_VERSION = "v1.8.3"
+PARAMS_VERSION = "v1.9.4"
 
 CONFIG: dict[str, Any] = {
     # 难度系数
@@ -27,9 +27,9 @@ CONFIG: dict[str, Any] = {
     "zone_base_max": 55.0,
     "zone_width": 6.0,
     "zone_hi_max": 92.0,
-    "start_energy": 15.0,
-    # 低系数时 24×0.60=14.4 会低于每轮起始能量 15；
-    # 为避免“开局即进入区域”的零距离，保留 2 个百分点的最小可蓄力距离。
+    "start_energy": 10.0,
+    # 低系数时 24×0.60=14.4 仍高于起始能量 10；
+    # 保留 2 个百分点最小距离，防止任何配置下“开局即进入区域”。
     "min_zone_distance": 2.0,
     # 评估门槛
     "suitable_min_sec": 4.0,

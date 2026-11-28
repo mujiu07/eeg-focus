@@ -433,8 +433,20 @@ def _conditions(rec: Dict[str, Any], report: Dict[str, Any], ref: Dict[str, Any]
     planned = _f(rec.get("planned_sec"))
     fixed = _f(rec.get("fixed_factor"))
     difficulty = _safe_dict(params.get("difficulty")) or _safe_dict(report.get("difficulty_snapshot"))
+    game_params = _safe_dict(params.get("game"))
     difficulty_params = difficulty.get("params_version")
     difficulty_strategy = difficulty.get("strategy_version")
+    game_params_version = (game_params.get("params_version")
+                           or difficulty.get("game_params_version")
+                           or difficulty_params
+                           or "legacy")
+    start_energy = _f(game_params.get("start_energy"))
+    if start_energy is None:
+        start_energy = _f(difficulty.get("start_energy"))
+    if start_energy is None:
+        # v1.8.3/v1.8.4 旧评估可能没有显式 start_energy；按当时真实值 15% 处理。
+        # 新服务端始终盖章 10%，因此旧记录与新记录仍会分段。
+        start_energy = 15.0
     values = {
         "device_key": device_key,
         "algorithm_version": algorithm,
@@ -446,10 +458,12 @@ def _conditions(rec: Dict[str, Any], report: Dict[str, Any], ref: Dict[str, Any]
         "fixed_factor": fixed,
         "difficulty_params_version": difficulty_params,
         "difficulty_strategy_version": difficulty_strategy,
+        "game_params_version": game_params_version,
+        "start_energy": start_energy,
     }
     required = ("device_key", "algorithm_version", "mapping_version",
                 "reference_baseline_id", "reference_version", "protocol_version",
-                "planned_sec", "fixed_factor")
+                "planned_sec", "fixed_factor", "game_params_version", "start_energy")
     missing = [k for k in required if values.get(k) in (None, "")]
     key = None
     if not missing:
@@ -465,6 +479,8 @@ def _conditions(rec: Dict[str, Any], report: Dict[str, Any], ref: Dict[str, Any]
         label_parts.append(f"参考 {reference_version}")
     if protocol:
         label_parts.append(f"协议 {protocol}")
+    if start_energy is not None:
+        label_parts.append(f"起始蓄力 {start_energy:g}%")
     return {"values": values, "missing": missing, "key": key,
             "label": " · ".join(label_parts) or "条件不完整"}
 
@@ -713,6 +729,8 @@ def _assessment_segments(items: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "planned_sec": "评估时长变化",
                 "fixed_factor": "任务难度参数变化",
                 "difficulty_params_version": "难度参数版本变化",
+                "game_params_version": "玩法参数版本变化",
+                "start_energy": "起始蓄力变化",
             }
             for key_name, label in labels.items():
                 if a.get(key_name) == b.get(key_name):

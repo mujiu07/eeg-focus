@@ -106,6 +106,9 @@
     /* 无效点击冷却：只让蓄力条短暂变暗，不闪烁、不警告 */
     .energy-track.cooling #energy-fill { filter: brightness(.58); }
     .energy-track.cooling #energy-zone { opacity: .72; }
+    /* 归零休息：只降低蓄力条活跃度，金色区域仍保持可见。 */
+    .energy-track.resting #energy-fill { filter: saturate(.72) brightness(.94); }
+    .energy-track.resting #energy-zone { opacity: .9; }
     .tap-hint {
       position: absolute; left: 50%; top: -12px;
       padding: 4px 11px; border-radius: 999px;
@@ -957,6 +960,7 @@
       introPauseSec: 0,
       tutorialPauseSec: 0,
       bulletDim: 0,       // 子弹时间边缘压暗的 0→1 过渡值（250ms 进入/退出）
+      restT: 0,           // 归零休息姿态 0→1（约 400ms 自然过渡）
       clouds: [
         { x: 120, y: 52, s: 1.0, v: 8, phase: 0.6 },
         { x: 520, y: 38, s: 0.8, v: 12, phase: 2.4 },
@@ -1363,6 +1367,13 @@
         state.cooldownRemaining = focusRound.cooldownRemaining;
       }
 
+      // v1.9.4：休息姿态只由核心的 resting 状态驱动；断流/暂停/跳跃时回到准备姿态。
+      const restTarget = (!animating && !state.stale && state.phase === "CHARGING"
+        && focusRound.resting) ? 1 : 0;
+      const restStep = dt / Math.max(0.05, roundConfig.restTransitionSec || 0.4);
+      state.restT = Math.max(0, Math.min(1,
+        state.restT + (restTarget ? restStep : -restStep)));
+
       if (state.pendingSettle) {
         // 顺序：起跳时右边的新荷叶已经开始从水下往上浮，等它完全出水、水花散尽、
         // 荷叶回弹停稳，才允许平移视角——落地点不会突然多出一片荷叶。
@@ -1424,17 +1435,22 @@
         hrHud.classList.remove("beat");
         hrHud.classList.add("stale");
       }
-      $("lamp-text").textContent = state.stale ? "信号中断" : (focused ? "跟上了" : "飘走了");
-      // 提示条：断流、或“正在蓄力但分心”。跳跃/平移/子弹时间不算分心。
+      const restingVisual = state.restT > 0.5 && state.phase === "CHARGING" && !state.stale;
+      $("lamp-text").textContent = state.stale
+        ? "信号中断" : (restingVisual ? "休息中" : (focused ? "跟上了" : "飘走了"));
+      // 提示条：断流、或“正在蓄力但分心”。跳跃/平移/子弹时间/归零休息不算分心；
+      // 休息只表示当前蓄力为 0，不显示责备性文案。
       const canChargeNow = !state.jumping.active && !state.settling && !state.pendingSettle
-        && state.phase === "CHARGING" && !state.stale;
+        && state.phase === "CHARGING" && !state.stale && !restingVisual;
       const wavering = canChargeNow && focusRound.belowSec > 0;
       $("warn").classList.toggle("show", state.stale || (canChargeNow && (!focused || wavering)));
-      $("warn").textContent = state.stale
-        ? "正在等待信号，计时已暂停。请检查设备连接。"
-        : (focusRound.decaying && focusRound.cooldownRemaining <= 0)
-          ? "注意力飘走了，蓄力正在慢慢回落"
-          : "注意力飘走了，短暂走神不会掉进度";
+      if (!restingVisual) {
+        $("warn").textContent = state.stale
+          ? "正在等待信号，计时已暂停。请检查设备连接。"
+          : (focusRound.decaying && focusRound.cooldownRemaining <= 0)
+            ? "注意力飘走了，蓄力正在慢慢回落"
+            : "注意力飘走了，短暂走神不会掉进度";
+      }
 
       if (state.stale) return;
       state.timeLeft -= dt;
@@ -1941,6 +1957,14 @@
         ctx.scale(1.015, 0.975);
         ctx.translate(0, 2);
       }
+      // 归零休息：降低重心、轻微压扁并保留呼吸；不改变位置、不带惩罚。
+      // 用 ease 让 400ms 过渡的头尾更柔和，避免突然换姿势。
+      const restEase = state.restT * state.restT * (3 - 2 * state.restT);
+      if (restEase > 0 && !state.jumping.active) {
+        const breath = 1 + Math.sin(t * 2.4) * 0.018 * restEase;
+        ctx.translate(0, 8 * restEase);
+        ctx.scale(1 + 0.035 * restEase, (1 - 0.09 * restEase) * breath);
+      }
       ctx.filter = p.frog;
       // 背饰画在身体后面（披风、翅膀、背包），正饰画在身体前面
       if (window.DressUp) DressUp.drawCanvas(ctx, "back", t);
@@ -1950,6 +1974,16 @@
         : PondEffects.frogEllipses;
       const mouth = window.DressUp && DressUp.skinMouth ? DressUp.skinMouth() : PondEffects.frogMouth;
       PondEffects.paintFrog(ctx, frogShapes, mouth);
+      // 休息时保留自然眨眼：用体色轻轻盖住眼睛，不做夸张表情。
+      // 装扮的眼镜/面饰仍由 drawCanvas("front") 正常覆盖。
+      const blinkCycle = t % 4.8;
+      if (restEase > 0.55 && blinkCycle < 0.16) {
+        ctx.fillStyle = frogShapes[1][4];
+        ctx.beginPath();
+        ctx.ellipse(-14, -12, 6.4, 7.6, 0, 0, Math.PI * 2);
+        ctx.ellipse(14, -12, 6.4, 7.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
       if (window.DressUp) DressUp.drawCanvas(ctx, "front", t);
       ctx.restore();
     }
@@ -2027,6 +2061,8 @@
       const track = document.querySelector(".energy-track");
       track.classList.toggle("cooling",
         state.phase === "CHARGING" && state.cooldownRemaining > 0 && !state.stale);
+      track.classList.toggle("resting",
+        state.restT > 0.5 && state.phase === "CHARGING" && !state.stale);
     }
 
     function interpolateJump(tt) {

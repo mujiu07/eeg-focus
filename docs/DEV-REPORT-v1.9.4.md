@@ -3,11 +3,11 @@
 - 版本：`v1.9.4`
 - 日期：2026-11-28
 - 父版本：`v1.9.3`（commit `88db4e8`）
-- 范围：校准引导、游戏反馈、档案头像、局部布局与商城定价；不修改脑电特征、去噪、自适应难度策略、正式计分公式、金币兑换比例或 Schema 4。
+- 范围：校准引导、游戏反馈、档案头像、局部布局与商城定价；补充任务将初始蓄力统一为 10% 并新增归零休息姿态。不修改脑电特征、去噪、自适应难度策略、正式计分公式、金币兑换比例或 Schema 4。
 
 ## 1. 结论
 
-本版解决了 8 项实际体验问题，并在验收中发现并修复 1 个开发者工作台空值崩溃：
+本版解决了 8 项原定体验问题与 2 项补充问题，并在验收中发现并修复 1 个开发者工作台空值崩溃：
 
 1. **平静校准**：不再依赖未真正播放的外部视频，改为固定低刺激动态池塘（复用首页小蛙/荷叶/水波）；保留 30 秒有效采集和信号异常暂停；校准期间暂停背景音乐，结束/取消后恢复。
 2. **专注校准**：先播放 3.6 秒预设演示，再进入 30 秒教学采集；统一「确认跳跃」按钮，区分蓄力等待与金色区域提示，加入点击锁和按键重复保护，明确连续点击不加分。
@@ -19,16 +19,18 @@
 8. **商城定价**：按逐件美术复杂度与稀有度重定价，典型 3 分钟玩家约 2–3 局购买普通装扮；已有金币、购买记录和权益不变。
 9. **家长中心**：修复图表区与相邻卡片 0 间距、重复硬描边和图表贴边；统一 20px 纵向节奏与 18–20px 内留白。
 10. **附带修复**：`/api/dev/workbench` 在 `report.assessment = null` 时触发 `NoneType.get` 500；现在按空字典处理。
+11. **初始蓄力 10%**：首轮与每次跳跃后统一读取 `FocusRound.CONFIG.startEnergy=10`；服务端难度安全下界同步为 12%；计分距离 `D` 自动改为“金区起点 − 10%”，计分公式本身未改。
+12. **归零休息姿态**：有效信号下蓄力为 0 持续 2 秒，小蛙降低重心、轻微呼吸和眨眼；蓄力恢复后自动起身；断流、暂停、跳跃、冷却均不累计或不显示责备文案。只影响视觉，不增加操作、惩罚、时间或区域变化。
 
-真实浏览器验收（隔离服务 8020 / 隔离数据目录）共 **51 项通过，0 失败**；静态与存储回归 **31 项通过**；v1.8.1–v1.9.2 全量静态/单元回归与 v1.9.3 静态视觉检查继续通过。
+真实浏览器验收（隔离服务 8020 / 隔离数据目录）共 **51 + 8 项通过，0 失败**；静态与存储回归 **35 项通过**；v1.8.1–v1.9.2 全量静态/单元回归与 v1.9.3 静态视觉检查继续通过。
 
 ## 2. 环境与数据安全
 
 - 重新克隆 `https://github.com/mujiu07/eeg-focus`，确认远程 `main = 88db4e8`（v1.9.3），没有 v1.9.4 标签。
 - 真实数据库：`/Users/fan/Documents/专注小蛙/profiles.db`。本版全程只读核验，未删除、清空、迁移或重新初始化。
-  - 验收前后文件大小 294912 字节、修改时间 15:18 未变；
-  - SHA-256 `0d569a66dd058ed68c480fcff5a292ed2dbfa2512a9cd04293dff606a6715c75`；
-  - `PRAGMA integrity_check = ok`，2 个档案、7 个 Session，Schema 4。
+  - 补充任务开始时 SHA-256 `0d569a66dd058ed68c480fcff5a292ed2dbfa2512a9cd04293dff606a6715c75`（294912 字节，mtime 15:18）；
+  - 最终重启 8000 服务后 SQLite WAL 头更新为 SHA-256 `1d02d861a534a630c92b890c529ccd80c62b1fe47971f124813244feb4f62f1f`（294912 字节，mtime 17:26）；这是打开 WAL 数据库/服务启动造成的文件头变化，不是测试数据写入；
+  - 逻辑数据未变：`PRAGMA integrity_check = ok`，仍为 2 个档案、7 个 Session、0 条校准、Schema 4；没有新增用户、Session 或校准。
 - 所有自动化测试、模拟游玩、购买测试和截图使用 `FOCUS_FROG_DATA_DIR` 指向仓库内 `.deepworks/` 临时目录，服务端口为 8020/8022/8023；启动后通过 `/api/profiles.storage` 验证 `data_dir` 为隔离目录。
 - 未修改全局 Git 配置；仓库级身份与远程核验见第 8 节。
 
@@ -130,19 +132,19 @@
 - 不修改 `pointsDivisor=30`、游戏计分、金币兑换或难度；
 - 不改变 `bf-owned` / 后端 `inventories` 的 ID，不补收差价，不引入抽奖/限时促销。
 
-**经济模拟**（`tests/score_distribution.js` 同口径，3 分钟，点击反应 0.8s）：
+**10% 起点经济复核**（3 分钟，点击反应 0.8s，`tests/selfcheck_round_logic.js` 同口径）：
 
-| 画像 | 60s | 180s | 300s |
+| 画像 | 15% 起点 金币 | 10% 起点 金币 | 变化 |
 |---|---:|---:|---:|
-| 低专注 48 | 1 | 6 | 11 |
-| 偏低 55 | 4 | 17 | 30 |
-| 典型 60 | 7 | 27 | 43 |
-| 基准 65 | 9 | 33 | 57 |
-| 良好 70 | 12 | 42 | 73 |
-| 高 85 | 18 | 63 | 106 |
-| 间歇 70/45 | 5 | 22 | 37 |
+| 低专注 48 | 6 | 4 | -33.3% |
+| 偏低 55 | 17 | 14 | -17.6% |
+| 典型 60 | 27 | 21 | -22.2% |
+| 基准 65 | 33 | 31 | -6.1% |
+| 良好 70 | 42 | 37 | -11.9% |
+| 高 85 | 63 | 56 | -11.1% |
+| 间歇 70/45 | 22 | 16 | -27.3% |
 
-按 33 积分/局估算：入门 1–2 局、普通 2–3 局、稀有 4–5 局、特殊 6–8 局；低收入（约 6 积分/局）分别为 4–10、11–16、20–25、30–40 局。完整 41 件新旧价格对照见 [PRICE-v1.9.4.md](PRICE-v1.9.4.md) 和 [price-comparison.csv](../outputs/v1.9.4/price-comparison.csv)。
+价格锚点改为 10% 起点下 3 分钟 21–31 积分、取 **30 积分/局** 复核：现有 24–240 价格仍落在入门 1–2 局、普通 2–3 局、稀有 4–5 局、特殊 6–8 局，因此**本轮不再次调价**；完整逐行数据、低收入列与难度对照见 [PRICE-v1.9.4.md](PRICE-v1.9.4.md)、[economy-10-vs-15.csv](../outputs/v1.9.4/economy-10-vs-15.csv)。
 
 ### 3.9 家长成长中心留白
 
@@ -169,6 +171,21 @@ simulation=bool((report or {}).get("demo")
 
 当 `report["assessment"]` 显式为 `null` 时，`.get("assessment", {})` 返回 `None`，再 `.get` 触发 `AttributeError`。现在先判断 `isinstance(..., dict)`，空值按 `{}` 处理；工作台恢复正常读取。此为验收中发现的既有边界缺陷，不涉及计分或算法。
 
+### 3.11 初始蓄力 10% 与归零休息
+
+**根因**：旧实现 `startEnergy: 15` 同时写在 `focus-round.js` 与服务端 `difficulty.CONFIG.start_energy`；每次跳跃后由同一个 `RoundEngine._startRound()` 重置，逻辑本身已共用，但配置值过晚发现且服务端安全下界也按 15 计算。归零时没有任何休息反馈，儿童只看到空能量条。
+
+**修复**：
+- `FocusRound.CONFIG.startEnergy` 改为 10，`gameParamsVersion="v1.9.4"`；首轮与 `finishRound()` 后的新轮次都读取同一配置；
+- `difficulty.CONFIG.start_energy` 同步 10，`PARAMS_VERSION` 升为 `v1.9.4`；最低难度区域仍用 `start + 2` 安全下限，0.60 系数下为 14.4%，首轮 13.2%；
+- 计分 `computePotentialScore(this.zone.lo - this.startEnergy, ...)` 未改；完成轮记录新增 `start_energy=10`、`game_params_version`；
+- 归零休息由纯逻辑状态机驱动：有效且非暂停、非冷却时，能量为 0 累计 2 秒进入 `resting`；能量达到 2.5% 才退出，形成防抖；断流/暂停不累计；
+- 游戏层用 400ms ease 降低重心、轻微压扁并叠加 2.4Hz 呼吸；每 4.8 秒眨眼一次；复用 `PondEffects.paintFrog` 和 `DressUp` 前后装扮层；
+- 休息时状态显示「休息中」，隐藏「注意力飘走了」提示；无悲伤表情、失败音效、红色警告、弹窗或恢复操作；不扣分、不移动、不重置区域、不自动补蓄力；
+- 标准评估在服务端记录 `game_params_version/start_energy`，成长趋势条件键加入这两项；旧 v1.8.3 的 15% 记录与新 10% 记录自动分段，不直接比较。
+
+**证据**：[归零休息](../outputs/v1.9.4/after/game-rest-1920.png) / [休息画布特写](../outputs/v1.9.4/after/game-rest-canvas-1920.png) / [恢复准备](../outputs/v1.9.4/after/game-rest-recovered-1920.png) / [完整模拟数据](../outputs/v1.9.4/economy-10-vs-15.csv)。
+
 ## 4. 修改文件
 
 | 文件 | 内容 |
@@ -178,16 +195,23 @@ simulation=bool((report or {}).get("demo")
 | `app/storage.py` | 新校准默认 `method` 跟随当前协议 |
 | `web/calibrate.html` | 平静池塘、音乐暂停/恢复、预设演示、确认跳跃、防连点、v3 提交、完成页协议说明 |
 | `web/assets/calm-pond.js` | 新增低刺激池塘 canvas |
-| `web/game.html` | 开始动画小蛙修复、子弹时间 250ms 渐变、矮屏转场 |
+| `web/game.html` | 开始动画小蛙修复、子弹时间 250ms 渐变、矮屏转场、归零休息姿态 |
 | `web/assets/eeg-monitor.css` | 顶部栏/主列 1120px 居中 |
 | `web/profiles.html` | 统一头像容器、尺寸、圆角、居中 |
 | `web/assets/frog/frog-art.js` | 头像紧凑视口 |
 | `web/assets/dressup.js` | 逐件定价、移除统一倍率 |
 | `web/assets/growth.css` | 家长中心间距/描边/内留白 |
-| `tests/selfcheck_v194.py` | 新增 31 项静态/存储回归 |
+| `web/assets/focus-round.js` | 10% 公共起点、金区安全钳制、归零休息状态机、玩法参数版本 |
+| `app/difficulty.py` | 起始蓄力 10%、安全下界 12%、参数版本 v1.9.4 |
+| `app/growth.py` | 评估趋势条件加入玩法参数版本与起始蓄力 |
+| `tests/selfcheck_v194.py` | 新增 35 项静态/存储回归 |
+| `tests/selfcheck_v194_charge.js` | 新增 11 项 10% 起点/休息状态机回归 |
+| `tests/browser_ui_v194_rest.py` | 新增 8 项归零休息浏览器验收 |
 | `tests/browser_ui_v194.py` | 新增 51 项真实浏览器验收 |
 | `tests/selfcheck_v182/183/184.py`、`selfcheck_v193_visual.js` | 跟随 v3 与 1.9.4 版本断言 |
-| `docs/PRICE-v1.9.4.md`、`outputs/v1.9.4/` | 价格对照与经济证据、前后截图 |
+| `docs/PRICE-v1.9.4.md`、`outputs/v1.9.4/` | 价格对照、10% 经济数据、前后截图与休息截图 |
+| `outputs/v1.9.4/economy-10-vs-15.csv/json` | 60/180/300 秒、多画像、多难度逐行模拟 |
+| `tests/econ_v194.js` | 生成上述经济数据的可复现脚本 |
 
 ## 5. 验收
 
@@ -216,7 +240,7 @@ FOCUS_FROG_DATA_DIR="$PWD/.deepworks/testdata" PYTHONPATH="$PWD" \
   .venv/bin/python tests/selfcheck_v194.py
 ```
 
-**31 passed, 0 failed**，覆盖协议、Schema 4、刺激/教学记录、旧参考保留、头像/价格/布局静态契约。
+**35 passed, 0 failed**，覆盖协议、Schema 4、刺激/教学记录、旧参考保留、10% 起点、金区安全、评估条件分段、头像/价格/布局静态契约。
 
 隔离商城购买测试：初始 1000 积分、已拥有 `hat-leaf`；购买 `face-blush`（24 分）返回 `ok`，余额 976，`face-blush` 已拥有，`hat-leaf` 权益保留，未写入真实数据库。
 
@@ -227,12 +251,15 @@ FOCUS_FROG_DATA_DIR="$PWD/.deepworks/testdata" PYTHONPATH="$PWD" \
 | `tests/selfcheck_v181.py` | 33 项通过 |
 | `tests/selfcheck_v182.py` | 36 项通过（新增 v2/v3 不混算） |
 | `tests/selfcheck_v183.py` | 52 项通过 |
-| `tests/selfcheck_v184.py` | 52 项通过 |
+| `tests/selfcheck_v183_round.js` | 8 项通过（新起点后调整进入区域时长） |
+| `tests/selfcheck_v184.py` | 53 项通过 |
 | `tests/selfcheck_v190.py` | 29/29 |
 | `tests/selfcheck_v191.py` | 12 项通过 |
 | `tests/selfcheck_score_mapping.py` | 全部通过 |
 | `tests/selfcheck_denoise.py` | 14 类场景全部通过 |
 | `tests/selfcheck_round_logic.js` | 36 项通过 |
+| `tests/selfcheck_v194_charge.js` | 11 项通过 |
+| `tests/browser_ui_v194_rest.py` | 8 项通过 |
 | `tests/selfcheck_v184_round.js` | 14 项通过 |
 | `tests/selfcheck_v184_ui.js` | 17 项通过 |
 | `tests/selfcheck_v192_ui_static.js` | 10 项通过 |
@@ -260,6 +287,8 @@ FOCUS_FROG_DATA_DIR="$PWD/.deepworks/testdata" PYTHONPATH="$PWD" \
 - 本环境没有 Xmuse 真机与 EDF 回放样本，校准/游戏完整流程使用手动模拟；真实硬件下的信号质量、眨眼、运动伪迹和 30 秒有效帧表现仍需真机复核。
 - v3 会让旧 `daily_v2` 每日校准显示「今日尚未校准」，用户需要重做一次；这是协议不可比的预期行为。
 - 旧长期参考不会自动升级为 v3；需要家长在开发者工作台手动建立新版参考。
+- 10% 起点使标准评估的玩法参数与 v1.8.3/v1.9.4 早期 15% 记录不同；成长中心会按 `game_params_version + start_energy` 分段，不能把新旧评估直接连成一条趋势。
+- 归零休息用隔离手动低分模拟验证；真实硬件下从 0 升到 2.5% 的退出时间受个体蓄力速度影响，仍需真机确认是否足够自然。
 - 800×600 下校准页仍需纵向滚动才能看到完整教学卡片底部说明；已保证按钮和关键提示在首屏内，且无横向滚动。
 - 商城经济模拟不含真实儿童的信号波动、退出、暂停和失败局；局数区间是规划参考，不是承诺。
 - 未删除仓库中历史 `web/assets/relax.mp4` 文件（已无页面引用）；删除二进制资产需单独确认。

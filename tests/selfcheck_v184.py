@@ -153,7 +153,9 @@ def main():
 
     # 4. 难度公式边界：D 是从起始能量到金色区域入口的距离
     snap06 = diff.snapshot(.6)
-    check("最低难度安全下界 17%", snap06["zone_low_min"] >= 17, snap06)
+    check("最低难度安全下界 12%", snap06["zone_low_min"] >= 12, snap06)
+    check("安全下界高于起始蓄力 2 个百分点",
+          snap06["zone_low_min"] >= diff.CONFIG["start_energy"] + 2, snap06)
     p1 = diff.snapshot(1.0)
     check("标准难度黄色区域 24–55", p1["zone_low_min"] == 24 and p1["zone_low_max"] == 55, p1)
 

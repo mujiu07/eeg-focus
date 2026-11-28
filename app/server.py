@@ -944,6 +944,10 @@ async def create_session(body: SessionCreate):
             # 校准/算法兼容性在 daily 查询后再次检查，避免把不兼容结果标成可纵向比较。
         assessment_cfg["simulation"] = bool(assessment_cfg.get("simulation")
                                             or body.mode != "hardware")
+        # v1.9.4：起始蓄力从 15% 改为 10%，标准评估的玩法参数随之变化。
+        # 服务端盖章，避免客户端旧缓存把不同任务参数误标为同一条件。
+        assessment_cfg["game_params_version"] = difficulty.PARAMS_VERSION
+        assessment_cfg["start_energy"] = difficulty.CONFIG["start_energy"]
         assessment_cfg["seed"] = assessment_cfg.get("seed") or uuid.uuid4().hex[:12]
         assessment_id = "asm_" + uuid.uuid4().hex[:12]
     if user_id and purpose in ("game", "assessment") and body.mode == "hardware":
@@ -1059,7 +1063,9 @@ async def create_session(body: SessionCreate):
                 device={"device_key": dev_key, "mode": body.mode,
                         "source": source.describe(), "osc_ports": body.osc_ports,
                         "osc_fs": body.osc_fs, "osc_channels": body.osc_channels},
-                params={"difficulty": s.difficulty_snapshot, "protocol": assessment_cfg},
+                params={"difficulty": s.difficulty_snapshot, "protocol": assessment_cfg,
+                        "game": {"params_version": difficulty.PARAMS_VERSION,
+                                 "start_energy": difficulty.CONFIG["start_energy"]}},
             )
             s.assessment_id = row["assessment_id"]
             s.assessment = dict(assessment_cfg)
@@ -1706,7 +1712,9 @@ def _assessment_eligibility(user_id: Optional[str], mode: str, device: Optional[
         "reasons": reasons,
         "daily": daily,
         "reference": reference,
-        "protocol": {"version": "standard_v1", "planned_sec": 90, "fixed_factor": 1.0},
+        "protocol": {"version": "standard_v1", "planned_sec": 90, "fixed_factor": 1.0,
+                     "game_params_version": difficulty.PARAMS_VERSION,
+                     "start_energy": difficulty.CONFIG["start_energy"]},
     }
 
 
