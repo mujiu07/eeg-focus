@@ -69,11 +69,13 @@ class Runner:
           const sizes = cards.map(c => {
             const av = c.querySelector('.profile-avatar').getBoundingClientRect();
             const badge = c.querySelector('.avatar-badge').getBoundingClientRect();
-            const svg = c.querySelector('.avatar-badge svg').getBoundingClientRect();
+            const art = c.querySelector('.avatar-badge img, .avatar-badge svg').getBoundingClientRect();
+            const img = c.querySelector('.avatar-badge img');
             return {w: Math.round(av.width), h: Math.round(av.height),
                     badge: Math.round(badge.width),
-                    cx: Math.round(svg.x + svg.width/2 - (av.x + av.width/2)),
-                    cy: Math.round(svg.y + svg.height/2 - (av.y + av.height/2))};
+                    cx: Math.round(art.x + art.width/2 - (av.x + av.width/2)),
+                    cy: Math.round(art.y + art.height/2 - (av.y + av.height/2)),
+                    loaded: img ? img.naturalWidth : 0};
           });
           return {count: cards.length, sizes,
                   radius: getComputedStyle(document.querySelector('.profile-avatar')).borderRadius};
@@ -84,9 +86,17 @@ class Runner:
                    metrics["sizes"])
         self.check("头像图案视觉居中", all(abs(x["cx"]) <= 1 and abs(x["cy"]) <= 1 for x in metrics["sizes"]),
                    metrics["sizes"])
+        self.check("头像图片已加载", all(x["loaded"] > 0 for x in metrics["sizes"]), metrics["sizes"])
         self.shot("profiles-1440")
         self.cdp.eval("document.getElementById('btn-new').click()")
         time.sleep(0.4)
+        picker = self.cdp.eval("""(() => ({
+          count: document.querySelectorAll('#avatar-pick .avatar-opt').length,
+          loaded: [...document.querySelectorAll('#avatar-pick img')].filter(i => i.naturalWidth > 0).length,
+          selected: document.querySelectorAll('#avatar-pick .avatar-opt[aria-pressed="true"]').length
+        }))()""")
+        self.evidence["avatar_picker"] = picker
+        self.check("头像选择器展示九张图片", picker["count"] == 9 and picker["loaded"] == 9 and picker["selected"] == 1, picker)
         self.shot("avatar-picker-1440")
         self.cdp.eval("document.getElementById('btn-modal-cancel').click()")
 

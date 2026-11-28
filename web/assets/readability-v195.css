@@ -1,0 +1,487 @@
+/* ============================================================
+   专注小蛙 · 全站背景可读性 v1.9.5
+   动态池塘/天空只负责氛围；文字、图标与关键操作放在稳定的
+   UI 信息层。所有前景/表面/边框使用同一组变量，白天与暗色
+   模式分别保证普通文字 4.5:1、大号文字与关键图标 3:1。
+   ============================================================ */
+
+:root {
+  --ui-text: #1f3f47;
+  --ui-text-soft: #48666e;
+  --ui-surface: rgba(255, 255, 255, .96);
+  --ui-surface-quiet: rgba(255, 255, 255, .9);
+  --ui-surface-solid: #ffffff;
+  --ui-border: rgba(47, 110, 128, .2);
+  --ui-border-strong: rgba(47, 110, 128, .34);
+  --ui-ring: #146b64;
+  --ui-warning: #7a4a0a;
+  --ui-danger: #9f2d20;
+  --ui-scene-z: 0;
+  --ui-content-z: 1;
+  --ink: var(--ui-text);
+  --ink-soft: var(--ui-text-soft);
+  --card: var(--ui-surface);
+  --card-border: rgba(255, 255, 255, .9);
+}
+
+html[data-sky="dawn"] {
+  --ui-text: #3f3040;
+  --ui-text-soft: #5f4d5b;
+  --ui-surface: rgba(255, 251, 253, .96);
+  --ui-surface-quiet: rgba(255, 251, 253, .9);
+  --ui-border: rgba(143, 77, 107, .22);
+  --ui-border-strong: rgba(143, 77, 107, .38);
+  --ui-ring: #7b3d5b;
+  --ui-warning: #74440a;
+}
+
+html[data-sky="dusk"] {
+  --ui-text: #fff4f0;
+  --ui-text-soft: #f4ded8;
+  --ui-surface: rgba(20, 30, 48, .94);
+  --ui-surface-quiet: rgba(24, 34, 54, .88);
+  --ui-surface-solid: #162238;
+  --ui-border: rgba(255, 214, 196, .28);
+  --ui-border-strong: rgba(255, 214, 196, .46);
+  --ui-ring: #ffd0ae;
+  --ui-warning: #ffd18b;
+  --ui-danger: #ffb4a8;
+  --ink: var(--ui-text);
+  --ink-soft: var(--ui-text-soft);
+  --card: var(--ui-surface);
+  --card-border: var(--ui-border);
+}
+
+html[data-sky="night"] {
+  --ui-text: #f2f7fb;
+  --ui-text-soft: #c3d7e2;
+  --ui-surface: rgba(13, 27, 47, .94);
+  --ui-surface-quiet: rgba(17, 32, 54, .9);
+  --ui-surface-solid: #0f2035;
+  --ui-border: rgba(176, 208, 240, .28);
+  --ui-border-strong: rgba(176, 208, 240, .46);
+  --ui-ring: #a7e4f2;
+  --ui-warning: #ffd18b;
+  --ui-danger: #ffb4a8;
+  --ink: var(--ui-text);
+  --ink-soft: var(--ui-text-soft);
+  --card: var(--ui-surface);
+  --card-border: var(--ui-border);
+}
+
+/* 场景层与信息层：气泡、天空滤镜只做背景，内容容器永远在信息层。 */
+body { isolation: isolate; }
+.bubbles,
+.sky-veil { z-index: var(--ui-scene-z); }
+.wrap,
+.growth-page,
+.game-main,
+.game-page .wrap { position: relative; z-index: var(--ui-content-z); }
+
+/* 外层信息卡：不再使用会让背景透出的低透明度玻璃。 */
+.card {
+  background: var(--ui-surface);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+}
+.card .slogan,
+.card .sub,
+.card .hint { color: var(--ui-text-soft); }
+
+/* 顶部导航与页面入口：暗色模式改用深底浅字，避免浅蓝字落在白胶囊上。 */
+html[data-sky="dusk"] .home-link,
+html[data-sky="night"] .home-link,
+html[data-sky="dusk"] .top-link,
+html[data-sky="night"] .top-link {
+  background: var(--ui-surface-quiet);
+  border-color: var(--ui-border);
+  color: var(--accent);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .22);
+}
+html[data-sky="dusk"] .home-link:hover,
+html[data-sky="night"] .home-link:hover,
+html[data-sky="dusk"] .top-link:hover,
+html[data-sky="night"] .top-link:hover {
+  background: var(--ui-surface-solid);
+  border-color: var(--ui-border-strong);
+}
+.profile-entry-avatar {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, .5);
+}
+
+/* 步骤序号：浅绿圆底上的白字对比不足，改用更深绿。 */
+.checkin-chip__count,
+.ach-chip__count,
+.shop-chip__count { color: #7a4a0a; }
+#checkin-chip-dot { color: #fff; background: #a9520c; }
+.growth-link { color: #1b513a; }
+.parent-foot {
+  color: var(--ink-soft);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  margin-top: 16px;
+}
+.parent-foot a { color: var(--accent-dark); }
+details.growth-details summary { color: #1b513a; }
+html[data-sky="dusk"] .parent-foot a,
+html[data-sky="night"] .parent-foot a { color: var(--accent); }
+.badge { color: #1b5f59; }
+.parent-range button[aria-pressed="true"] { background: #2f7d59; color: #fff; }
+.step .num {
+  background: linear-gradient(135deg, #267d5e, #1f6f69);
+}
+
+/* 标题渐变在暗色背景上必须有足够亮度；不能只用描边/阴影补对比。 */
+.brand h1 {
+  background: linear-gradient(120deg, #1f6f69, #2f8f82);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+html[data-sky="dawn"] .brand h1 {
+  background: linear-gradient(120deg, #6f3652, #8f4d6b);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+html[data-sky="dusk"] .brand h1,
+html[data-sky="night"] .brand h1 {
+  background: linear-gradient(120deg, #c9fff0, #9fe3ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.growth-brand p { color: var(--ink-soft); }
+
+/* 主按钮：消除浅绿/浅粉渐变上的白字低对比。 */
+.btn-primary {
+  background: linear-gradient(135deg, #267d73, #1f6f69);
+  color: #fff;
+}
+html[data-sky="dawn"] .btn-primary {
+  background: linear-gradient(135deg, #8f4d6b, #6f3652);
+  color: #fff;
+}
+html[data-sky="dusk"] .btn-primary {
+  background: linear-gradient(135deg, #ffb496, #e77c5d);
+  color: #241b1a;
+}
+html[data-sky="night"] .btn-primary {
+  background: linear-gradient(135deg, #9fe3f0, #58b6d4);
+  color: #10222f;
+}
+.sky-opt[aria-pressed="true"],
+.duration-opt[aria-pressed="true"] {
+  background: #216e66;
+  color: #fff;
+}
+html[data-sky="dawn"] .sky-opt[aria-pressed="true"],
+html[data-sky="dawn"] .duration-opt[aria-pressed="true"] {
+  background: linear-gradient(135deg, #8f4d6b, #6f3652);
+  color: #fff;
+}
+html[data-sky="dusk"] .sky-opt[aria-pressed="true"],
+html[data-sky="dusk"] .duration-opt[aria-pressed="true"] {
+  background: linear-gradient(135deg, #ffb496, #e77c5d);
+  color: #241b1a;
+}
+html[data-sky="night"] .sky-opt[aria-pressed="true"],
+html[data-sky="night"] .duration-opt[aria-pressed="true"] {
+  background: linear-gradient(135deg, #9fe3f0, #58b6d4);
+  color: #10222f;
+}
+.growth-link--primary {
+  background: #2f7d59;
+  color: #fff;
+}
+.btn:disabled,
+.btn[aria-disabled="true"],
+button:disabled {
+  opacity: 1;
+  filter: saturate(.5);
+  color: #526b6d;
+  background: #e7eeec;
+  border-color: rgba(47, 110, 128, .2);
+  box-shadow: none;
+}
+html[data-sky="dusk"] .btn:disabled,
+html[data-sky="night"] .btn:disabled,
+html[data-sky="dusk"] .btn[aria-disabled="true"],
+html[data-sky="night"] .btn[aria-disabled="true"],
+html[data-sky="dusk"] button:disabled,
+html[data-sky="night"] button:disabled {
+  color: #c6d4da;
+  background: #263849;
+  border-color: rgba(200, 220, 235, .24);
+}
+.btn::after,
+.btn:disabled::after,
+.btn[aria-disabled="true"]::after { display: none; }
+
+/* 键盘聚焦：统一高对比轮廓，不依赖背景模糊或阴影。 */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+
+/* 普通文字/标签统一使用可读的 soft 色，避免各页面零散浅灰。 */
+.hint,
+.sub,
+.tiny,
+.slogan,
+.profile-meta,
+.profile-note,
+.parent-kpi .hint,
+.cd-label,
+.calib-mode-note {
+  color: var(--ui-text-soft);
+}
+.hint strong { color: var(--ui-text); }
+
+/* 档案：九宫格图片头像统一容器、尺寸、居中与圆角。 */
+.profile-card {
+  background: var(--ui-surface-quiet);
+  border-color: var(--ui-border);
+}
+.profile-avatar {
+  background: linear-gradient(145deg, #f3fbf0, #c9ead2);
+}
+.avatar-badge--image { background: transparent; }
+.avatar-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+html[data-sky="dusk"] .profile-avatar,
+html[data-sky="night"] .profile-avatar {
+  background: rgba(255, 255, 255, .08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14);
+}
+html[data-sky="dusk"] .profile-card,
+html[data-sky="night"] .profile-card {
+  background: var(--ui-surface-quiet);
+  border-color: var(--ui-border);
+}
+html[data-sky="dusk"] .profile-card:hover,
+html[data-sky="night"] .profile-card:hover {
+  background: var(--ui-surface-solid);
+  border-color: var(--ui-border-strong);
+}
+html[data-sky="dusk"] .profile-card.is-current,
+html[data-sky="night"] .profile-card.is-current {
+  background: var(--ui-surface);
+  border-color: rgba(143, 227, 190, .72);
+}
+html[data-sky="dusk"] .avatar-opt[aria-pressed="true"],
+html[data-sky="night"] .avatar-opt[aria-pressed="true"] {
+  background: rgba(143, 227, 190, .12);
+  border-color: #8fe3be;
+}
+#profile-status,
+#status { color: var(--ui-warning); }
+html[data-sky="dusk"] #profile-status,
+html[data-sky="night"] #profile-status,
+html[data-sky="dusk"] #status,
+html[data-sky="night"] #status { color: var(--ui-warning); }
+
+/* 档案编辑弹窗：必须完全不透明，暗色模式下不能出现浅底浅字。 */
+.modal-mask { background: rgba(8, 17, 30, .62); }
+.modal-card {
+  background: var(--ui-surface-solid);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+}
+.modal-card .tiny { color: var(--ui-text-soft); }
+.modal-card input {
+  background: #fff;
+  color: #1f3f47;
+  border-color: var(--ui-border-strong);
+}
+.modal-card input::placeholder { color: #60777e; }
+html[data-sky="dusk"] .modal-card,
+html[data-sky="night"] .modal-card {
+  background: var(--ui-surface-solid);
+  color: var(--ui-text);
+}
+html[data-sky="dusk"] .modal-card input,
+html[data-sky="night"] .modal-card input {
+  background: #0b1a2d;
+  color: var(--ui-text);
+  border-color: var(--ui-border-strong);
+}
+html[data-sky="dusk"] .modal-card input::placeholder,
+html[data-sky="night"] .modal-card input::placeholder { color: #a9c1cc; }
+
+/* 设置页：浅色统计块在暗色模式下改为深底浅字。 */
+html[data-sky="dusk"] .stat-box,
+html[data-sky="night"] .stat-box {
+  background: rgba(255, 255, 255, .08);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+}
+html[data-sky="dusk"] .warn-box,
+html[data-sky="night"] .warn-box {
+  background: #382c1d;
+  border-color: rgba(255, 209, 139, .36);
+  color: #ffe0a3;
+}
+html[data-sky="dusk"] .danger-note,
+html[data-sky="night"] .danger-note { color: var(--ui-danger); }
+
+/* 校准：教学/提示在背景变化时仍有不透明承载层。 */
+html[data-sky="dusk"] .calib-hero .tutorial-card,
+html[data-sky="night"] .calib-hero .tutorial-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+}
+html[data-sky="dusk"] .tut-hint b,
+html[data-sky="night"] .tut-hint b { color: #ffd18b; }
+html[data-sky="dusk"] .tut-feedback.good,
+html[data-sky="night"] .tut-feedback.good { color: #8fe3b0; }
+html[data-sky="dusk"] .tut-feedback.warn,
+html[data-sky="night"] .tut-feedback.warn { color: #ffd18b; }
+html[data-sky="dusk"] .sq-badge.good,
+html[data-sky="night"] .sq-badge.good { color: #8fe3b0; border-color: rgba(143, 227, 176, .45); }
+html[data-sky="dusk"] .sq-badge.fair,
+html[data-sky="night"] .sq-badge.fair { color: #ffd18b; border-color: rgba(255, 209, 139, .45); }
+html[data-sky="dusk"] .sq-badge.poor,
+html[data-sky="night"] .sq-badge.poor { color: #ffb4a8; border-color: rgba(255, 180, 168, .45); }
+.countdown {
+  background: linear-gradient(120deg, #1f6f69, #2f8f82);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+html[data-sky="dusk"] .countdown,
+html[data-sky="night"] .countdown {
+  background: linear-gradient(120deg, #bff7ee, #8fdcf0);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* 游戏 HUD/提示：关键操作始终在高不透明度层上。 */
+html[data-sky] .hud-item,
+.game-meters {
+  color: #f7f6ed;
+  background: #23373a;
+  border-color: #54716b;
+}
+.game-guidance {
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+html[data-sky="dusk"] .game-guidance,
+html[data-sky="night"] .game-guidance {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+}
+html[data-sky="dusk"] .game-meters,
+html[data-sky="night"] .game-meters {
+  background: #1b2e38;
+  border: 1px solid rgba(200, 230, 235, .22);
+}
+
+/* 成长/家长：保留浅色纸张卡片，但把文字与辅助文字加深，
+   并提高卡片底色不透明度，避免动态背景在文字后形成斑驳。 */
+.growth-page {
+  --growth-ink: #1f3f47;
+  --growth-soft: #2e4a52;
+}
+.growth-card,
+.growth-stat,
+.parent-kpi,
+.chart-box,
+.parent-toolbar,
+.detail-item {
+  background-color: rgba(255, 255, 255, .96);
+}
+.growth-page .growth-card .hint,
+.growth-page .growth-card .sub,
+.growth-page .growth-card .tiny,
+.growth-page .chart-box .chart-caption,
+.growth-page .chart-box .hint {
+  color: var(--growth-soft);
+}
+.growth-day { background-color: #f4faf5; }
+.growth-day.has-data { background-color: #e8f7ed; }
+.parent-kpi .hint { color: var(--growth-soft); }
+.growth-section-head p,
+.parent-toolbar .status { color: var(--growth-soft); }
+.growth-badge { color: #345c49; }
+.growth-badge--formal_game { color: #236344; }
+.growth-badge--assessment { color: #38508c; }
+.growth-badge--assessment_simulation,
+.growth-badge--simulation,
+.growth-badge--replay { color: #7a4c12; }
+.growth-badge--low { color: #7d4a10; }
+
+/* 报告/历史中的浅色面板与图表也要保持高不透明度。 */
+.curve-card,
+.report-pre,
+.tip-box { border-color: var(--ui-border); }
+.curve-card { background: rgba(255, 255, 255, .96); }
+html[data-sky="dusk"] .curve-card,
+html[data-sky="night"] .curve-card { background: rgba(255, 255, 255, .95); }
+
+/* 小窗口：卡片内边距收紧，不靠缩小字号换取空间；头像始终居中。 */
+@media (max-width: 700px) {
+  .profile-avatar { width: 68px; height: 68px; border-radius: 22px; }
+  .avatar-opt { width: 52px; height: 52px; border-radius: 16px; }
+  .avatar-opt .avatar-badge { border-radius: 12px; }
+  .card { padding-left: 20px; padding-right: 20px; }
+  .profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .profile-card { padding: 18px 10px 14px; }
+}
+@media (max-width: 420px) {
+  .profile-avatar { width: 62px; height: 62px; }
+  .profile-grid { gap: 10px; }
+}
+
+
+/* 暗色模式的幽灵按钮使用高不透明度深底，避免落在动态背景上时
+   浅色文字与半透明底的对比随场景变化。 */
+html[data-sky="dusk"] .btn-ghost,
+html[data-sky="night"] .btn-ghost {
+  background: var(--ui-surface-quiet);
+  border-color: var(--ui-border);
+  color: var(--accent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
+}
+html[data-sky="dusk"] .btn-ghost:hover,
+html[data-sky="night"] .btn-ghost:hover {
+  background: var(--ui-surface);
+  border-color: var(--ui-border-strong);
+}
+
+
+/* 开发者工作台/实时监测：暗色图表内的低亮度辅助文字统一提亮。 */
+.vinyl-vol-label { color: #385461; }
+#music-volume-val { color: var(--ui-text-soft); }
+html[data-sky="dusk"] .vinyl-vol-label,
+html[data-sky="night"] .vinyl-vol-label,
+html[data-sky="dusk"] #music-volume-val,
+html[data-sky="night"] #music-volume-val { color: #d7e7e9; }
+.mon-band-row.unavailable .mon-band-val,
+.mon-stat b.muted,
+.mon-events li.empty,
+.mon-events time,
+.mon-foot,
+.mon-band-name small,
+.dw-list .dw-item time { color: #9ab6bd; }
+.mon-band-val, .mon-stat b { color: #e1f2f2; }
+.mon-band-name, .mon-algo dt, .mon-stat span, .dw-kv .dw-row span { color: #b9d6d8; }
+.mon-kicker, .mon-section-head > span { color: #8eb1b8; }
+
+
+/* 白天/黎明的幽灵按钮文字略加深，保证在浅底上稳定超过 4.5:1。 */
+html[data-sky="day"] .btn-ghost,
+html[data-sky="dawn"] .btn-ghost { color: #1f655f; }

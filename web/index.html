@@ -140,6 +140,7 @@
     }
     .duration-input-row span { font-size: 14.5px; font-weight: 700; color: var(--ink-soft); }
   </style>
+  <link rel="stylesheet" href="assets/readability-v195.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -163,7 +164,7 @@
       </div>
       <!-- 右侧入口：签到居左，成就其次，商城居中，装扮占最右侧 -->
       <div class="hero-entries">
-        <a class="btn btn-ghost" id="profile-entry" href="profiles.html" title="切换个人档案" style="padding:9px 13px;font-size:13px"><span data-icon="user" aria-hidden="true"></span> <span id="profile-entry-name">选择档案</span></a>
+        <a class="btn btn-ghost" id="profile-entry" href="profiles.html" title="切换个人档案" style="padding:9px 13px;font-size:13px"><img id="profile-entry-avatar" class="profile-entry-avatar" alt="" aria-hidden="true" hidden><span id="profile-entry-icon" data-icon="user" aria-hidden="true"></span> <span id="profile-entry-name">选择档案</span></a>
         <a class="top-link" id="settings-entry" href="settings.html"><span data-icon="sliders" aria-hidden="true"></span><span>设置</span></a>
         <div id="checkin-entry" class="checkin-entry"></div>
         <div id="achievement-entry" class="ach-entry"></div>
@@ -494,6 +495,7 @@
 
   <script src="assets/api.js"></script>
   <script src="assets/profile-bridge.js"></script>
+  <script src="assets/avatars.js"></script>
   <script src="assets/achievements.js"></script>
   <script>
     DeveloperTools.disable();
@@ -507,7 +509,20 @@
     function renderProfileEntry() {
       const p = window.Profile && Profile.active();
       const el = document.getElementById("profile-entry-name");
+      const avatar = document.getElementById("profile-entry-avatar");
+      const icon = document.getElementById("profile-entry-icon");
       if (el) el.textContent = p ? p.nickname : "选择档案";
+      if (avatar && icon && window.AvatarArt) {
+        if (p) {
+          avatar.src = AvatarArt.src(p.avatar);
+          avatar.hidden = false;
+          icon.hidden = true;
+        } else {
+          avatar.hidden = true;
+          avatar.removeAttribute("src");
+          icon.hidden = false;
+        }
+      }
       const link = document.getElementById("profile-entry");
       if (link) link.setAttribute("aria-label", p ? "当前档案 " + p.nickname + "，点击切换" : "选择个人档案");
     }

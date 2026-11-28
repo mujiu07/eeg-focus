@@ -132,11 +132,12 @@ def main():
           and "padding: 18px 20px 20px" in growth_css)
 
     profiles = read("web/profiles.html")
-    frog_art = read("web/assets/frog/frog-art.js")
-    check("头像统一容器与紧凑视口",
-          "avatar-badge" in profiles and "compact: true" in profiles and '"-31.5 -30 63 63"' in frog_art)
-    check("头像 ID 保持不变",
-          all(x in profiles for x in ["tadpole", "lotus", "fish", "dragonfly", "snail"]))
+    avatars_js = read("web/assets/avatars.js")
+    check("头像统一容器与九宫格图片",
+          "avatar-badge" in profiles and "AvatarArt" in profiles and "avatar-img" in profiles)
+    check("九张头像素材与旧 ID 兼容",
+          all((ROOT / "web/assets/avatars" / f"avatar_{i:02d}.png").exists() for i in range(1, 10))
+          and all(x in avatars_js for x in ["frog", "tadpole", "lotus", "fish", "dragonfly", "snail"]))
 
     dressup = read("web/assets/dressup.js")
     check("商城改为逐件定价而非统一倍率", "PRICE_MULT" not in dressup and "逐件定价" in dressup)
@@ -179,7 +180,7 @@ def main():
     server = read("app/server.py")
     check("工作台 report.assessment=null 防御",
           "report_meta" in server and "assessment_meta" in server)
-    check("版本号已提升到 1.9.4", 'version="1.9.4"' in server)
+    check("版本号已提升到 1.9.5", 'version="1.9.5"' in server)
 
     print()
     print(f"{len(passed)} passed, {len(fails)} failed")

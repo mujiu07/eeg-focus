@@ -52,7 +52,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.9.4")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.9.5")
 
 # 已完成会话在内存中保留的宽限时间；报告/逐轮数据先写入 SQLite，
 # 到期后释放 EDF 原始数组和监测批次，历史报告仍可从数据库读取。

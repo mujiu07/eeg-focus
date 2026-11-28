@@ -37,7 +37,8 @@
       background: linear-gradient(145deg,#f2fbf0,#c9ead2);
       color: #2b7555;
     }
-    .avatar-badge--frog { background: linear-gradient(145deg,#eef8e6,#bfe3c4); }
+    .avatar-badge--image { background: transparent; }
+    .profile-avatar .avatar-img { width: 100%; height: 100%; object-fit: contain; }
     .profile-avatar .frog-art { width: 82%; height: 82%; }
     .profile-avatar .avatar-icon { width: 40px; height: 40px; }
     .profile-name { font-size: 18px; font-weight: 900; }
@@ -70,6 +71,7 @@
       box-shadow: 0 0 0 3px rgba(85,185,129,.14);
     }
     .avatar-opt .avatar-badge { border-radius: 14px; }
+    .avatar-opt .avatar-img { width: 100%; height: 100%; object-fit: contain; }
     .avatar-opt .frog-art { width: 82%; height: 82%; }
     .avatar-opt .avatar-icon { width: 31px; height: 31px; }
     .modal-mask { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
@@ -89,6 +91,7 @@
   </style>
   <link rel="stylesheet" href="assets/icons/icons.css">
   <link rel="stylesheet" href="assets/visual-v193.css">
+  <link rel="stylesheet" href="assets/readability-v195.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -147,28 +150,26 @@
 
   <script src="assets/pond-effects.js"></script>
   <script src="assets/frog/frog-art.js"></script>
+  <script src="assets/avatars.js"></script>
   <script src="assets/api.js"></script>
   <script src="assets/profile-bridge.js"></script>
   <script>
-    const AVATARS = [
-      ["frog", "", "小蛙"], ["tadpole", "tadpole", "小蝌蚪"], ["lotus", "lotus", "荷花"],
-      ["fish", "fish", "小鱼"], ["dragonfly", "dragonfly", "蜻蜓"], ["snail", "snail", "蜗牛"],
-    ];
-    const AVATAR_MAP = Object.fromEntries(AVATARS.map(([id, icon, label]) => [id, { icon, label }]));
+    const AVATARS = window.AvatarArt ? AvatarArt.LIST : [];
     const $ = id => document.getElementById(id);
     const next = new URLSearchParams(location.search).get("next") || "index.html";
     let profiles = [];
     let editing = null;
-    let pickedAvatar = "frog";
+    let pickedAvatar = "avatar_01";
     let legacy = null;
 
-    function avatarOf(id) { return AVATAR_MAP[id] || AVATAR_MAP.frog; }
+    function avatarOf(id) { return window.AvatarArt ? AvatarArt.resolve(id) : { id: "avatar_01", label: "小蛙" }; }
+    function isKnownAvatar(id) {
+      return !window.AvatarArt || AvatarArt.LIST.some(a => a.id === id) || !!AvatarArt.LEGACY[id];
+    }
     function avatarMarkup(a) {
-      const icon = a && a.icon;
-      const inner = !icon
-        ? (window.FrogArt ? FrogArt.svg({ className: "avatar-frog", compact: true }) : "")
-        : (window.Icons ? Icons.markup(icon, "avatar-icon") : "");
-      return `<span class="avatar-badge${icon ? "" : " avatar-badge--frog"}" aria-hidden="true">${inner}</span>`;
+      const avatar = typeof a === "string" ? avatarOf(a) : (a || avatarOf("avatar_01"));
+      const inner = window.AvatarArt ? AvatarArt.markup(avatar.id) : "";
+      return `<span class="avatar-badge avatar-badge--image" aria-hidden="true">${inner}</span>`;
     }
     function status(text, bad) {
       const el = $("profile-status");
@@ -196,7 +197,7 @@
         const a = avatarOf(p.avatar);
         const isCurrent = current && current.user_id === p.user_id;
         const cs = p.calibration_status || {};
-        return `<div class="profile-card${isCurrent ? " is-current" : ""}" data-id="${p.user_id}" role="button" tabindex="0" aria-label="选择 ${p.nickname}">
+        return `<div class="profile-card${isCurrent ? " is-current" : ""}" data-id="${p.user_id}" data-avatar="${a.id}" data-avatar-raw="${escapeHtml(p.avatar)}" role="button" tabindex="0" aria-label="选择 ${p.nickname}">
           ${isCurrent ? '<span class="profile-current">当前</span>' : ""}
           <div class="profile-avatar">${avatarMarkup(a)}</div>
           <div class="profile-name">${escapeHtml(p.nickname)}</div>
@@ -275,11 +276,11 @@
       editing = id ? profiles.find(p => p.user_id === id) : null;
       $("modal-title").textContent = editing ? "编辑档案" : "新建档案";
       $("profile-name").value = editing ? editing.nickname : "";
-      pickedAvatar = editing ? editing.avatar : "frog";
-      if (!AVATAR_MAP[pickedAvatar]) pickedAvatar = "frog";
-      $("avatar-pick").innerHTML = AVATARS.map(([aid, icon, label]) => {
-        const a = { icon, label };
-        return `<button class="avatar-opt" type="button" data-avatar="${aid}" aria-pressed="${aid === pickedAvatar}" aria-label="${label}">${avatarMarkup(a)}</button>`;
+      pickedAvatar = editing ? (editing.avatar || "avatar_01") : "avatar_01";
+      if (!isKnownAvatar(pickedAvatar)) pickedAvatar = "avatar_01";
+      const pickedImageId = avatarOf(pickedAvatar).id;
+      $("avatar-pick").innerHTML = AVATARS.map(a => {
+        return `<button class="avatar-opt" type="button" data-avatar="${a.id}" aria-pressed="${a.id === pickedImageId}" aria-label="${a.label}">${avatarMarkup(a)}</button>`;
       }).join("");
       Icons.mountAll($("avatar-pick"));
       FrogArt.mountAll($("avatar-pick"));

@@ -37,14 +37,28 @@ from . import difficulty
 APP_NAME = "专注小蛙"
 SCHEMA_VERSION = 4
 MAX_PROFILES = 12
-AVATARS = ("frog", "tadpole", "lotus", "fish", "dragonfly", "snail")
+# 旧 ID 仅保留兼容读取；v1.9.5 起新档案使用 9 张图片头像。
+AVATARS = (
+    "frog", "tadpole", "lotus", "fish", "dragonfly", "snail",
+    "avatar_01", "avatar_02", "avatar_03", "avatar_04", "avatar_05",
+    "avatar_06", "avatar_07", "avatar_08", "avatar_09",
+)
 AVATAR_LABELS = {
-    "frog": "小蛙",
-    "tadpole": "小蝌蚪",
-    "lotus": "荷花",
-    "fish": "小鱼",
-    "dragonfly": "蜻蜓",
-    "snail": "蜗牛",
+    "frog": "小蛙（旧）",
+    "tadpole": "小蝌蚪（旧）",
+    "lotus": "荷花（旧）",
+    "fish": "小鱼（旧）",
+    "dragonfly": "蜻蜓（旧）",
+    "snail": "蜗牛（旧）",
+    "avatar_01": "小蛙",
+    "avatar_02": "草帽蛙",
+    "avatar_03": "探险蛙",
+    "avatar_04": "音乐蛙",
+    "avatar_05": "围巾蛙",
+    "avatar_06": "皇冠蛙",
+    "avatar_07": "魔法蛙",
+    "avatar_08": "潜水蛙",
+    "avatar_09": "花花蛙",
 }
 PROFILE_KEYS = (
     "bf-wallet", "bf-achievements", "bf-owned", "bf-owned-at", "bf-outfit",

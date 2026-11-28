@@ -140,10 +140,10 @@ check("公共视觉变量和去重复描边规则存在", () => {
   assert.ok(css.includes("a.stat"));
 });
 
-check("版本、变更记录和开发报告同步到 1.9.4", () => {
-  assert.ok(read("app/server.py").includes('version="1.9.4"'));
-  assert.ok(read("CHANGELOG.md").includes("## v1.9.4"));
-  assert.ok(exists("docs/DEV-REPORT-v1.9.4.md"));
+check("版本、变更记录和开发报告同步到 1.9.5", () => {
+  assert.ok(read("app/server.py").includes('version="1.9.5"'));
+  assert.ok(read("CHANGELOG.md").includes("## v1.9.5"));
+  assert.ok(exists("docs/DEV-REPORT-v1.9.5.md"));
 });
 
 console.log("");

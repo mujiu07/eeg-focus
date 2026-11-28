@@ -1,0 +1,158 @@
+{
+  "passed": 53,
+  "failed": [],
+  "evidence": {
+    "profiles": {
+      "count": 5,
+      "sizes": [
+        {
+          "w": 76,
+          "h": 76,
+          "badge": 76,
+          "cx": 0,
+          "cy": 0,
+          "loaded": 512
+        },
+        {
+          "w": 76,
+          "h": 76,
+          "badge": 76,
+          "cx": 0,
+          "cy": 0,
+          "loaded": 512
+        },
+        {
+          "w": 76,
+          "h": 76,
+          "badge": 76,
+          "cx": 0,
+          "cy": 0,
+          "loaded": 512
+        },
+        {
+          "w": 76,
+          "h": 76,
+          "badge": 76,
+          "cx": 0,
+          "cy": 0,
+          "loaded": 512
+        },
+        {
+          "w": 76,
+          "h": 76,
+          "badge": 76,
+          "cx": 0,
+          "cy": 0,
+          "loaded": 512
+        }
+      ],
+      "radius": "24px"
+    },
+    "avatar_picker": {
+      "count": 9,
+      "loaded": 9,
+      "selected": 1
+    },
+    "parent": {
+      "gaps": [
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        36
+      ],
+      "boxes": [
+        {
+          "border": "0px",
+          "pad": "18px 20px 20px"
+        },
+        {
+          "border": "0px",
+          "pad": "18px 20px 20px"
+        },
+        {
+          "border": "0px",
+          "pad": "18px 20px 20px"
+        },
+        {
+          "border": "0px",
+          "pad": "18px 20px 20px"
+        }
+      ],
+      "contentVisible": true
+    },
+    "music_during_calm": {
+      "t": 44.65,
+      "playing": false,
+      "videoHold": false
+    },
+    "start_cue_frog": {
+      "w": 70,
+      "h": 58,
+      "opaque": 2286
+    },
+    "game_none": {
+      "widths": {
+        "hud": 1120,
+        "main": 1120,
+        "canvas": 1120,
+        "skybar": 1120
+      },
+      "before": {
+        "t": "00:58",
+        "s": "0",
+        "streams": 2
+      },
+      "after": {
+        "t": "00:57",
+        "s": "0",
+        "streams": 2
+      }
+    },
+    "shop_prices": [
+      24,
+      26,
+      28,
+      30,
+      30,
+      32,
+      35,
+      38,
+      40,
+      42,
+      45,
+      48,
+      50,
+      55,
+      58,
+      60,
+      60,
+      65,
+      70,
+      72,
+      78,
+      80,
+      84,
+      86,
+      88,
+      90,
+      92,
+      94,
+      95,
+      120,
+      125,
+      135,
+      140,
+      145,
+      148,
+      150,
+      180,
+      210,
+      240
+    ]
+  }
+}

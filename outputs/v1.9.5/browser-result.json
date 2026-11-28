@@ -1,0 +1,311 @@
+{
+  "passed": 74,
+  "failed": [],
+  "evidence": {
+    "contrast": [],
+    "surfaces": {
+      "index/day": {
+        ".card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "index/dusk": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(20, 30, 48, 0.94)"
+        }
+      },
+      "index/night": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(13, 27, 47, 0.94)"
+        }
+      },
+      "profiles/day": {
+        ".card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".profile-card": {
+          "alpha": 0,
+          "bg": "rgba(0, 0, 0, 0)"
+        },
+        ".modal-card": {
+          "alpha": 1,
+          "bg": "rgb(255, 255, 255)"
+        }
+      },
+      "profiles/dusk": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(20, 30, 48, 0.94)"
+        },
+        ".profile-card": {
+          "alpha": 0.94,
+          "bg": "rgba(20, 30, 48, 0.94)"
+        },
+        ".modal-card": {
+          "alpha": 1,
+          "bg": "rgb(22, 34, 56)"
+        }
+      },
+      "profiles/night": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(13, 27, 47, 0.94)"
+        },
+        ".profile-card": {
+          "alpha": 0.94,
+          "bg": "rgba(13, 27, 47, 0.94)"
+        },
+        ".modal-card": {
+          "alpha": 1,
+          "bg": "rgb(15, 32, 53)"
+        }
+      },
+      "calibrate/day": {
+        ".card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "calibrate/dusk": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(20, 30, 48, 0.94)"
+        }
+      },
+      "calibrate/night": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(13, 27, 47, 0.94)"
+        }
+      },
+      "growth/day": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "growth/dusk": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "growth/night": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "parent/day": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".chart-box": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".parent-kpi": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "parent/dusk": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".chart-box": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".parent-kpi": {
+          "alpha": 0.075,
+          "bg": "rgba(255, 255, 255, 0.075)"
+        }
+      },
+      "parent/night": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".chart-box": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".parent-kpi": {
+          "alpha": 0.075,
+          "bg": "rgba(255, 255, 255, 0.075)"
+        }
+      },
+      "dev/day": {
+        ".card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "dev/dusk": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(20, 30, 48, 0.94)"
+        }
+      },
+      "dev/night": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(13, 27, 47, 0.94)"
+        }
+      },
+      "settings/day": {
+        ".card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        },
+        ".stat-box": {
+          "alpha": 0.58,
+          "bg": "rgba(255, 255, 255, 0.58)"
+        }
+      },
+      "settings/dusk": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(20, 30, 48, 0.94)"
+        },
+        ".stat-box": {
+          "alpha": 0.08,
+          "bg": "rgba(255, 255, 255, 0.08)"
+        }
+      },
+      "settings/night": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(13, 27, 47, 0.94)"
+        },
+        ".stat-box": {
+          "alpha": 0.08,
+          "bg": "rgba(255, 255, 255, 0.08)"
+        }
+      },
+      "history/day": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "history/dusk": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "history/night": {
+        ".growth-card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "report/day": {
+        ".card": {
+          "alpha": 0.96,
+          "bg": "rgba(255, 255, 255, 0.96)"
+        }
+      },
+      "report/dusk": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(20, 30, 48, 0.94)"
+        }
+      },
+      "report/night": {
+        ".card": {
+          "alpha": 0.94,
+          "bg": "rgba(13, 27, 47, 0.94)"
+        }
+      }
+    },
+    "avatars": {
+      "profiles": {
+        "count": 5,
+        "rows": [
+          {
+            "w": 76,
+            "h": 76,
+            "natural": 512,
+            "cx": 0,
+            "cy": 0
+          },
+          {
+            "w": 76,
+            "h": 76,
+            "natural": 512,
+            "cx": 0,
+            "cy": 0
+          },
+          {
+            "w": 76,
+            "h": 76,
+            "natural": 512,
+            "cx": 0,
+            "cy": 0
+          },
+          {
+            "w": 76,
+            "h": 76,
+            "natural": 512,
+            "cx": 0,
+            "cy": 0
+          },
+          {
+            "w": 76,
+            "h": 76,
+            "natural": 512,
+            "cx": 0,
+            "cy": 0
+          }
+        ],
+        "radius": "24px"
+      },
+      "picker": {
+        "count": 9,
+        "loaded": 9,
+        "selected": 1
+      },
+      "legacy": [
+        {
+          "raw": "frog",
+          "mapped": "avatar_01",
+          "src": "assets/avatars/avatar_01.png"
+        },
+        {
+          "raw": "tadpole",
+          "mapped": "avatar_01",
+          "src": "assets/avatars/avatar_01.png"
+        },
+        {
+          "raw": "lotus",
+          "mapped": "avatar_09",
+          "src": "assets/avatars/avatar_09.png"
+        },
+        {
+          "raw": "fish",
+          "mapped": "avatar_08",
+          "src": "assets/avatars/avatar_08.png"
+        },
+        {
+          "raw": "snail",
+          "mapped": "avatar_02",
+          "src": "assets/avatars/avatar_02.png"
+        }
+      ],
+      "home": {
+        "visible": true,
+        "natural": 512,
+        "name": "小满"
+      }
+    }
+  }
+}

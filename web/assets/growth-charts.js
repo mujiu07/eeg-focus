@@ -18,12 +18,12 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
     ctx.font = '11px "PingFang SC", "Hiragino Sans GB", sans-serif';
-    ctx.fillStyle = "#5c7b83";
+    ctx.fillStyle = "#415f67";
     return { ctx, width, height };
   }
 
   function drawEmpty(ctx, width, height, text) {
-    ctx.fillStyle = "#8aa0a6";
+    ctx.fillStyle = "#5b747b";
     ctx.textAlign = "center";
     ctx.fillText(text || "暂无可绘制数据", width / 2, height / 2);
     ctx.textAlign = "left";
@@ -71,7 +71,7 @@
       ctx.fillRect(x, bottom - h, w, h);
     });
     const step = Math.max(1, Math.ceil(points.length / 7));
-    ctx.fillStyle = "#5c7b83";
+    ctx.fillStyle = "#415f67";
     points.forEach((d, i) => {
       if (i % step === 0 || i === points.length - 1) {
         ctx.textAlign = i === 0 ? "left" : (i === points.length - 1 ? "right" : "center");
@@ -106,7 +106,7 @@
     const yFor = value => bottom - ((Number(value) - low) / (high - low)) * (bottom - top);
     axis(ctx, left, top, right, bottom);
     if (opts && opts.percent) {
-      ctx.fillStyle = "#8aa0a6";
+      ctx.fillStyle = "#5b747b";
       ctx.fillText("100%", 4, top + 4);
       ctx.fillText("0%", 4, bottom - 2);
     }
@@ -137,7 +137,7 @@
       });
     });
     const step = Math.max(1, Math.ceil(labels.length / 7));
-    ctx.fillStyle = "#5c7b83";
+    ctx.fillStyle = "#415f67";
     labels.forEach((label, i) => {
       if (i % step === 0 || i === labels.length - 1) {
         const x = left + (right - left) * (labels.length <= 1 ? 0.5 : i / (labels.length - 1));
@@ -190,7 +190,7 @@
       ctx.fill();
       previous = { x, y: yFor(after) };
     });
-    ctx.fillStyle = "#5c7b83";
+    ctx.fillStyle = "#415f67";
     points.forEach((d, i) => {
       if (points.length <= 7 || i === 0 || i === points.length - 1) {
         const x = left + (right - left) * (points.length <= 1 ? 0.5 : i / (points.length - 1));

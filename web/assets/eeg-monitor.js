@@ -570,7 +570,7 @@
         ctx.strokeStyle = "rgba(127, 183, 190, .13)";
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x, plot.y0); ctx.lineTo(x, plot.y1); ctx.stroke();
-        ctx.fillStyle = "#5f858c";
+        ctx.fillStyle = "#9ab6bd";
         const age = windowSec - t;
         ctx.fillText(age <= 1e-9 ? "now" : `-${age.toFixed(1)}s`, Math.min(x, w - 28), 10);
       }
@@ -631,7 +631,7 @@
         ctx.fillStyle = CH_COLORS[ci % CH_COLORS.length];
         ctx.font = "9px Menlo, Consolas, monospace";
         ctx.fillText(String(names[ci] || `CH${ci + 1}`).slice(0, 8), 3, yMid);
-        ctx.fillStyle = "#5f858c";
+        ctx.fillStyle = "#9ab6bd";
         ctx.fillText(`±${scale >= 10 ? scale.toFixed(0) : scale.toFixed(2)}`, Math.max(3, plot.x1 - 28), yMid);
         if (this.channelOk[ci] === false) {
           ctx.fillStyle = "#e6a29a"; ctx.fillText("×", 3, yMid + 10);
@@ -700,7 +700,7 @@
       [0, 50, 100].forEach(v => {
         const y = plot.y1 - (plot.y1 - plot.y0) * v / 100;
         ctx.strokeStyle = "rgba(127,183,190,.13)"; ctx.beginPath(); ctx.moveTo(plot.x0, y); ctx.lineTo(plot.x1, y); ctx.stroke();
-        ctx.fillStyle = "#5f858c"; ctx.fillText(v + "%", 1, y);
+        ctx.fillStyle = "#9ab6bd"; ctx.fillText(v + "%", 1, y);
       });
       BANDS.forEach(b => {
         if (!this.bandFilter.has(b.name)) return;
@@ -718,7 +718,7 @@
         });
         ctx.stroke();
       });
-      ctx.fillStyle = "#5f858c"; ctx.fillText("-30s", plot.x0, h - 6); ctx.fillText("now", plot.x1 - 18, h - 6);
+      ctx.fillStyle = "#9ab6bd"; ctx.fillText("-30s", plot.x0, h - 6); ctx.fillText("now", plot.x1 - 18, h - 6);
     }
 
     drawScore() {
@@ -731,7 +731,7 @@
       const plot = { x0: 27, x1: w - 5, y0: 8, y1: h - 17 };
       const tNow = this.latestGameT ?? this.latestT;
       if (!finite(tNow)) {
-        ctx.fillStyle = "#5f858c"; ctx.font = "10px Menlo, monospace"; ctx.fillText("等待游戏驱动分数…", 10, h / 2);
+        ctx.fillStyle = "#9ab6bd"; ctx.font = "10px Menlo, monospace"; ctx.fillText("等待游戏驱动分数…", 10, h / 2);
         return;
       }
       const tStart = tNow - 30;
@@ -742,7 +742,7 @@
       [0, 50, 100].forEach(v => {
         const y = yOf(v);
         ctx.strokeStyle = "rgba(127,183,190,.13)"; ctx.beginPath(); ctx.moveTo(plot.x0, y); ctx.lineTo(plot.x1, y); ctx.stroke();
-        ctx.fillStyle = "#5f858c"; ctx.fillText(String(v), 2, y);
+        ctx.fillStyle = "#9ab6bd"; ctx.fillText(String(v), 2, y);
       });
       [this.thresholds.enter, this.thresholds.exit].forEach(v => {
         const y = yOf(v);
@@ -788,7 +788,7 @@
         ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.moveTo(x, y + 5); ctx.lineTo(x, plot.y1); ctx.stroke();
         this.scoreHits.push({ x, y, ev });
       });
-      ctx.fillStyle = "#5f858c"; ctx.fillText("-30s", plot.x0, h - 6);
+      ctx.fillStyle = "#9ab6bd"; ctx.fillText("-30s", plot.x0, h - 6);
       ctx.fillText("now", plot.x1 - 18, h - 6);
       // 阈值标注
       ctx.fillStyle = "rgba(226,181,111,.7)";
@@ -805,7 +805,7 @@
       ctx.fillStyle = "#0a1217"; ctx.fillRect(0, 0, w, h);
       const tNow = this.latestGameT ?? this.latestT;
       if (!finite(tNow)) {
-        ctx.fillStyle = "#5f858c"; ctx.font = "10px Menlo, monospace";
+        ctx.fillStyle = "#9ab6bd"; ctx.font = "10px Menlo, monospace";
         ctx.fillText("等待同一算法输出的双基线…", 10, h / 2);
         return;
       }
@@ -819,7 +819,7 @@
         const y = yOf(v);
         ctx.strokeStyle = "rgba(127,183,190,.13)";
         ctx.beginPath(); ctx.moveTo(plot.x0, y); ctx.lineTo(plot.x1, y); ctx.stroke();
-        ctx.fillStyle = "#5f858c"; ctx.fillText(String(v), 2, y);
+        ctx.fillStyle = "#9ab6bd"; ctx.fillText(String(v), 2, y);
       });
       // 无效信号区间只标底，不跨越断流连线；不插值。
       for (let i = 1; i < this.baselinePoints.length; i++) {
@@ -860,7 +860,7 @@
           ctx.fill();
         });
       }
-      ctx.fillStyle = "#5f858c";
+      ctx.fillStyle = "#9ab6bd";
       ctx.fillText("-30s", plot.x0, h - 6);
       ctx.fillText("now", plot.x1 - 18, h - 6);
     }
