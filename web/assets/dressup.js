@@ -88,19 +88,19 @@
       skin: { deep: "#a84a66", body: "#ef9db4", belly: "#ffe9f0" },
     },
     {
-      id: "skin-sky", cat: "skin", name: "天空小蛙", from: "累计专注满 30 分钟", ach: "doctor-1", price: 6,
+      id: "skin-sky", cat: "skin", name: "天空小蛙", from: "累计专注满 30 分钟", ach: "doctor-1", price: 125,
       skin: { deep: "#31638f", body: "#6fb2e0", belly: "#cfe8f8" },
     },
     {
-      id: "skin-lemon", cat: "skin", name: "柠檬小蛙", from: "连续打卡 3 天", ach: "spirit-1", price: 8,
+      id: "skin-lemon", cat: "skin", name: "柠檬小蛙", from: "连续打卡 3 天", ach: "spirit-1", price: 135,
       skin: { deep: "#92801f", body: "#ddc257", belly: "#f5edc2" },
     },
     {
-      id: "skin-grape", cat: "skin", name: "葡萄小蛙", from: "单局专注满 5 分钟", ach: "focus-3", price: 10,
+      id: "skin-grape", cat: "skin", name: "葡萄小蛙", from: "单局专注满 5 分钟", ach: "focus-3", price: 145,
       skin: { deep: "#503f78", body: "#9481c6", belly: "#e0d8f4" },
     },
     {
-      id: "skin-dusk", cat: "skin", name: "晚霞小蛙", from: "累计专注满 600 分钟", ach: "doctor-5", price: 12,
+      id: "skin-dusk", cat: "skin", name: "晚霞小蛙", from: "累计专注满 600 分钟", ach: "doctor-5", price: 180,
       skin: { deep: "#9c4a22", body: "#e59362", belly: "#f8dcc4" },
     },
 
@@ -119,7 +119,7 @@
       },
     },
     {
-      id: "hat-leaf", cat: "hat", name: "大荷叶帽", from: "累计专注满 30 分钟", ach: "doctor-1", price: 6,
+      id: "hat-leaf", cat: "hat", name: "大荷叶帽", from: "累计专注满 30 分钟", ach: "doctor-1", price: 65,
       shapes: {
         front: [
           E(0, -20, 26, 7.5, "#46b463"),
@@ -132,7 +132,7 @@
       },
     },
     {
-      id: "hat-dandelion", cat: "hat", name: "蒲公英绒帽", from: "连续打卡 3 天", ach: "spirit-1", price: 7,
+      id: "hat-dandelion", cat: "hat", name: "蒲公英绒帽", from: "连续打卡 3 天", ach: "spirit-1", price: 72,
       shapes: {
         front: [
           L(0, -20, 0, -28, "#7fbf8f", 2.4),
@@ -148,7 +148,7 @@
       },
     },
     {
-      id: "hat-crown", cat: "hat", name: "青蛙小皇冠", from: "单局专注满 5 分钟", ach: "focus-3", price: 12,
+      id: "hat-crown", cat: "hat", name: "青蛙小皇冠", from: "单局专注满 5 分钟", ach: "focus-3", price: 140,
       shapes: {
         front: [
           P("M-15 -18 L-17 -33 L-8 -27 L0 -38 L8 -27 L17 -33 L15 -18 Z",
@@ -161,7 +161,7 @@
       },
     },
     {
-      id: "hat-rain", cat: "hat", name: "雨滴小帽", from: "累计专注满 600 分钟", ach: "doctor-5", price: 8,
+      id: "hat-rain", cat: "hat", name: "雨滴小帽", from: "累计专注满 600 分钟", ach: "doctor-5", price: 58,
       shapes: {
         front: [
           P("M0 -41 C9 -30 15 -25 15 -18 A15 15 0 0 1 -15 -18 C-15 -25 -9 -30 0 -41 Z",
@@ -187,7 +187,7 @@
       },
     },
     {
-      id: "face-star", cat: "face", name: "星星墨镜", from: "单局专注满 10 分钟", ach: "focus-4", price: 7,
+      id: "face-star", cat: "face", name: "星星墨镜", from: "单局专注满 10 分钟", ach: "focus-4", price: 45,
       shapes: {
         front: [
           C(-14, -12, 10.5, "rgba(35,70,79,.9)", { stroke: "#23464f", w: 1.6 }),
@@ -199,7 +199,7 @@
       },
     },
     {
-      id: "face-dive", cat: "face", name: "潜水小镜", from: "累计专注满 60 分钟", ach: "doctor-2", price: 8,
+      id: "face-dive", cat: "face", name: "潜水小镜", from: "累计专注满 60 分钟", ach: "doctor-2", price: 80,
       shapes: {
         front: [
           E(-14, -11.5, 12.5, 11, "rgba(143,216,234,.62)", { stroke: "#4fa9c4", w: 2.4 }),
@@ -212,7 +212,7 @@
       },
     },
     {
-      id: "face-dew", cat: "face", name: "露珠单片镜", from: "连续打卡 7 天", ach: "spirit-3", price: 9,
+      id: "face-dew", cat: "face", name: "露珠单片镜", from: "连续打卡 7 天", ach: "spirit-3", price: 38,
       shapes: {
         front: [
           C(14, -12, 10, "rgba(255,255,255,.22)", { stroke: "#e0a34a", w: 2.4 }),
@@ -226,7 +226,7 @@
 
     // ===== 颈饰 =====
     {
-      id: "neck-scarf", cat: "neck", name: "荷叶围巾", from: "单局专注满 3 分钟", ach: "focus-2", price: 6,
+      id: "neck-scarf", cat: "neck", name: "荷叶围巾", from: "单局专注满 3 分钟", ach: "focus-2", price: 28,
       shapes: {
         front: [
           P("M-17 8 Q0 18 17 8 L17 13 Q0 23 -17 13 Z", "#58c270"),
@@ -237,7 +237,7 @@
       },
     },
     {
-      id: "neck-bell", cat: "neck", name: "铃兰铃铛", from: "累计专注满 150 分钟", ach: "doctor-3", price: 7,
+      id: "neck-bell", cat: "neck", name: "铃兰铃铛", from: "累计专注满 150 分钟", ach: "doctor-3", price: 50,
       shapes: {
         front: [
           K("M-13 10 Q0 20 13 10", "#ffd27f", 2.2),
@@ -249,7 +249,7 @@
       },
     },
     {
-      id: "neck-bow", cat: "neck", name: "暖阳蝴蝶结", from: "连续打卡 5 天", ach: "spirit-2", price: 6,
+      id: "neck-bow", cat: "neck", name: "暖阳蝴蝶结", from: "连续打卡 5 天", ach: "spirit-2", price: 30,
       shapes: {
         front: [
           P("M0 14 L-14 6 Q-17.5 14 -14 22 Z", "#ffb0a8", { stroke: "#f08f86", w: 1.2 }),
@@ -260,7 +260,7 @@
       },
     },
     {
-      id: "neck-medal", cat: "neck", name: "池塘小勋章", from: "连续打卡 15 天", ach: "spirit-4", price: 10,
+      id: "neck-medal", cat: "neck", name: "池塘小勋章", from: "连续打卡 15 天", ach: "spirit-4", price: 84,
       shapes: {
         front: [
           L(-9, 9, -1, 20, "#58b6d4", 3),
@@ -274,7 +274,7 @@
 
     // ===== 背饰（画在身体后面） =====
     {
-      id: "back-bag", cat: "back", name: "荷叶小包", from: "单局专注满 1 分钟", ach: "focus-1", price: 8,
+      id: "back-bag", cat: "back", name: "荷叶小包", from: "单局专注满 1 分钟", ach: "focus-1", price: 55,
       shapes: {
         back: [
           R(-31, -6, 20, 24, 7, "#f7a455"),
@@ -286,7 +286,7 @@
       },
     },
     {
-      id: "back-wing", cat: "back", name: "蜻蜓翅膀", from: "累计专注满 300 分钟", ach: "doctor-4", price: 15,
+      id: "back-wing", cat: "back", name: "蜻蜓翅膀", from: "累计专注满 300 分钟", ach: "doctor-4", price: 148,
       shapes: {
         back: [
           E(-25, -8, 14, 6, "rgba(207,239,245,.74)", { stroke: "#9fd8e2", w: 1.5, rot: -0.32 }),
@@ -297,7 +297,7 @@
       },
     },
     {
-      id: "back-bubble", cat: "back", name: "泡泡背包", from: "连续打卡 30 天", ach: "spirit-5", price: 12,
+      id: "back-bubble", cat: "back", name: "泡泡背包", from: "连续打卡 30 天", ach: "spirit-5", price: 120,
       shapes: {
         back: [
           C(-24, 2, 9.5, "rgba(205,238,247,.88)", { stroke: "#8fd0e0", w: 1.4 }),
@@ -309,7 +309,7 @@
       },
     },
     {
-      id: "back-cape", cat: "back", name: "星光小披风", from: "第一次校准成功", ach: "guardian-first", price: 14,
+      id: "back-cape", cat: "back", name: "星光小披风", from: "第一次校准成功", ach: "guardian-first", price: 210,
       shapes: {
         back: [
           P("M-26 -4 Q0 -16 26 -4 L22 26 Q0 32 -22 26 Z",
@@ -346,7 +346,7 @@
 
     // ===== 头饰（补充） =====
     {
-      id: "hat-wizard", cat: "hat", name: "魔法师尖帽", from: "累计专注满 60 分钟", ach: "doctor-2", price: 12,
+      id: "hat-wizard", cat: "hat", name: "魔法师尖帽", from: "累计专注满 60 分钟", ach: "doctor-2", price: 95,
       shapes: {
         front: [
           E(0, -18, 20, 5, "#4b3a78"),
@@ -358,7 +358,7 @@
       },
     },
     {
-      id: "hat-sakura", cat: "hat", name: "樱花发卡", from: "连续打卡 5 天", ach: "spirit-2", price: 7,
+      id: "hat-sakura", cat: "hat", name: "樱花发卡", from: "连续打卡 5 天", ach: "spirit-2", price: 40,
       shapes: {
         front: [
           C(12, -25, 2.4, "#ffb3c9"),
@@ -377,7 +377,7 @@
       },
     },
     {
-      id: "hat-goggles", cat: "hat", name: "飞行员护目镜", from: "单局专注满 3 分钟", ach: "focus-2", price: 9,
+      id: "hat-goggles", cat: "hat", name: "飞行员护目镜", from: "单局专注满 3 分钟", ach: "focus-2", price: 92,
       shapes: {
         front: [
           K("M-22 -22 Q0 -30 22 -22", "#c98f2e", 3),
@@ -390,7 +390,7 @@
       },
     },
     {
-      id: "hat-sailor", cat: "hat", name: "水手帽", from: "累计专注满 150 分钟", ach: "doctor-3", price: 8,
+      id: "hat-sailor", cat: "hat", name: "水手帽", from: "累计专注满 150 分钟", ach: "doctor-3", price: 60,
       shapes: {
         front: [
           P("M-15 -18 Q-15 -32 0 -32 Q15 -32 15 -18 Z", "#fdfbf4", { stroke: "#e6e0cf", w: 1.2 }),
@@ -401,7 +401,7 @@
       },
     },
     {
-      id: "hat-mushroom", cat: "hat", name: "红白小蘑菇", from: "连续打卡 3 天", ach: "spirit-1", price: 7,
+      id: "hat-mushroom", cat: "hat", name: "红白小蘑菇", from: "连续打卡 3 天", ach: "spirit-1", price: 42,
       shapes: {
         front: [
           P("M-19 -16 Q-19 -35 0 -35 Q19 -35 19 -16 Z", "#e8635f", { stroke: "#d04f4b", w: 1.2 }),
@@ -415,7 +415,7 @@
       },
     },
     {
-      id: "hat-wreath", cat: "hat", name: "柳条花环", from: "连续打卡 7 天", ach: "spirit-3", price: 9,
+      id: "hat-wreath", cat: "hat", name: "柳条花环", from: "连续打卡 7 天", ach: "spirit-3", price: 94,
       shapes: {
         front: [
           E(0, -24, 16, 5.5, "none", { stroke: "#8fbf7a", w: 4 }),
@@ -432,7 +432,7 @@
       },
     },
     {
-      id: "hat-duck", cat: "hat", name: "小黄鸭", from: "单局专注满 1 分钟", ach: "focus-1", price: 6,
+      id: "hat-duck", cat: "hat", name: "小黄鸭", from: "单局专注满 1 分钟", ach: "focus-1", price: 32,
       shapes: {
         front: [
           E(0, -29, 9.5, 6.5, "#ffd84d"),
@@ -459,7 +459,7 @@
 
     // ===== 面饰（补充） =====
     {
-      id: "face-black", cat: "face", name: "学霸黑框镜", from: "单局专注满 5 分钟", ach: "focus-3", price: 6,
+      id: "face-black", cat: "face", name: "学霸黑框镜", from: "单局专注满 5 分钟", ach: "focus-3", price: 35,
       shapes: {
         front: [
           // 方形镜框：边长 23（眼睛外径 20×22），四周完整包住眼球，
@@ -473,7 +473,7 @@
       },
     },
     {
-      id: "face-blush", cat: "face", name: "粉心腮红", from: "连续打卡 15 天", ach: "spirit-4", price: 5,
+      id: "face-blush", cat: "face", name: "粉心腮红", from: "连续打卡 15 天", ach: "spirit-4", price: 24,
       shapes: {
         front: [
           E(-19, 2, 6.2, 3.8, "rgba(255,179,193,.55)"),
@@ -484,7 +484,7 @@
       },
     },
     {
-      id: "face-mustache", cat: "face", name: "俏皮八字胡", from: "累计专注满 30 分钟", ach: "doctor-1", price: 5,
+      id: "face-mustache", cat: "face", name: "俏皮八字胡", from: "累计专注满 30 分钟", ach: "doctor-1", price: 24,
       shapes: {
         front: [
           P("M0 1 Q-6 -4 -11 1 Q-6 2.5 0 3.5 Z", "#2f2f2f"),
@@ -531,7 +531,7 @@
     // 上架胸饰：都别在左胸同一位置（约 x 13.5 / y 11.5），大小控制在圆徽章
     // 5–6 半径内，既压得住肚皮又不遮嘴；价格 5–12 分，比背饰 / 光效轻一档
     {
-      id: "chest-lotus", cat: "chest", name: "荷叶胸针", from: "单局专注满 1 分钟", ach: "focus-1", price: 5,
+      id: "chest-lotus", cat: "chest", name: "荷叶胸针", from: "单局专注满 1 分钟", ach: "focus-1", price: 30,
       shapes: {
         front: [
           P("M19.01 10.53 A5.6 5.6 0 1 0 19.01 12.47 L13.5 11.5 Z",
@@ -550,7 +550,7 @@
       },
     },
     {
-      id: "chest-dew", cat: "chest", name: "露珠胸针", from: "单局专注满 3 分钟", ach: "focus-2", price: 7,
+      id: "chest-dew", cat: "chest", name: "露珠胸针", from: "单局专注满 3 分钟", ach: "focus-2", price: 48,
       shapes: {
         front: [
           C(13.5, 5.6, 1.25, "none", { stroke: "#e0a34a", w: 1.5 }),
@@ -566,7 +566,7 @@
       },
     },
     {
-      id: "chest-star", cat: "chest", name: "专注星章", from: "单局专注满 10 分钟", ach: "focus-4", price: 10,
+      id: "chest-star", cat: "chest", name: "专注星章", from: "单局专注满 10 分钟", ach: "focus-4", price: 90,
       shapes: {
         front: [
           P("M11.6 16.4 L9.9 20.2 L11.6 19.3 L12.8 20.4 Z", "#58b6d4"),
@@ -611,7 +611,7 @@
       },
     },
     {
-      id: "neck-rainbow", cat: "neck", name: "彩虹小围巾", from: "单局专注满 10 分钟", ach: "focus-4", price: 8,
+      id: "neck-rainbow", cat: "neck", name: "彩虹小围巾", from: "单局专注满 10 分钟", ach: "focus-4", price: 78,
       shapes: {
         front: [
           P("M-17 9 Q0 19 17 9 L17 14 Q0 24 -17 14 Z", "#ffd166"),
@@ -623,7 +623,7 @@
       },
     },
     {
-      id: "neck-cape", cat: "neck", name: "荷叶小斗篷", from: "累计专注满 300 分钟", ach: "doctor-4", price: 7,
+      id: "neck-cape", cat: "neck", name: "荷叶小斗篷", from: "累计专注满 300 分钟", ach: "doctor-4", price: 70,
       shapes: {
         front: [
           P("M-24 6 Q0 22 24 6 Q17 -2 0 -2 Q-17 -2 -24 6 Z", "#4fae67", { stroke: "#3da45c", w: 1.2 }),
@@ -634,7 +634,7 @@
       },
     },
     {
-      id: "neck-scarfred", cat: "neck", name: "红领巾", from: "连续打卡 30 天", ach: "spirit-5", price: 6,
+      id: "neck-scarfred", cat: "neck", name: "红领巾", from: "连续打卡 30 天", ach: "spirit-5", price: 65,
       shapes: {
         front: [
           P("M-13 9 Q0 15 13 9 L7 20 L0 25 L-7 20 Z", "#e14b4b", { stroke: "#c93c3c", w: 1.2 }),
@@ -646,7 +646,7 @@
 
     // ===== 手持（新类别） =====
     {
-      id: "hand-wand", cat: "hand", name: "星星魔法棒", from: "累计专注满 600 分钟", ach: "doctor-5", price: 12,
+      id: "hand-wand", cat: "hand", name: "星星魔法棒", from: "累计专注满 600 分钟", ach: "doctor-5", price: 88,
       shapes: {
         front: [
           L(24, 20, 30, 2, "#c98f2e", 2.6),
@@ -657,7 +657,7 @@
       },
     },
     {
-      id: "hand-gun", cat: "hand", name: "迷你水枪", from: "单局专注满 3 分钟", ach: "focus-2", price: 7,
+      id: "hand-gun", cat: "hand", name: "迷你水枪", from: "单局专注满 3 分钟", ach: "focus-2", price: 60,
       shapes: {
         front: [
           R(23, 9, 13, 7, 3, "#5aa6d8"),
@@ -669,7 +669,7 @@
       },
     },
     {
-      id: "hand-flag", cat: "hand", name: "Focus 小红旗", from: "第一次校准成功", ach: "guardian-first", price: 5,
+      id: "hand-flag", cat: "hand", name: "Focus 小红旗", from: "第一次校准成功", ach: "guardian-first", price: 26,
       shapes: {
         front: [
           L(27, 22, 27, -10, "#b07a3a", 2.2),
@@ -679,7 +679,7 @@
       },
     },
     {
-      id: "hand-umbrella", cat: "hand", name: "荷叶小伞", from: "连续打卡 3 天", ach: "spirit-1", price: 8,
+      id: "hand-umbrella", cat: "hand", name: "荷叶小伞", from: "连续打卡 3 天", ach: "spirit-1", price: 86,
       shapes: {
         front: [
           L(29, 20, 29, -2, "#7fbf8f", 2.2),
@@ -711,7 +711,7 @@
 
     // ===== 光效（新类别，颜色可选） =====
     {
-      id: "aura-glow", cat: "aura", name: "荷叶光晕", from: "累计专注满 30 分钟", ach: "doctor-1", price: 13,
+      id: "aura-glow", cat: "aura", name: "荷叶光晕", from: "累计专注满 30 分钟", ach: "doctor-1", price: 150,
       tone: "glow",
       shapes: {
         back: [
@@ -722,7 +722,7 @@
       },
     },
     {
-      id: "aura-trail", cat: "aura", name: "星星尾迹", from: "连续打卡 15 天", ach: "spirit-4", price: 15,
+      id: "aura-trail", cat: "aura", name: "星星尾迹", from: "连续打卡 15 天", ach: "spirit-4", price: 240,
       tone: "trail",
       shapes: {
         front: [
@@ -963,26 +963,15 @@
   }
 
   // ---------- 商城 ----------
-  // 只有「成就专属」不可购买；其余（含成就可免费解锁的）都能用积分买
-  // 定价倍率：肤色 ×1.5，背饰 / 头饰 ×1.2，手持 ×1.1，其余分类按原价。
-  // 实际售价 = 原价 × 倍率 后向上取整；乘完先按 6 位小数归整，
-  // 避免浮点误差把 10 × 1.2 = 12.000000000000002 误进成 13 分。
-  const PRICE_MULT = {
-    skin: 1.5,
-    back: 1.2,
-    hat: 1.2,
-    hand: 1.1,
-  };
-
+  // 只有「成就专属」不可购买；其余（含成就可免费解锁的）都能用积分买。
+  // v1.9.4：价格改为逐件定价，不再使用统一倍率。每件价格按美术复杂度、
+  // 露出面积、特色和稀有度分别设定；已有购买记录和金币余额不受影响。
   function priceOf(item) {
     const data = typeof item === "string" ? BY_ID[item] : item;
     if (!data || data.shop === false) return 0;
     const base = Math.max(0, Number(data.price) || 0);
     if (!base) return 0;
-    const mult = PRICE_MULT[data.cat] || 1;
-    if (mult === 1) return Math.round(base);
-    const scaled = Number((base * mult).toFixed(6));
-    return Math.max(0, Math.ceil(scaled));
+    return Math.round(base);
   }
 
   function shopItems() {

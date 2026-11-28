@@ -984,7 +984,7 @@ class StorageManager:
                  float(data.get("baseline") or 0.5),
                  _num(q10), _num(quantiles.get("q50")), _num(q90),
                  _num(range_.get("low")), _num(range_.get("high")), at, at_ms, cal_date, tz_offset,
-                 dev_key, str(data.get("range_mode") or data.get("method") or "daily_v2"),
+                 dev_key, str(data.get("range_mode") or data.get("method") or PROTOCOL_VERSION),
                  source_name, _json(source), int(data.get("n_frames") or 0),
                  _json(data.get("signal_quality") or {}),
                  str(data.get("protocol_version") or "legacy"),

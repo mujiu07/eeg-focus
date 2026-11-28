@@ -13,26 +13,70 @@
     .stage.hidden { display: none; }
     .stage-progress { width:min(420px,100%); height:10px; border-radius:999px; background:rgba(58,167,160,.14); overflow:hidden; }
     .stage-progress i { display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg,#9fe3a3,#3aa7a0); transition:width .2s; }
-    .tutorial-card { width:min(520px,100%); padding:16px 18px; border-radius:20px; background:rgba(255,255,255,.8); box-shadow:0 8px 22px rgba(47,110,128,.1); }
-    .tut-track { position:relative; height:26px; border-radius:999px; background:#e8f5eb; overflow:hidden; margin:12px 0; cursor:pointer; }
-    .tut-fill { height:100%; width:0; background:linear-gradient(90deg,#9fe3a3,#3aa7a0); }
+    .tutorial-card {
+      width:min(540px,100%); padding:16px 18px 14px; border-radius:20px;
+      background:rgba(255,255,255,.84); box-shadow:0 8px 22px rgba(47,110,128,.1);
+      border:1px solid rgba(58,167,160,.12);
+    }
+    .tut-demo-badge {
+      display:none; width:max-content; margin:0 auto 8px; padding:4px 12px;
+      border-radius:999px; background:rgba(255,196,45,.22); color:#7a5410;
+      font-size:12px; font-weight:800; letter-spacing:.4px;
+    }
+    .tutorial-card.is-demo .tut-demo-badge { display:block; }
+    .tut-track {
+      position:relative; height:26px; border-radius:999px; background:#e8f5eb;
+      overflow:hidden; margin:12px 0 10px; cursor:pointer;
+      outline:none;
+    }
+    .tut-track:focus-visible { box-shadow:0 0 0 3px rgba(58,167,160,.32); }
+    .tut-fill { height:100%; width:0; background:linear-gradient(90deg,#9fe3a3,#3aa7a0); transition:width .08s linear; }
     .tut-zone { position:absolute; top:0; bottom:0; background:rgba(255,196,45,.72); border-left:2px solid #f0b429; border-right:2px solid #f0b429; }
+    .tut-track.in-zone { box-shadow:0 0 0 2px rgba(240,180,41,.35) inset; }
+    .tut-track.jumped { animation:tutJump .5s ease; }
+    @keyframes tutJump {
+      35% { transform:translateY(-4px); }
+      70% { transform:translateY(1px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tut-track.jumped { animation:none; }
+    }
     .tut-tap { width:100%; margin-top:4px; }
-    .tut-hint { font-size:13px; color:var(--ink-soft); text-align:center; }
+    .tut-hint { font-size:13px; color:var(--ink-soft); text-align:center; line-height:1.55; margin-top:7px; }
+    .tut-hint b { color:#7a5410; }
+    .tut-feedback { min-height:20px; font-size:13.5px; font-weight:700; color:var(--ink); text-align:center; margin:6px 0 0; }
+    .tut-feedback.good { color:#287d4b; }
+    .tut-feedback.warn { color:#9a6710; }
     .calib-hero { position: relative; padding: 22px 26px 20px; }
     .calib-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
-    /* 放松视频：只在“开始校准”后出现，独占画面，不被任何浮层覆盖 */
-    .video-frame {
+    /* 平静观察：固定的低刺激池塘场景（复用首页小蛙/荷叶/水波），不加载外部视频。 */
+    .calm-frame {
       width: 100%; max-width: 780px; margin: 4px auto 0;
       aspect-ratio: 16 / 9; border-radius: 20px; overflow: hidden;
-      background: #0c2830; box-shadow: 0 12px 30px rgba(15, 60, 72, .18);
+      background: linear-gradient(180deg,#e7f7f4,#a9dfe3);
+      box-shadow: 0 12px 30px rgba(15, 60, 72, .14);
+      position: relative;
     }
-    .video-frame.gone { display: none; }
-    #relax-video { width: 100%; height: 100%; object-fit: cover; display: block; }
-    #relax-video.gone { display: none; }
+    #calm-pond { width:100%; height:100%; display:block; }
+    .calm-note {
+      position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+      padding:4px 12px; border-radius:999px;
+      background:rgba(255,255,255,.72); color:#2f6e80;
+      font-size:11.5px; font-weight:700; white-space:nowrap;
+      backdrop-filter: blur(4px);
+    }
+    #running.is-tutorial .calm-frame { max-width: 400px; }
+    #running.is-tutorial .calm-note { display: none; }
+    #running.is-tutorial .calib-info { margin-top: 8px; }
+    /* 教学卡片自带标题/反馈，隐藏重复的引导胶囊，避免 900px 高视口被截断。 */
+    #running.is-tutorial .guide-pill { display: none; }
+    .calib-mode-note {
+      font-size:12.5px; color:var(--ink-soft); line-height:1.6;
+      max-width:640px; margin:0 auto;
+    }
 
-    /* 视频下方的信息区：文字、倒计时、状态条都在画面之外 */
+    /* 信息区：文字、倒计时、状态条都在池塘画面之外 */
     .calib-info {
       display: flex; flex-direction: column; align-items: center;
       gap: 10px; width: 100%; margin-top: 16px;
@@ -137,7 +181,7 @@
         </div>
         <div class="guide-text" style="margin:6px 0 2px">准备好了吗？</div>
         <p class="hint" id="idle-hint" style="font-size:15.5px;max-width:520px">
-          先陪小蛙安静坐 30 秒，再看小蛙蓄力、点一下；今天的状态会这样记下来。不会计分，也不发商城币。
+          先在固定池塘边安静睁眼观察 30 秒，再看一遍演示并练习一次「确认跳跃」。不会计分，也不发商城币。
         </p>
         <div class="btn-row" style="margin-top:14px">
           <button id="btn-start" class="btn btn-primary">开始校准</button>
@@ -147,12 +191,13 @@
 
       <!-- 校准中 -->
       <div class="stage hidden" id="running">
-        <div class="video-frame" id="video-frame">
-          <video id="relax-video" src="assets/relax.mp4" loop playsinline preload="auto"></video>
+        <div class="calm-frame" id="calm-frame">
+          <canvas id="calm-pond" aria-label="小蛙在池塘荷叶上安静休息"></canvas>
+          <span class="calm-note">固定池塘 · 低刺激 · 睁眼观察</span>
         </div>
         <div class="breath-ball"></div>
         <div class="calib-info">
-          <div class="guide-pill" id="guide">看着画面，慢慢呼吸……</div>
+          <div class="guide-pill" id="guide">陪小蛙休息一会儿。自然呼吸，放松身体，轻轻看着小蛙，不需要按任何按钮。</div>
           <div class="cd-row">
             <span class="cd-label">还剩</span>
             <span class="countdown" id="countdown">—</span>
@@ -169,13 +214,17 @@
           </div>
           <div class="stage-progress" aria-label="校准进度"><i id="stage-fill"></i></div>
           <div class="tutorial-card hidden" id="tutorial-game">
-            <div class="guide-text" style="font-size:17px">看小蛙蓄力，黄色区域到了就轻轻点一下</div>
-            <div class="tut-track" id="tut-track" role="button" tabindex="0" aria-label="蓄力条，点击陪小蛙起跳">
+            <span class="tut-demo-badge" id="tut-demo-badge">先看一遍</span>
+            <div class="guide-text" style="font-size:17px" id="tut-title">看着能量条，耐心等待</div>
+            <div class="tut-track" id="tut-track" role="button" tabindex="0" aria-label="能量条，进入金色区域后确认跳跃">
               <div class="tut-fill" id="tut-fill"></div>
               <div class="tut-zone" id="tut-zone"></div>
             </div>
-            <button class="btn btn-primary tut-tap" id="tut-tap" type="button">点一下，陪小蛙起跳</button>
-            <p class="tut-hint">点早一点或晚一点都没关系，这只是练习。</p>
+            <button class="btn btn-primary tut-tap" id="tut-tap" type="button">确认跳跃</button>
+            <p class="tut-feedback" id="tut-feedback" role="status" aria-live="polite"></p>
+            <p class="tut-hint">
+              能量条进入 <b>金色区域</b> 后，点一次「确认跳跃」；提前点或连续点击都<b>不会提高脑电分数</b>。这只是练习，不计分，也不发商城币。
+            </p>
           </div>
           <p id="calib-signal" class="hint" role="status"></p>
           <div id="signal-quality" class="sq-badge hidden" role="status"></div>
@@ -212,6 +261,9 @@
         <p class="hint" id="done-quality" style="max-width:520px;font-size:13px"></p>
         <p class="hint" id="valid-tip" style="max-width:520px;font-size:13.5px">
           今日校准有效：同一天、同一设备可连续使用；换设备、重新佩戴或明天需要重新校准。
+        </p>
+        <p class="calib-mode-note" id="done-protocol">
+          本次采用新版 v3 协议：低刺激固定池塘、睁眼观察 + 预设演示教学；它是游戏校准基线，不是严格无刺激静息脑电。
         </p>
         <div class="btn-row" style="margin-top:10px">
           <button id="btn-play" class="btn btn-primary">选择时长 →</button>
@@ -251,12 +303,34 @@
   <script src="assets/api.js"></script>
   <script src="assets/profile-bridge.js"></script>
   <script src="assets/pond-effects.js"></script>
+  <script src="assets/calm-pond.js"></script>
   <script src="assets/frog/frog-art.js"></script>
   <script src="assets/achievements.js"></script>
   <script>
     const $ = id => document.getElementById(id);
-    const state = { session: null, es: null, running: false, done: false };
+    const state = { session: null, es: null, running: false, done: false,
+      tutorialEvents: [], teaching: null, musicWasPlaying: false };
     let leaving = false;
+    const calmPond = window.CalmPond ? CalmPond.create($("calm-pond")) : null;
+
+    // 校准期间暂停背景音乐；结束、取消或出错后恢复进入前的播放设置。
+    function pauseMusicForCalibration() {
+      const p = window.vinylPlayer;
+      if (!p || !p.debugTime) { state.musicWasPlaying = false; return; }
+      const snapshot = p.debugTime();
+      // 以“原本是否希望播放”为准，而不是只看当前是否已经出声：
+      // 歌单还在加载时也应暂停，避免校准中途突然响起。
+      const wantOn = localStorage.getItem("bf-music-on") === "1";
+      state.musicWasPlaying = !!(snapshot && snapshot.playing) || wantOn;
+      if (state.musicWasPlaying) p.pause();
+    }
+    function restoreMusicAfterCalibration() {
+      if (!state.musicWasPlaying) return;
+      state.musicWasPlaying = false;
+      if (window.vinylPlayer && window.vinylPlayer.start) {
+        try { window.vinylPlayer.start(); } catch (_) {}
+      }
+    }
     const params = new URLSearchParams(location.search);
     const requestedTest = params.get("test");
     const testMode = DeveloperTools.canTest && ["replay", "manual"].includes(requestedTest) ? requestedTest : null;
@@ -272,16 +346,6 @@
     const HEART_MODES = ["hrd", "off"];
     const heartInit = testMode ? "off" : (params.get("heart") || "off").toLowerCase();
     if (HEART_MODES.includes(heartInit)) $("heart-select").value = heartInit;
-
-    // 两段式校准：0–20 秒放松（定 20 分），20–40 秒心算（定 80 分）
-    const GUIDES = [
-      ["看着画面，慢慢呼吸，让身体静下来", 0],
-      ["想象一片安静的湖面……", 6],
-      ["肩膀松下来，别用力", 14],
-      ["从 300 开始，每次减 7，默念答案（300、293、286…）", 20],
-      ["继续心算，别停，保持这个节奏", 28],
-      ["再坚持几秒……", 35],
-    ];
 
     $("manual-slider").addEventListener("input", async e => {
       if (state.session && state.session.mode === "manual") {
@@ -360,14 +424,12 @@
       }
     });
 
-    let planSec = 40;       // 校准总时长：有视频时跟随视频全长
-    let videoMode = false;  // true = 整段视频当引导，后端走 video_full 定标
-
     function stopCalibration() {
       state.es?.close();
       state.es = null;
       state.running = false;
-      playRelaxVideo(false);
+      calmPond?.stop();
+      restoreMusicAfterCalibration();
       const session = state.session;
       state.session = null;
       if (session && !session.finished) API.endAbandonedSession(session.id);
@@ -421,13 +483,35 @@
       el.replaceChildren(dot, txt);
     }
 
-    // v1.8.2 四阶段：设备检查 → 自然观察 30s → 游戏教学 30s → 计算结果。
-    // 页面停留时间不是有效时间：只有 valid 帧的相邻间隔才累计。
+    // v1.9.4 四阶段：设备检查 → 平静观察 30s → 预设演示 + 游戏教学 30s → 计算结果。
+    // 页面停留时间不是有效时间：只有 valid 帧的相邻间隔才累计；演示阶段不计入教学窗口。
     const STAGE_CFG = { natural: 30, tutorial: 30, max: 75, min: 20 };
+    // 教学使用固定预设进度，不读取每日基线，也不产生正式积分/金币/难度调整。
+    const TUT_PRESET = {
+      start: 15, zoneLo: 58, zoneHi: 74, chargePerSec: 26,
+      zoneHoldSec: 2.5, tapLockSec: 0.9, jumpSec: 0.8,
+    };
+    const CALM_GUIDE = "陪小蛙休息一会儿。自然呼吸，放松身体，轻轻看着小蛙，不需要按任何按钮。";
     let tutorialRaf = 0;
 
     function stageFill(validSec, target) {
       $("stage-fill").style.width = Math.max(0, Math.min(100, validSec / target * 100)) + "%";
+    }
+
+    function setTutTrack(charge, zoneLo, zoneHi, inZone) {
+      state.tutCharge = Math.round(charge);
+      state.tutZone = [zoneLo, zoneHi];
+      $("tut-fill").style.width = Math.max(0, Math.min(100, charge)) + "%";
+      $("tut-zone").style.left = zoneLo + "%";
+      $("tut-zone").style.width = (zoneHi - zoneLo) + "%";
+      $("tut-track").classList.toggle("in-zone", !!inZone);
+    }
+
+    function setTutFeedback(text, kind) {
+      const el = $("tut-feedback");
+      el.textContent = text || "";
+      el.classList.toggle("good", kind === "good");
+      el.classList.toggle("warn", kind === "warn");
     }
 
     function startNatural(firstFrame) {
@@ -436,8 +520,9 @@
       state.stageValid = 0;
       state.lastT = state.stageStartT;
       state.stageWindows.natural = { start: state.stageStartT, end: null };
-      $("guide").textContent = "小蛙陪你安静坐一会儿，看着池塘就好";
-      $("calib-signal").textContent = "正在记录今天的自然状态…";
+      $("running").classList.remove("is-tutorial");
+      $("guide").textContent = CALM_GUIDE;
+      $("calib-signal").textContent = "正在记录今天的睁眼观察状态…";
       $("countdown").textContent = String(STAGE_CFG.natural);
       $("focus-bar-wrap").classList.add("hidden");
       $("tutorial-game").classList.add("hidden");
@@ -446,44 +531,168 @@
 
     function startTutorial() {
       state.stageWindows.natural.end = state.currentT;
+      state.stage = "tutorial_demo";
+      state.stageValid = 0;
+      state.lastT = state.currentT;
+      // 演示窗口不写入 stage_windows，保证教学采集不含演示操作。
+      $("guide").textContent = "先看小蛙做一遍：能量条进入金色区域后，再点一次「确认跳跃」。";
+      $("calib-signal").textContent = "演示不计分；正式教学仍会采集 30 秒有效信号。";
+      $("countdown").textContent = "演示";
+      $("running").classList.add("is-tutorial");
+      $("tutorial-game").classList.remove("hidden");
+      $("tutorial-game").classList.add("is-demo");
+      $("tut-demo-badge").textContent = "先看一遍";
+      $("tut-title").textContent = "看着能量条，耐心等待";
+      $("tut-tap").textContent = "确认跳跃";
+      $("tut-tap").disabled = false;
+      setTutFeedback("演示中，不需要点击。", "");
+      stageFill(0, STAGE_CFG.tutorial);
+      setTutTrack(TUT_PRESET.start, TUT_PRESET.zoneLo, TUT_PRESET.zoneHi, false);
+      runTutorialDemo(performance.now());
+    }
+
+    function runTutorialDemo(t0) {
+      state.tutDemoTapped = false;
+      let demoJumped = false;
+      function step(ts) {
+        if (state.stage !== "tutorial_demo") return;
+        const t = (ts - t0) / 1000;
+        const charge = Math.min(TUT_PRESET.zoneLo,
+          TUT_PRESET.start + (TUT_PRESET.zoneLo - TUT_PRESET.start) * Math.min(1, t / 1.8));
+        const inZone = charge >= TUT_PRESET.zoneLo;
+        setTutTrack(charge, TUT_PRESET.zoneLo, TUT_PRESET.zoneHi, inZone);
+        if (inZone && !state.tutDemoTapped) {
+          state.tutDemoTapped = true;
+          $("tut-title").textContent = "现在，点击一次确认跳跃！";
+          setTutFeedback("金色区域到了；这里会自动演示一次跳跃。", "good");
+          setTimeout(() => {
+            if (state.stage !== "tutorial_demo") return;
+            demoJumped = true;
+            $("tut-track").classList.add("jumped");
+            setTimeout(() => $("tut-track").classList.remove("jumped"), 520);
+            calmPond?.hop();
+            state.tutorialEvents.push({
+              t: state.currentT, charge: TUT_PRESET.zoneLo, zone_lo: TUT_PRESET.zoneLo,
+              zone_hi: TUT_PRESET.zoneHi, in_zone: true, accepted: true,
+              demo: true, reaction_sec: 0.4,
+            });
+            setTutFeedback("小蛙跳起来了！正式练习时，一次点击就够。", "good");
+          }, 420);
+        }
+        if (t >= 3.6 && demoJumped) {
+          beginTutorialCapture();
+          return;
+        }
+        if (t > 5.2) { beginTutorialCapture(); return; }
+        tutorialRaf = requestAnimationFrame(step);
+      }
+      $("tut-track").classList.remove("jumped");
+      tutorialRaf = requestAnimationFrame(step);
+    }
+
+    function beginTutorialCapture() {
       state.stage = "tutorial";
       state.stageStartT = state.currentT;
       state.stageValid = 0;
       state.lastT = state.currentT;
       state.stageWindows.tutorial = { start: state.currentT, end: null };
-      $("guide").textContent = "看蓄力条，黄色区域到了就轻轻点一下";
-      $("calib-signal").textContent = "这只是练习，不计分，也不会发商城币。";
+      $("tutorial-game").classList.remove("is-demo");
+      $("tut-demo-badge").textContent = "轮到你了";
+      setTutFeedback("轮到你了：金色区域到了，再点一次「确认跳跃」。", "");
+      $("guide").textContent = "看着能量条，耐心等待";
+      $("calib-signal").textContent = "现在开始采集教学阶段的 30 秒有效信号。";
       $("countdown").textContent = String(STAGE_CFG.tutorial);
-      $("tutorial-game").classList.remove("hidden");
-      $("focus-bar-wrap").classList.add("hidden");
       stageFill(0, STAGE_CFG.tutorial);
+      resetTutorialRound(true);
       tutorialRaf = requestAnimationFrame(tutorialTick);
+    }
+
+    function resetTutorialRound(first) {
+      state.tutPhase = "charging";
+      state.tutCharge = TUT_PRESET.start;
+      state.tutRoundStart = performance.now();
+      state.tutZoneStart = 0;
+      state.tutTapped = false;
+      state.tutLockUntil = performance.now() + (first ? 300 : 620);
+      $("tut-tap").textContent = "确认跳跃";
+      $("tut-track").classList.remove("jumped");
+      setTutTrack(TUT_PRESET.start, TUT_PRESET.zoneLo, TUT_PRESET.zoneHi, false);
+      if (!first) {
+        $("tut-title").textContent = "看着能量条，耐心等待";
+        $("guide").textContent = "看着能量条，耐心等待";
+        setTutFeedback("准备好了就等下一次金色区域。", "");
+      }
     }
 
     function tutorialTick(ts) {
       if (state.stage !== "tutorial") return;
-      const cycle = 2600;
-      const p = (ts % cycle) / cycle;
-      const charge = Math.round(p * 100);
-      const zoneLo = 38 + Math.round(18 * (0.5 + 0.5 * Math.sin(ts / 5200)));
-      const zoneHi = Math.min(94, zoneLo + 20);
-      state.tutCharge = charge;
-      state.tutZone = [zoneLo, zoneHi];
-      $("tut-fill").style.width = charge + "%";
-      $("tut-zone").style.left = zoneLo + "%";
-      $("tut-zone").style.width = (zoneHi - zoneLo) + "%";
+      const now = performance.now();
+      if (state.tutPhase === "charging") {
+        const charge = TUT_PRESET.start +
+          TUT_PRESET.chargePerSec * (now - state.tutRoundStart) / 1000;
+        if (charge >= TUT_PRESET.zoneLo) {
+          state.tutPhase = "zone";
+          state.tutZoneStart = now;
+          state.tutCharge = TUT_PRESET.zoneLo;
+          setTutTrack(TUT_PRESET.zoneLo, TUT_PRESET.zoneLo, TUT_PRESET.zoneHi, true);
+          $("tut-title").textContent = "现在，点击一次确认跳跃！";
+          $("guide").textContent = "现在，点击一次确认跳跃！";
+          setTutFeedback("只点一次就够；连续点击不会提高脑电分数。", "");
+        } else {
+          setTutTrack(charge, TUT_PRESET.zoneLo, TUT_PRESET.zoneHi, false);
+        }
+      } else if (state.tutPhase === "zone") {
+        const elapsed = (now - state.tutZoneStart) / 1000;
+        if (elapsed > TUT_PRESET.zoneHoldSec) {
+          state.tutPhase = "cooldown";
+          state.tutorialEvents.push({
+            t: state.currentT, charge: TUT_PRESET.zoneLo,
+            zone_lo: TUT_PRESET.zoneLo, zone_hi: TUT_PRESET.zoneHi,
+            in_zone: true, accepted: false, demo: false, reason: "timeout",
+          });
+          setTutFeedback("这次没有点到也没关系，下一次再来。", "warn");
+          $("guide").textContent = "没关系，能量条会再涨一次。";
+          setTimeout(() => {
+            if (state.stage === "tutorial" && state.tutPhase === "cooldown") resetTutorialRound(false);
+          }, 900);
+        }
+      } else if (state.tutPhase === "jump") {
+        if (now - state.tutJumpStart > 900) resetTutorialRound(false);
+      }
       tutorialRaf = requestAnimationFrame(tutorialTick);
     }
 
     function recordTutorialTap() {
-      if (state.stage !== "tutorial") return;
-      const z = state.tutZone || [0, 0];
+      if (state.stage !== "tutorial" || state.tutPhase === "jump" || state.tutPhase === "cooldown") return;
+      const now = performance.now();
+      // 点击锁：按钮/能量条/键盘共用，防止连点、长按重复触发。
+      if (now < (state.tutLockUntil || 0)) return;
+      state.tutLockUntil = now + TUT_PRESET.tapLockSec * 1000;
+      if (state.tutPhase !== "zone" || state.tutTapped) {
+        state.tutorialEvents.push({
+          t: state.currentT, charge: state.tutCharge ?? 0,
+          zone_lo: TUT_PRESET.zoneLo, zone_hi: TUT_PRESET.zoneHi,
+          in_zone: false, accepted: false, demo: false, reason: "early",
+        });
+        setTutFeedback("还没到金色区域；提前点击不会加分，也不会提高脑电分数。", "warn");
+        $("guide").textContent = "看着能量条，耐心等待";
+        return;
+      }
+      state.tutTapped = true;
+      const reaction = Math.max(0, (now - state.tutZoneStart) / 1000);
       state.tutorialEvents.push({
-        t: state.currentT,
-        charge: state.tutCharge ?? 0,
-        zone_lo: z[0], zone_hi: z[1],
+        t: state.currentT, charge: state.tutCharge ?? TUT_PRESET.zoneLo,
+        zone_lo: TUT_PRESET.zoneLo, zone_hi: TUT_PRESET.zoneHi,
+        in_zone: true, accepted: true, demo: false,
+        reaction_sec: Math.round(reaction * 1000) / 1000,
       });
-      $("tut-tap").textContent = "好棒，再点一下";
+      state.tutPhase = "jump";
+      state.tutJumpStart = now;
+      $("tut-track").classList.add("jumped");
+      calmPond?.hop();
+      setTutFeedback("跳得好！教学不计分，也不会发商城币。", "good");
+      $("guide").textContent = "跳得好！等下一次金色区域再确认跳跃。";
+      setTimeout(() => $("tut-track").classList.remove("jumped"), 520);
     }
 
     function onCalibrationFrame(f) {
@@ -510,7 +719,7 @@
       stageFill(state.stageValid, target);
       if (state.stage === "natural") {
         if (!valid) $("calib-signal").textContent = "信号有点不稳，先调整一下也没关系。";
-        else $("calib-signal").textContent = "正在记录今天的自然状态…";
+        else $("calib-signal").textContent = "正在记录今天的睁眼观察状态…";
         if (state.stageValid >= target) startTutorial();
         else if (state.currentT - state.stageStartT >= STAGE_CFG.max) {
           if (state.stageValid >= STAGE_CFG.min) startTutorial();
@@ -543,8 +752,17 @@
       $("focus-bar-wrap").classList.add("hidden");
       $("tutorial-game").classList.add("hidden");
       $("manual-ctl").classList.toggle("hidden", state.session.mode !== "manual");
-      $("video-frame").classList.add("hidden");
-      $("calib-signal").textContent = "准备好啦，我们先陪小蛙坐一会儿。";
+      $("calib-signal").textContent = "准备好啦，我们先陪小蛙在池塘边安静待一会儿。";
+      state.tutorialEvents = [];
+      state.teaching = {
+        mode: "preset_demo_then_guided_charge",
+        confirmation_button: "确认跳跃",
+        preset: { ...TUT_PRESET },
+        demo_sec: 3.6,
+        note: "教学使用预设进度，不读取每日基线；点击只记录操作时机，不产生积分、金币或难度调整。",
+      };
+      pauseMusicForCalibration();
+      calmPond?.start();
       $("countdown").textContent = "…";
       stageFill(0, 1);
       state.signalHelp = state.session.mode === "hardware"
@@ -571,17 +789,11 @@
     $("tut-tap").addEventListener("click", recordTutorialTap);
     $("tut-track").addEventListener("click", recordTutorialTap);
     $("tut-track").addEventListener("keydown", e => {
+      if (e.repeat) return;   // 长按不重复触发
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); recordTutorialTap(); }
     });
 
-    // 视频整段播放：它本身就是校准引导，中途不暂停
-    const relaxVideo = document.getElementById("relax-video");
-
-    // 说明文案必须和真实流程一致：有视频就是整段放松，没有才是两段式
-    function videoReady() {
-      return !!relaxVideo && !relaxVideo.classList.contains("gone")
-        && isFinite(relaxVideo.duration) && relaxVideo.duration > 5;
-    }
+    // v1.9.4：平静阶段固定使用低刺激池塘，不再下载或播放外部视频。
     function syncIdleCopy() {
       const slogan = document.getElementById("calib-slogan");
       if (slogan) {
@@ -593,61 +805,18 @@
       const el = document.getElementById("idle-hint");
       if (el) {
         el.textContent = testMode
-          ? "开发者测试会走同一套阶段流程，但测试校准不会建立真实儿童的长期参考基线。"
-          : "先陪小蛙安静坐 30 秒，再看小蛙蓄力、点一下；今天的状态会这样记下来。不会计分，也不发商城币。";
+          ? "开发者测试会走同一套阶段流程；测试校准不会建立真实儿童的长期参考基线。"
+          : "先在固定池塘边安静睁眼观察 30 秒，再看一遍演示并练习一次「确认跳跃」。不会计分，也不发商城币。";
       }
-    }
-    if (relaxVideo) {
-      // 待机不播，点“开始校准”进入放松环节时才出现
-      relaxVideo.addEventListener("error", () => {
-        relaxVideo.classList.add("gone");
-        const frame = document.getElementById("video-frame");
-        if (frame) frame.classList.add("gone");
-        const hero = document.getElementById("calib-hero");
-        if (hero) hero.classList.add("no-video");
-        syncIdleCopy();
-      });
-      relaxVideo.addEventListener("loadeddata", () => {
-        relaxVideo.classList.remove("gone");
-        const frame = document.getElementById("video-frame");
-        if (frame) frame.classList.remove("gone");
-        const hero = document.getElementById("calib-hero");
-        if (hero) hero.classList.remove("no-video");
-        syncIdleCopy();
-      });
     }
     syncIdleCopy();
-    function playRelaxVideo(on) {
-      if (!relaxVideo || relaxVideo.classList.contains("gone")) return;
-      if (on) {
-        try {
-          relaxVideo.muted = false;
-          relaxVideo.loop = false;
-          relaxVideo.currentTime = 0;
-          const pr = relaxVideo.play();
-          // 浏览器拒绝带声音自动播放时，退回静音继续播，不要因此隐藏视频
-          if (pr && pr.catch) pr.catch(() => { relaxVideo.muted = true; relaxVideo.play().catch(() => {}); });
-        } catch (_) {}
-      } else {
-        try { relaxVideo.pause(); } catch (_) {}
-      }
-    }
-
-    function updateGuide(t) {
-      if (videoMode) {
-        // 视频模式：整段都是引导，不再切换“放松/心算”文案
-        $("guide").textContent = "跟着画面慢慢呼吸，不用刻意用力……";
-        return;
-      }
-      const stage = GUIDES.filter(g => t >= g[1]).pop();
-      if (stage) $("guide").textContent = stage[0];
-    }
 
     async function finishCalibration() {
       if (state.done || !state.running) return;
       state.done = true; state.running = false;
       if (state.es) state.es.close();
-      playRelaxVideo(false);
+      calmPond?.stop();
+      restoreMusicAfterCalibration();
       // 倒计时结束，结果还没回来：显示加载进度条
       $("running").classList.add("hidden");
       $("loading").classList.remove("hidden");
@@ -663,9 +832,20 @@
         }
         const res = await API.post(`/api/session/${state.session.id}/calibrate`, {
           duration: total,
-          protocol: "daily_v2",
+          // v1.9.4：低刺激睁眼观察 + 预设演示教学，协议版本独立于 daily_v2。
+          protocol: "daily_v3",
           stage_windows: state.stageWindows,
           tutorial_events: state.tutorialEvents,
+          teaching: state.teaching,
+          stimulus_condition: {
+            version: "calm_pond_open_eyes_v1",
+            natural_stage: "fixed_low_stimulation_pond",
+            natural_eyes: "open",
+            video: "none",
+            background_music: "paused_then_restored",
+            tutorial: "preset_demo_then_guided_charge",
+            not_strict_resting_eeg: true,
+          },
           elapsed_sec: total,
           device_key: state.session.deviceKey,
           timezone_offset_min: new Date().getTimezoneOffset(),
@@ -694,6 +874,11 @@
         const sq = res.signal_quality || cal.signal_quality;
         const qEl = $("done-quality");
         const weakRange = res.status === "stretched" || cal.range_quality === "stretched";
+        const compat = res.calibration && res.calibration.reference_compat;
+        if (compat && compat.compatible === false) {
+          const note = document.getElementById("done-protocol");
+          if (note) note.textContent += " 长期参考来自旧版协议，已保留但不会与本次混算；如需新版长期参考，请由家长在开发者工作台重新建立。";
+        }
         if (qEl) {
           if (res.status && res.status !== "ok") {
             qEl.textContent = "本次校准的有效区间偏窄，已保留最小跨度保护；建议在更有精神时重做一次。";

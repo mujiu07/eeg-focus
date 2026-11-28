@@ -52,7 +52,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEB_DIR = os.path.join(ROOT, "web")
 SESSIONS_DIR = os.path.join(ROOT, "outputs", "sessions")
 
-app = FastAPI(title="Brain-Focusing Game MVP", version="1.9.3")
+app = FastAPI(title="Brain-Focusing Game MVP", version="1.9.4")
 
 # 已完成会话在内存中保留的宽限时间；报告/逐轮数据先写入 SQLite，
 # 到期后释放 EDF 原始数组和监测批次，历史报告仍可从数据库读取。
@@ -631,9 +631,12 @@ class HeartStart(BaseModel):
 class CalibrateStart(BaseModel):
     duration: float = 20.0        # 校准采样秒数（新协议为实际经过秒数）
     video_full: bool = False      # legacy：整段视频当校准
-    protocol: str = "legacy"      # v1.8.2：daily_v2
+    protocol: str = "legacy"      # v1.8.2：daily_v2；v1.9.4：daily_v3
     stage_windows: Optional[dict] = None
     tutorial_events: list[dict] = Field(default_factory=list)
+    # v1.9.4：实际刺激条件与教学元数据，随校准记录保存，不参与计分。
+    stimulus_condition: Optional[dict] = None
+    teaching: Optional[dict] = None
     device_key: Optional[str] = None
     timezone_offset_min: Optional[int] = None
     elapsed_sec: Optional[float] = None
@@ -1161,8 +1164,20 @@ async def calibrate(sid: str, body: CalibrateStart,
         actual_elapsed = max(float(body.elapsed_sec or 0), time.time() - s.created_at)
         stages = computed["stages"]
         status = computed["range_quality"]
+        # v1.9.4：把实际刺激条件与教学操作一并记录。它们是上下文，不是“已证实专注”
+        # 的证据，也不进入任何计分或难度计算。
+        stimulus = body.stimulus_condition or dict(calib_engine.STIMULUS_CONDITION)
+        tutorial_events = list(body.tutorial_events or [])[:200]
+        teaching = body.teaching or {
+            "mode": "preset_demo_then_guided_charge",
+            "confirmation_button": "确认跳跃",
+            "events": len(tutorial_events),
+        }
         result = {
             **computed,
+            "stimulus_condition": stimulus,
+            "teaching": teaching,
+            "tutorial_events": tutorial_events,
             "duration_sec": round(min(actual_elapsed, 600.0), 1),
             "elapsed_sec": round(min(actual_elapsed, 600.0), 1),
             "n_frames": computed.get("n_total_valid") or 0,
@@ -1188,6 +1203,12 @@ async def calibrate(sid: str, body: CalibrateStart,
         reference = None
         if s.user_id:
             try:
+                # source_info 是设备/记录上下文；把刺激条件与教学事件附在这里，
+                # 避免为了新增元数据改动 Schema 4 的列结构。
+                source_info = dict(s.source.describe() or {})
+                source_info["stimulus_condition"] = stimulus
+                source_info["tutorial_events"] = tutorial_events
+                source_info["teaching"] = teaching
                 saved_cal = storage.add_calibration(
                     s.user_id,
                     {
@@ -1198,7 +1219,7 @@ async def calibrate(sid: str, body: CalibrateStart,
                         "kind": "daily" if s.source.name == "hardware" else "test",
                     },
                     session_id=s.id,
-                    source=s.source.describe(),
+                    source=source_info,
                     kind="daily" if s.source.name == "hardware" else "test",
                 )
                 s.calibration_id = saved_cal["id"]
@@ -1213,6 +1234,15 @@ async def calibrate(sid: str, body: CalibrateStart,
                     s.reference_baseline_id = saved_cal.get("reference_baseline_id") or (
                         reference or {}).get("id")
                     s.reference_snapshot = reference
+                    if reference and reference.get("protocol_version") and (
+                            reference["protocol_version"] != calib_engine.PROTOCOL_VERSION):
+                        # 旧协议长期参考保留，不覆盖、不混算；仅提示可以建立新版参考。
+                        result["reference_compat"] = {
+                            "compatible": False,
+                            "reference_protocol": reference["protocol_version"],
+                            "current_protocol": calib_engine.PROTOCOL_VERSION,
+                            "note": "长期参考来自旧版校准协议，已保留但不会与本次校准混算。",
+                        }
             except StorageError as exc:
                 raise HTTPException(500, f"校准记录保存失败：{exc}")
         return {"ok": True, "baseline": s.baseline, "calibration": result,
@@ -1740,9 +1770,12 @@ def _workbench_payload(*, user_id: Optional[str], session_id: Optional[str],
             diff_history = storage.difficulty_history(user_id, 20)
         except StorageError:
             pass
+    # report.assessment 可能显式为 null（例如演示局）；不能用 None.get 再取子字段。
+    report_meta = report if isinstance(report, dict) else {}
+    assessment_meta = report_meta.get("assessment") if isinstance(report_meta.get("assessment"), dict) else {}
     assessment = _assessment_eligibility(
         user_id, source_name, device, tz_offset_min,
-        simulation=bool((report or {}).get("demo") or (report or {}).get("assessment", {}).get("simulation")))
+        simulation=bool(report_meta.get("demo") or assessment_meta.get("simulation")))
     recent_assessments = []
     if user_id:
         try:

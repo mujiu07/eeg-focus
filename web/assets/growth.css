@@ -525,3 +525,38 @@ details.growth-details .inside { padding-top: 10px; }
 .growth-day .dow, .growth-day .mins { color: var(--growth-soft); }
 .growth-hero__main p, .growth-section-head p, .chart-caption,
 .parent-kpi .hint, .detail-item .label, .detail-item .sub { color: var(--growth-soft); }
+
+/* ------------------------------------------------------------
+   v1.9.4 家长中心留白：图表区夹在成长卡之间时，相邻卡片会贴在一起。
+   用 20px 的纵向节奏统一卡片/图表间距，并增加图表内部留白；
+   同时去掉图表卡与成长卡重复的白色硬描边，只保留底色和轻投影。
+   ------------------------------------------------------------ */
+#parent-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+#parent-content > .growth-card + .growth-card { margin-top: 0; }
+#parent-content > .parent-toolbar { margin-bottom: 0; }
+#parent-content > .chart-grid { gap: 20px; }
+#parent-content .chart-box {
+  border: 0;
+  padding: 18px 20px 20px;
+  box-shadow: 0 5px 16px rgba(47, 110, 128, .05);
+}
+#parent-content .chart-box h4 { margin: 0 0 10px; font-size: 13.5px; }
+#parent-content .chart-box .chart-shell { min-height: 190px; padding: 2px 2px 0; }
+#parent-content .chart-caption { margin-top: 12px; line-height: 1.7; }
+#parent-content .parent-grid { gap: 12px; }
+#parent-content .parent-kpi { padding: 16px; }
+#parent-content .parent-panel-title { margin-bottom: 12px; }
+#parent-content details.growth-details { margin-top: 16px; padding-top: 12px; }
+#parent-content .definition-list { gap: 8px; line-height: 1.7; }
+#parent-content .parent-export { gap: 8px; }
+#parent-content .parent-foot { padding-top: 20px; }
+
+@media (max-width: 760px) {
+  #parent-content { gap: 16px; }
+  #parent-content > .chart-grid { gap: 16px; }
+  #parent-content .chart-box { padding: 16px; }
+}

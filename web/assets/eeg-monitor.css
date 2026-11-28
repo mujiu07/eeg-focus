@@ -297,3 +297,21 @@ html.monitor-mode .monitor-panel { display: flex; flex-direction: column; gap: 1
   html.monitor-mode .game-layout.left-off.right-off { grid-template-areas: "main"; }
   html.monitor-mode .monitor-panel { position: relative; top: auto; max-height: none; }
 }
+
+/* ------------------------------------------------------------
+   v1.9.4 顶部栏宽度收口：关闭一侧或两侧数据栏后，主列会变成
+   1fr，HUD / 音乐行 / 配色栏曾被拉到接近整页宽（1920 下 1836px）。
+   限制在与画布一致的 1120px 并居中，四种侧栏组合都保持稳定。
+   ------------------------------------------------------------ */
+html.monitor-mode .game-main {
+  width: 100%;
+  max-width: 1120px;
+  justify-self: center;
+}
+html.monitor-mode .page-skybar,
+html.monitor-mode .monitor-toggles {
+  width: 100%;
+  max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
+}

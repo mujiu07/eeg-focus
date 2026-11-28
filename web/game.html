@@ -379,6 +379,19 @@
       .cue-leaf, .cue-frog { animation: none; }
     }
 
+    /* 800×600 等矮屏：倒数/结算卡片改为覆盖视口，避免动画落在折叠线以下。 */
+    @media (max-width: 900px) and (max-height: 700px) {
+      /* .wrap 的入场 transform 会让 fixed 相对容器定位；矮屏取消入场位移。 */
+      body.game-page .wrap { animation: none; transform: none; }
+      .cue { position: fixed; inset: 0; border-radius: 0; z-index: 80; }
+      .cue-card { width: min(84%, 340px); padding: 15px 20px 13px; }
+      .cue-pad { height: 96px; }
+      .cue-count-wrap { height: 76px; }
+      .cue-count { font-size: 64px; }
+      .cue-count.go { font-size: 42px; }
+      .cue-title { font-size: 21px; }
+    }
+
     @media (max-width: 560px) {
       .canvas-wrap { display: flex; flex-direction: column; }
       .tutorial {
@@ -943,6 +956,7 @@
       roundAnimSec: 0,
       introPauseSec: 0,
       tutorialPauseSec: 0,
+      bulletDim: 0,       // 子弹时间边缘压暗的 0→1 过渡值（250ms 进入/退出）
       clouds: [
         { x: 120, y: 52, s: 1.0, v: 8, phase: 0.6 },
         { x: 520, y: 38, s: 0.8, v: 12, phase: 2.4 },
@@ -1254,6 +1268,11 @@
       // 动画时钟逐帧累加并限幅：浏览器切后台、掉帧或恢复时不会突然跳一大步，
       // 云和星星的位移/明暗因此始终连续，不会出现"闪一下"。
       state.clock += dt;
+      // 子弹时间边缘压暗：进入和退出都用 250ms 线性过渡，不突然变黑。
+      const dimTarget = state.phase === "BULLET_TIME" && !state.stale ? 1 : 0;
+      const dimStep = dt / 0.25;
+      state.bulletDim = Math.max(0, Math.min(1,
+        state.bulletDim + (dimTarget ? dimStep : -dimStep)));
       updateGame(dt);
       draw(state.clock);
       requestAnimationFrame(loop);
@@ -1862,9 +1881,18 @@
 
     // 子弹时间背景轻微压暗：把注意力收拢到蓄力条与青蛙，不改变美术风格。
     function drawBulletFocus() {
-      if (state.phase !== "BULLET_TIME" || reducedMotion.matches || state.stale) return;
+      // 径向压暗：只压画面边缘，小蛙、荷叶与中央操作区保持清晰。
+      // alpha 由 state.bulletDim 平滑过渡；减少动态效果时完全关闭。
+      if (reducedMotion.matches || state.bulletDim <= 0.001) return;
+      const d = state.bulletDim;
+      const g = ctx.createRadialGradient(W * 0.5, H * 0.68, 54,
+        W * 0.5, H * 0.68, Math.max(W, H) * 0.72);
+      g.addColorStop(0, "rgba(12, 30, 34, 0)");
+      g.addColorStop(0.42, "rgba(12, 30, 34, " + (0.015 * d) + ")");
+      g.addColorStop(0.74, "rgba(12, 30, 34, " + (0.10 * d) + ")");
+      g.addColorStop(1, "rgba(12, 30, 34, " + (0.24 * d) + ")");
       ctx.save();
-      ctx.fillStyle = "rgba(12, 30, 34, .18)";
+      ctx.fillStyle = g;
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
@@ -2057,16 +2085,19 @@
     }
 
     function paintCueArt() {
-      if (!window.PondEffects || !PondEffects.paintLily) return;
+      // pond-effects.js 使用 const 声明，实际挂在全局词法作用域而不是 window 上；
+      // 之前的 window.PondEffects 判断会让开局/结算卡片上的小蛙与荷叶静默缺失。
+      const PE = window.PondEffects || (typeof PondEffects !== "undefined" ? PondEffects : null);
+      if (!PE || !PE.paintLily) return;
       const p = theme();
       const flora = p.flora && p.flora !== "none" ? p.flora : "none";
       const frogFilter = p.frog && p.frog !== "none" ? p.frog : "none";
       const shapes = window.DressUp && DressUp.skinEllipses
-        ? DressUp.skinEllipses(null, PondEffects.frogEllipses)
-        : PondEffects.frogEllipses;
+        ? DressUp.skinEllipses(null, PE.frogEllipses)
+        : PE.frogEllipses;
       const mouth = window.DressUp && DressUp.skinMouth
         ? DressUp.skinMouth()
-        : PondEffects.frogMouth;
+        : PE.frogMouth;
 
       [startCue, endCue].forEach(cue => {
         if (!cue) return;
@@ -2077,13 +2108,13 @@
           c.filter = flora;
           c.translate(CUE_LEAF.cx, CUE_LEAF.cy);
           c.scale(CUE_LEAF.scale, CUE_LEAF.scale);
-          PondEffects.paintLily(c);
+          PE.paintLily(c);
         }
         if (frog) {
           const c = cueContext(frog, CUE_FROG.w, CUE_FROG.h);
           c.translate(CUE_FROG.cx, CUE_FROG.cy);
           // 与 drawFrog 相同的贴叶阴影：相对青蛙中心下移 4（阴影中心在荷叶中心上方 24）
-          const shadow = PondEffects.lily.shadow;
+          const shadow = PE.lily.shadow;
           c.save();
           c.globalAlpha = shadow.alpha;
           c.fillStyle = shadow.color;
@@ -2093,7 +2124,7 @@
           c.restore();
           c.filter = frogFilter;
           if (window.DressUp) DressUp.drawCanvas(c, "back", 0);
-          PondEffects.paintFrog(c, shapes, mouth);
+          PE.paintFrog(c, shapes, mouth);
           if (window.DressUp) DressUp.drawCanvas(c, "front", 0);
         }
       });

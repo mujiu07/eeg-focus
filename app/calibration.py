@@ -11,8 +11,20 @@ import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
-PROTOCOL_VERSION = "daily_v2"
+PROTOCOL_VERSION = "daily_v3"
 MAPPING_VERSION = "map_v2"
+
+# v1.9.4：平静阶段改为固定低刺激动态池塘（睁眼观察），不再播放外部视频。
+# 这里只描述刺激条件，不改变特征、去噪、分位数或映射算法。
+STIMULUS_CONDITION = {
+    "version": "calm_pond_open_eyes_v1",
+    "natural_stage": "fixed_low_stimulation_pond",
+    "natural_eyes": "open",
+    "video": "none",
+    "background_music": "paused_then_restored",
+    "tutorial": "preset_demo_then_guided_charge",
+    "not_strict_resting_eeg": True,
+}
 
 CONFIG: dict[str, Any] = {
     "natural_sec": 30.0,

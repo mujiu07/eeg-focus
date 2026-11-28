@@ -26,10 +26,20 @@
     .profile-card:hover { transform: translateY(-3px); border-color: rgba(58,167,160,.55); }
     .profile-card.is-current { border: 2px solid #55b981; box-shadow: 0 10px 24px rgba(68,170,112,.18); }
     .profile-avatar {
-      width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%;
-      font-size: 38px; background: linear-gradient(145deg,#d8f5dd,#a8e2c5);
-      box-shadow: inset 0 0 0 2px rgba(255,255,255,.9);
+      width: 76px; height: 76px; display: grid; place-items: center;
+      border-radius: 24px; overflow: hidden;
+      background: linear-gradient(145deg,#f3fbf0,#c9ead2);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.92), 0 4px 12px rgba(47,110,128,.08);
     }
+    .avatar-badge {
+      width: 100%; height: 100%; display: grid; place-items: center;
+      border-radius: inherit; overflow: hidden;
+      background: linear-gradient(145deg,#f2fbf0,#c9ead2);
+      color: #2b7555;
+    }
+    .avatar-badge--frog { background: linear-gradient(145deg,#eef8e6,#bfe3c4); }
+    .profile-avatar .frog-art { width: 82%; height: 82%; }
+    .profile-avatar .avatar-icon { width: 40px; height: 40px; }
     .profile-name { font-size: 18px; font-weight: 900; }
     .profile-meta { font-size: 12px; color: var(--ink-soft); }
     .profile-calib { font-size: 11.5px; padding: 3px 8px; border-radius: 999px; background: #fff8e8; color: #8a5a12; }
@@ -48,9 +58,20 @@
       display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
     }
     .avatar-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .avatar-opt { width: 44px; height: 44px; border-radius: 50%; border: 2px solid transparent;
-      background: #eef9f0; font-size: 22px; cursor: pointer; }
-    .avatar-opt[aria-pressed="true"] { border-color: #47a96c; background: #ddf6e4; }
+    .avatar-opt {
+      width: 56px; height: 56px; padding: 0; border-radius: 18px;
+      border: 2px solid transparent; background: transparent; cursor: pointer;
+      display: grid; place-items: center; overflow: hidden;
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+    }
+    .avatar-opt:hover { transform: translateY(-1px); border-color: rgba(85,185,129,.38); }
+    .avatar-opt[aria-pressed="true"] {
+      border-color: #47a96c; background: #eef9f0;
+      box-shadow: 0 0 0 3px rgba(85,185,129,.14);
+    }
+    .avatar-opt .avatar-badge { border-radius: 14px; }
+    .avatar-opt .frog-art { width: 82%; height: 82%; }
+    .avatar-opt .avatar-icon { width: 31px; height: 31px; }
     .modal-mask { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
       padding: 18px; background: rgba(35,70,79,.34); backdrop-filter: blur(4px); }
     .modal-mask.hidden { display: none; }
@@ -143,8 +164,11 @@
 
     function avatarOf(id) { return AVATAR_MAP[id] || AVATAR_MAP.frog; }
     function avatarMarkup(a) {
-      if (!a || !a.icon) return window.FrogArt ? FrogArt.svg({ className: "avatar-frog" }) : "";
-      return window.Icons ? Icons.markup(a.icon, "avatar-icon") : "";
+      const icon = a && a.icon;
+      const inner = !icon
+        ? (window.FrogArt ? FrogArt.svg({ className: "avatar-frog", compact: true }) : "")
+        : (window.Icons ? Icons.markup(icon, "avatar-icon") : "");
+      return `<span class="avatar-badge${icon ? "" : " avatar-badge--frog"}" aria-hidden="true">${inner}</span>`;
     }
     function status(text, bad) {
       const el = $("profile-status");

@@ -92,10 +92,12 @@
     });
     var body = ellipses.map(shapeTag).join("");
     var className = options.className ? " " + options.className : "";
+    // 头像专用紧凑视口：去掉透明留白，让小蛙在圆角头像里视觉居中。
+    var viewBox = options.viewBox || (options.compact ? "-31.5 -30 63 63" : "-40 -37 80 80");
     var label = options.label
       ? ' role="img" aria-label="' + String(options.label).replace(/"/g, "&quot;") + '"'
       : ' aria-hidden="true"';
-    return '<svg class="frog-art' + className + '" viewBox="-40 -37 80 80" focusable="false"' + label + ">" +
+    return '<svg class="frog-art' + className + '" viewBox="' + viewBox + '" focusable="false"' + label + ">" +
       '<g class="frog-art__body">' + body + "</g>" +
       eyesMarkup(expression) +
       mouthMarkup(g.mouth, expression) +
@@ -123,7 +125,7 @@
   }
 
   window.FrogArt = {
-    version: "1.9.3",
+    version: "1.9.4",
     svg: svg,
     mount: mount,
     mountAll: mountAll,

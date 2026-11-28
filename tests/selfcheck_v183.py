@@ -237,7 +237,7 @@ def main():
     cal = m.add_calibration(u4["user_id"], {
         "baseline": .5, "range": {"low": .3, "high": .7},
         "quantiles": {"q15": .3, "q85": .7}, "n_frames": 240,
-        "protocol_version": "daily_v2", "status": "ok",
+        "protocol_version": ce.PROTOCOL_VERSION, "status": "ok",
         "calibration_date": ce.local_date(int(__import__("time").time() * 1000), -480),
         "timezone_offset_min": -480, "device_key": "hw|api", "effective_sec": 60,
     }, source={"name": "hardware", "osc_ports": "7000,8000", "osc_fs": 256})

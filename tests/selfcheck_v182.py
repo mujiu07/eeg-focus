@@ -98,7 +98,7 @@ def main():
     at = 1_800_000_000_000
     today = ce.local_date(at, -480)
     daily = [{"id": "c1", "is_valid": True, "kind": "daily", "source_name": "hardware",
-              "protocol_version": "daily_v2",
+              "protocol_version": ce.PROTOCOL_VERSION,
               "device_key": "hardware|7000,8000|256|", "calibration_date": today,
               "at": at, "range": {"low": .3, "high": .7}}]
     st = ce.daily_status(daily, now_ms=at + 1000, mode="hardware",
@@ -115,13 +115,20 @@ def main():
     check("v1.8.1 旧校准不被当作今日校准",
           not ce.daily_status(legacy, now_ms=at + 1000, mode="hardware",
                               device="hardware|7000,8000|256|", tz_offset_min=-480)["valid"])
+    old_protocol = [{"id": "v2-cal", "is_valid": True, "kind": "daily", "source_name": "hardware",
+                     "protocol_version": "daily_v2",
+                     "device_key": "hardware|7000,8000|256|", "calibration_date": today,
+                     "at": at, "range": {"low": .3, "high": .7}}]
+    check("daily_v2 校准不与 v3 混用",
+          not ce.daily_status(old_protocol, now_ms=at + 1000, mode="hardware",
+                              device="hardware|7000,8000|256|", tz_offset_min=-480)["valid"])
 
     u1 = m.create_user("小宇", "frog")
     u2 = m.create_user("小安", "fish")
     c1 = m.add_calibration(u1["user_id"], {
         "baseline": .5, "range": {"low": .3, "high": .7},
         "quantiles": {"q15": .3, "q50": .5, "q85": .7}, "n_frames": 240,
-        "protocol_version": "daily_v2", "mapping_version": "map_v2",
+        "protocol_version": ce.PROTOCOL_VERSION, "mapping_version": "map_v2",
         "status": "ok", "calibration_date": ce.local_date(int(time.time() * 1000), -480),
         "timezone_offset_min": -480, "device_key": "hardware|7000,8000|256|",
         "effective_sec": 60, "stages": {"natural": {"n": 120}, "tutorial": {"n": 120}},
@@ -132,7 +139,7 @@ def main():
     c2 = m.add_calibration(u1["user_id"], {
         "baseline": .6, "range": {"low": .4, "high": .8},
         "quantiles": {"q15": .4, "q50": .6, "q85": .8}, "n_frames": 240,
-        "protocol_version": "daily_v2", "mapping_version": "map_v2", "status": "ok",
+        "protocol_version": ce.PROTOCOL_VERSION, "mapping_version": "map_v2", "status": "ok",
         "calibration_date": ce.local_date(int(time.time() * 1000), -480), "timezone_offset_min": -480,
         "device_key": "hardware|7000,8000|256|", "effective_sec": 60,
     }, source={"name": "hardware", "osc_ports": "7000,8000", "osc_fs": 256})
@@ -147,7 +154,7 @@ def main():
     test_cal = m.add_calibration(u1["user_id"], {
         "baseline": .5, "range": {"low": .2, "high": .8},
         "quantiles": {"q15": .2, "q85": .8}, "n_frames": 50,
-        "protocol_version": "daily_v2", "status": "ok",
+        "protocol_version": ce.PROTOCOL_VERSION, "status": "ok",
     }, source={"name": "replay"}, kind="test")
     check("回放校准不建立真实参考",
           test_cal.get("reference_baseline_id") is None
@@ -178,7 +185,7 @@ def main():
     daily2 = m.add_calibration(u2["user_id"], {
         "baseline": .52, "range": {"low": .31, "high": .71},
         "quantiles": {"q15": .31, "q85": .71}, "n_frames": 240,
-        "protocol_version": "daily_v2", "status": "ok",
+        "protocol_version": ce.PROTOCOL_VERSION, "status": "ok",
         "calibration_date": ce.local_date(int(time.time() * 1000), -480),
         "timezone_offset_min": -480, "device_key": "hardware|7000,8000|256|",
         "effective_sec": 60,
@@ -215,7 +222,7 @@ def main():
     s3.history = natural_frames() + tutorial_frames()
     srv._sessions[s3.id] = s3
     body = srv.CalibrateStart(
-        duration=60, protocol="daily_v2", elapsed_sec=60,
+        duration=60, protocol=ce.PROTOCOL_VERSION, elapsed_sec=60,
         stage_windows={"natural": {"start": 0, "end": 30}, "tutorial": {"start": 30, "end": 60}},
         tutorial_events=[{"t": 32, "charge": 50, "zone_lo": 40, "zone_hi": 60}],
         device_key="hardware|7000,8000|256|", timezone_offset_min=-480,
