@@ -317,10 +317,6 @@
 /* 眼睛与嘴巴：睁眼 → 笑眯眯，抿嘴 → 张口笑 */
 .frog-eyes--smile,
 .frog-mouth--open { opacity: 0; transition: opacity .24s ease; }
-.ach-cine.is-burst .frog-eyes--open { opacity: 0; }
-.ach-cine.is-burst .frog-eyes--smile { opacity: 1; }
-.ach-cine.is-burst .frog-mouth--line { opacity: 0; }
-.ach-cine.is-burst .frog-mouth--open { opacity: 1; }
 
 /* 手臂：递牌时从身侧抬到胸前上方 */
 .frog-arm { transition: transform .55s cubic-bezier(.3, 1.4, .5, 1); }
@@ -429,8 +425,12 @@
   .ach-cine.is-burst .ach-cine__frog-hop { transform: translate(0, 0); }
   .ach-cine__frog-tilt { transform: none; }
   .frog-arm { transition: none; }
-  .ach-cine.is-burst .frog-eyes--open { opacity: 0; }
-  .ach-cine.is-burst .frog-eyes--smile,
-  .ach-cine.is-burst .frog-mouth--open { opacity: 1; }
-  .ach-cine__rays { opacity: .4; }
+    .ach-cine.is-burst .frog-eyes--smile,
+    .ach-cine__rays { opacity: .4; }
+}
+
+/* v1.9.3：成就过场复用首页小蛙几何；保留眼睛和微笑，不再切到旧自绘眼睛 */
+.ach-cine.is-burst .frog-eyes--open,
+.ach-cine.is-burst .frog-mouth--line {
+  opacity: 1;
 }

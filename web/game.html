@@ -406,6 +406,7 @@
     html[data-heart="off"] #hr-hud { display: none !important; }
   </style>
   <link rel="stylesheet" href="assets/sky.css">
+  <script src="assets/icons/icons.js"></script>
   <script src="assets/sky.js"></script>
   <script>
     // 顺带缓存到 localStorage，下一次进入游戏页就能同步判断，不会闪出心率 HUD
@@ -420,6 +421,8 @@
       }
     }).catch(() => {});
   </script>
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
 </head>
 <body class="game-page">
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -430,15 +433,15 @@
   <div class="wrap">
     <div class="page-skybar">
       <button type="button" class="home-link home-link--compact" id="btn-game-home" aria-label="返回首页">
-        <span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span>
+        <span class="home-link__icon" data-icon="home" aria-hidden="true"></span><span>首页</span>
       </button>
-      <span class="page-skybar-label">🎨 页面配色</span>
+      <span class="page-skybar-label"><span data-icon="palette" aria-hidden="true"></span>页面配色</span>
       <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
-        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
-        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span aria-hidden="true">☀️</span>白天</button>
-        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span aria-hidden="true">🌇</span>傍晚</button>
-        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span aria-hidden="true">🌙</span>黑夜</button>
-        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
+        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span data-icon="sunrise" aria-hidden="true"></span>黎明</button>
+        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span data-icon="sun" aria-hidden="true"></span>白天</button>
+        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span data-icon="sunset" aria-hidden="true"></span>傍晚</button>
+        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span data-icon="moon" aria-hidden="true"></span>黑夜</button>
+        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span data-icon="auto" aria-hidden="true"></span>跟随时间</button>
       </div>
     </div>
     <div class="monitor-toggles" id="monitor-toggles" aria-label="开发者监测面板开关">
@@ -498,7 +501,7 @@
           <span class="sq-dot" id="quality-dot"></span><span id="quality-text" style="font-size:13.5px">—</span>
         </span>
         <span class="hud-item debug-only" id="hr-hud" title="心率（辅助信号，低采样率）">
-          <span class="icon" id="hr-icon">♥</span><span id="hr-bpm" style="min-width:2.5ch;text-align:center">--</span><span style="font-size:13px;opacity:.6;font-weight:700">BPM</span>
+          <span class="icon" id="hr-icon" data-icon="heart"></span><span id="hr-bpm" style="min-width:2.5ch;text-align:center">--</span><span style="font-size:13px;opacity:.6;font-weight:700">BPM</span>
         </span>
         <span class="hud-item"><span>本局积分</span><span id="score" style="color:#ffda86;min-width:2ch;text-align:center">0</span></span>
         <button class="btn btn-sm btn-ghost hidden" type="button" data-pond-audio>音效</button>
@@ -754,9 +757,10 @@
 
   <script src="assets/api.js"></script>
   <script src="assets/profile-bridge.js"></script>
+  <script src="assets/pond-effects.js"></script>
+  <script src="assets/frog/frog-art.js"></script>
   <script src="assets/achievements.js"></script>
   <script src="assets/achievement-cinematic.js"></script>
-  <script src="assets/pond-effects.js"></script>
   <script src="assets/pond-audio.js"></script>
   <script src="assets/wallet.js"></script>
   <script src="assets/focus-round.js"></script>

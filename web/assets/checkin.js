@@ -152,7 +152,7 @@
     toast.setAttribute("role", "status");
     toast.setAttribute("aria-live", "polite");
     toast.innerHTML = `
-      <span class="checkin-toast__icon" id="checkin-toast-icon">🎁</span>
+      <span class="checkin-toast__icon" id="checkin-toast-icon" data-icon="gift"></span>
       <span class="checkin-toast__main">
         <strong id="checkin-toast-title"></strong>
         <span id="checkin-toast-sub"></span>
@@ -166,7 +166,7 @@
   function showToast(opts) {
     if (!toast) buildToast();
     toast.classList.toggle("is-muted", !opts.gold);
-    toastIcon.textContent = opts.icon || (opts.gold ? "🎁" : "🌙");
+    toastIcon.innerHTML = window.Icons ? window.Icons.svg(opts.icon || (opts.gold ? "gift" : "moon")) : "";
     toastTitle.innerHTML = opts.title;
     toastSub.textContent = opts.sub || "";
     toast.classList.add("is-show");
@@ -215,7 +215,7 @@
     if (isSignedToday()) {
       showToast({
         gold: false,
-        icon: "🌙",
+        icon: "moon",
         title: "今天已经签到过啦",
         sub: "明天 0 点刷新后可以再领 " + DAILY_POINTS + " 积分（当前 " + walletPoints() + " 积分）",
       });
@@ -243,7 +243,7 @@
     floatGain();
     showToast({
       gold: true,
-      icon: "🎁",
+      icon: "gift",
       title: "签到成功，积分 <b>+" + (gain || DAILY_POINTS) + "</b>",
       sub: "已连续签到 " + streak + " 天 · 共 " + walletPoints() +
            " 积分 · 明天 0 点后再领",
@@ -273,7 +273,7 @@
         if (!isSignedToday()) {
           showToast({
             gold: true,
-            icon: "🌞",
+            icon: "sun",
             title: "新的一天，签到领 " + DAILY_POINTS + " 积分",
             sub: "0 点已刷新，点一下「签到」就能拿到手",
             duration: 5200,

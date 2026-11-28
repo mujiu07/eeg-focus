@@ -66,6 +66,8 @@
     .tiny { font-size: 12px; color: var(--ink-soft); }
     @media (max-width: 600px) { .profiles-hero h1 { font-size: 24px; } .profile-grid { grid-template-columns: repeat(2,1fr); } }
   </style>
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -75,14 +77,14 @@
   <div class="wrap">
     <div class="app-topbar">
       <div class="app-topbar__left">
-        <a class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+        <a class="home-link" href="index.html"><span class="home-link__icon" data-icon="home" aria-hidden="true"></span><span>首页</span></a>
       </div>
       <div class="app-topbar__actions">
-        <a class="top-link" href="settings.html">⚙ 设置</a>
+        <a class="top-link" href="settings.html"><span data-icon="sliders" aria-hidden="true"></span><span>设置</span></a>
       </div>
     </div>
     <div class="card profiles-hero">
-      <div class="logo-badge" style="margin:0 auto 10px;width:58px;height:58px;font-size:30px;display:grid;place-items:center">🐸</div>
+      <div class="logo-badge" data-frog="profile-hero" aria-hidden="true" style="margin:0 auto 10px;width:58px;height:58px;display:grid;place-items:center"></div>
       <h1>今天谁来陪小蛙玩？</h1>
       <p class="sub">选择一个档案，小蛙会记住你的专注成长和宝贝装扮。</p>
       <div id="profile-status" role="status" aria-live="polite"></div>
@@ -122,14 +124,16 @@
     </div>
   </div>
 
+  <script src="assets/pond-effects.js"></script>
+  <script src="assets/frog/frog-art.js"></script>
   <script src="assets/api.js"></script>
   <script src="assets/profile-bridge.js"></script>
   <script>
     const AVATARS = [
-      ["frog", "🐸", "小蛙"], ["tadpole", "🐟", "小蝌蚪"], ["lotus", "🪷", "荷花"],
-      ["fish", "🐠", "小鱼"], ["dragonfly", "🪰", "蜻蜓"], ["snail", "🐌", "蜗牛"],
+      ["frog", "", "小蛙"], ["tadpole", "tadpole", "小蝌蚪"], ["lotus", "lotus", "荷花"],
+      ["fish", "fish", "小鱼"], ["dragonfly", "dragonfly", "蜻蜓"], ["snail", "snail", "蜗牛"],
     ];
-    const AVATAR_MAP = Object.fromEntries(AVATARS.map(([id, emoji, label]) => [id, { emoji, label }]));
+    const AVATAR_MAP = Object.fromEntries(AVATARS.map(([id, icon, label]) => [id, { icon, label }]));
     const $ = id => document.getElementById(id);
     const next = new URLSearchParams(location.search).get("next") || "index.html";
     let profiles = [];
@@ -138,6 +142,10 @@
     let legacy = null;
 
     function avatarOf(id) { return AVATAR_MAP[id] || AVATAR_MAP.frog; }
+    function avatarMarkup(a) {
+      if (!a || !a.icon) return window.FrogArt ? FrogArt.svg({ className: "avatar-frog" }) : "";
+      return window.Icons ? Icons.markup(a.icon, "avatar-icon") : "";
+    }
     function status(text, bad) {
       const el = $("profile-status");
       el.textContent = text || "";
@@ -154,8 +162,9 @@
       const current = Profile.active();
       const box = $("profiles");
       if (!profiles.length) {
-        box.innerHTML = `<div class="profile-empty"><div class="big">🌱</div>
+        box.innerHTML = `<div class="profile-empty"><div class="big" data-icon="sprout" aria-hidden="true"></div>
           <p>还没有个人档案。先给小蛙起一个昵称吧。</p></div>`;
+        Icons.mountAll(box);
         return;
       }
       box.className = "profile-grid";
@@ -165,16 +174,18 @@
         const cs = p.calibration_status || {};
         return `<div class="profile-card${isCurrent ? " is-current" : ""}" data-id="${p.user_id}" role="button" tabindex="0" aria-label="选择 ${p.nickname}">
           ${isCurrent ? '<span class="profile-current">当前</span>' : ""}
-          <div class="profile-avatar">${a.emoji}</div>
+          <div class="profile-avatar">${avatarMarkup(a)}</div>
           <div class="profile-name">${escapeHtml(p.nickname)}</div>
           <div class="profile-meta">${p.is_system ? "历史档案 · 未归属" : fmtDate(p.last_used_at)}</div>
-          ${p.is_system ? "" : `<div class="profile-calib${cs.valid ? " ok" : ""}">${cs.valid ? "✓ " + (cs.status_text || "今日校准有效") : (cs.status_text || "今日尚未校准")}</div>`}
+          ${p.is_system ? "" : `<div class="profile-calib${cs.valid ? " ok" : ""}">${cs.valid ? '<span data-icon="check" aria-hidden="true"></span> ' + (cs.status_text || "今日校准有效") : (cs.status_text || "今日尚未校准")}</div>`}
           <div class="profile-actions">
             ${p.is_system ? "" : `<button class="btn btn-ghost" data-edit="${p.user_id}" type="button">编辑</button>
             <button class="btn btn-ghost" data-delete="${p.user_id}" type="button">删除</button>`}
           </div>
         </div>`;
       }).join("");
+      Icons.mountAll(box);
+      FrogArt.mountAll(box);
       box.querySelectorAll(".profile-card").forEach(card => {
         card.addEventListener("click", e => {
           if (e.target.closest("button")) return;
@@ -242,9 +253,12 @@
       $("profile-name").value = editing ? editing.nickname : "";
       pickedAvatar = editing ? editing.avatar : "frog";
       if (!AVATAR_MAP[pickedAvatar]) pickedAvatar = "frog";
-      $("avatar-pick").innerHTML = AVATARS.map(([aid, emoji, label]) =>
-        `<button class="avatar-opt" type="button" data-avatar="${aid}" aria-pressed="${aid === pickedAvatar}" aria-label="${label}">${emoji}</button>`
-      ).join("");
+      $("avatar-pick").innerHTML = AVATARS.map(([aid, icon, label]) => {
+        const a = { icon, label };
+        return `<button class="avatar-opt" type="button" data-avatar="${aid}" aria-pressed="${aid === pickedAvatar}" aria-label="${label}">${avatarMarkup(a)}</button>`;
+      }).join("");
+      Icons.mountAll($("avatar-pick"));
+      FrogArt.mountAll($("avatar-pick"));
       $("avatar-pick").querySelectorAll("[data-avatar]").forEach(btn => {
         btn.addEventListener("click", () => {
           pickedAvatar = btn.dataset.avatar;
@@ -325,5 +339,7 @@
     }
     load();
   </script>
+  <script src="assets/sky.js"></script>
+  <script src="assets/icons/icons.js"></script>
 </body>
 </html>

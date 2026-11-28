@@ -1,0 +1,255 @@
+/* ============================================================
+   专注小蛙 · 全站视觉一致性规范 v1.9.3
+   自然、温和、轻松、可爱、低视觉负荷。
+   只做容器层级、边框、留白、字体层级与图标尺寸统一，
+   不改变任何业务状态、算法、计分或数据结构。
+   ============================================================ */
+
+:root {
+  --v-line: rgba(47, 110, 128, .11);
+  --v-line-soft: rgba(47, 110, 128, .065);
+  --v-surface-soft: rgba(255, 255, 255, .58);
+  --v-surface-quiet: rgba(255, 255, 255, .38);
+  --v-card-radius: 24px;
+  --v-card-shadow: 0 10px 30px rgba(47, 110, 128, .09);
+  --v-icon-stroke: 1.8px;
+}
+
+html[data-sky="dusk"],
+html[data-sky="night"] {
+  --v-line: rgba(190, 220, 240, .15);
+  --v-line-soft: rgba(190, 220, 240, .085);
+  --v-surface-soft: rgba(255, 255, 255, .075);
+  --v-surface-quiet: rgba(255, 255, 255, .04);
+  --v-card-shadow: 0 10px 30px rgba(0, 6, 16, .24);
+}
+
+/* 页面顶部图标与标题保持同一视觉重量 */
+.home-link__icon,
+.top-link .ui-icon,
+.page-skybar-label .ui-icon {
+  opacity: .9;
+}
+
+.page-skybar-label {
+  letter-spacing: .4px;
+}
+
+.sky-opt .ui-icon {
+  color: currentColor;
+  opacity: .9;
+}
+
+/* 外层卡片：浅描边 + 柔和阴影；不再使用高对比白色硬边 */
+.card,
+.growth-card,
+.profiles-hero,
+.parent-gate__card {
+  border-color: var(--v-line);
+  box-shadow: var(--v-card-shadow);
+}
+
+/* 同一视觉区域内的子卡：去重复描边，用底色和留白分层 */
+.profile-card {
+  border-color: transparent;
+  background: var(--v-surface-soft);
+  box-shadow: none;
+}
+.profile-card:hover {
+  border-color: rgba(58, 167, 160, .32);
+  box-shadow: 0 8px 20px rgba(47, 110, 128, .08);
+}
+.profile-card.is-current {
+  border: 1.5px solid rgba(85, 185, 129, .82);
+  background: linear-gradient(150deg, rgba(255, 255, 255, .92), rgba(232, 249, 237, .88));
+  box-shadow: 0 0 0 3px rgba(85, 185, 129, .12);
+}
+html[data-sky="dusk"] .profile-card.is-current,
+html[data-sky="night"] .profile-card.is-current {
+  background: linear-gradient(150deg, rgba(70, 140, 105, .22), rgba(30, 70, 62, .24));
+}
+
+.profile-avatar {
+  border: 0;
+  box-shadow: 0 0 0 1px rgba(47, 110, 128, .05), inset 0 1px 0 rgba(255, 255, 255, .8);
+}
+
+.profile-card .profile-actions .btn {
+  box-shadow: none;
+}
+
+/* 成长中心：外层成长卡是唯一边框，内部统计/KPI 用底色分层 */
+.growth-stat,
+.parent-kpi,
+.growth-card .chart-box,
+.growth-card .detail-item {
+  border-color: transparent;
+  background: var(--v-surface-soft);
+  box-shadow: none;
+}
+html[data-sky="dusk"] .growth-stat,
+html[data-sky="night"] .growth-stat,
+html[data-sky="dusk"] .parent-kpi,
+html[data-sky="night"] .parent-kpi {
+  background: var(--v-surface-soft);
+}
+
+.growth-card .growth-day,
+.growth-card .diag-item {
+  border-color: var(--v-line-soft);
+  box-shadow: none;
+}
+
+.growth-hero__main {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.growth-frog-scene {
+  border-color: var(--v-line-soft);
+  box-shadow: var(--v-card-shadow);
+}
+
+.chart-box {
+  border-color: var(--v-line);
+  box-shadow: var(--v-card-shadow);
+}
+
+.detail-item {
+  background: var(--v-surface-quiet);
+}
+
+/* 家长/历史页顶部按钮更轻，内容区不出现双层边框 */
+.parent-toolbar {
+  padding: 3px 0 4px;
+}
+.parent-range,
+.parent-date {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+/* 报告页：统计卡只保留一层背景，不叠白边 */
+#report .stat-grid {
+  gap: 14px;
+}
+#report .stat {
+  border: 0;
+  background: rgba(255, 255, 255, .58);
+  box-shadow: none;
+}
+html[data-sky="night"] #report .stat,
+html[data-sky="dusk"] #report .stat {
+  border: 0;
+  background: rgba(255, 255, 255, .08);
+}
+
+/* 校准页：信号设置和说明卡不再套第二层边框 */
+.calib-hero .tutorial-card {
+  border: 0;
+  background: var(--v-surface-soft);
+  box-shadow: none;
+}
+#signal-settings .stat-box,
+#signal-settings .field {
+  border-color: var(--v-line-soft);
+  box-shadow: none;
+}
+
+/* 设置页 */
+.card .stat-box {
+  border-color: var(--v-line-soft);
+  background: var(--v-surface-soft);
+}
+
+/* 成就弹窗：列表项不重复描边 */
+.ach-card {
+  border-color: var(--v-line);
+}
+.ach-item {
+  border-color: transparent;
+  background: rgba(255, 255, 255, .58);
+  box-shadow: none;
+}
+.ach-item.is-unlocked {
+  border-color: rgba(240, 169, 78, .24);
+  background: linear-gradient(140deg, #fffdf6, #fdf1dd);
+}
+.ach-item__icon {
+  box-shadow: none;
+  background: rgba(255, 255, 255, .68);
+}
+.ach-item.is-unlocked .ach-item__icon {
+  box-shadow: 0 3px 8px rgba(214, 148, 66, .14);
+}
+
+/* 商城/装扮：卡片内已有细描边，统一圆角与轻阴影 */
+.shop-card,
+.wear-opt {
+  border-color: rgba(47, 110, 128, .08);
+  box-shadow: 0 2px 8px rgba(47, 110, 128, .05);
+}
+.shop-card:hover,
+.wear-opt:hover {
+  border-color: rgba(58, 167, 160, .34);
+}
+
+/* 小屏相邻卡片留白：避免放大字号后边框贴合 */
+@media (max-width: 700px) {
+  .profile-grid,
+  .growth-stats,
+  .parent-grid,
+  .detail-grid,
+  .chart-grid {
+    gap: 12px;
+  }
+  .growth-card {
+    padding: 20px 18px;
+  }
+  .card {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+/* 最近训练是链接，保持统计卡字号与颜色，不出现浏览器默认蓝色下划线 */
+a.stat {
+  color: var(--ink);
+  text-decoration: none;
+}
+a.stat:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* 报告首卡的小蛙是角色插画，略小于其他统计图标，避免压过数字 */
+#report .stat .icon .frog-art {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto;
+}
+
+/* 窄屏顶部动作区不与页面标题抢空间 */
+@media (max-width: 720px) {
+  .app-topbar {
+    align-items: flex-start;
+  }
+  .app-topbar__actions {
+    width: 100%;
+  }
+  .app-topbar__actions .top-link {
+    margin-left: 0;
+  }
+}
+
+/* 说明框 / 设置框属于内容分区，不用第二层硬边 */
+.card .stat-box,
+#signal-settings .tip-box {
+  border-color: transparent;
+  background: var(--v-surface-soft);
+  box-shadow: none;
+}
+#signal-settings .tip-box {
+  background: linear-gradient(135deg, rgba(159, 227, 163, .16), rgba(58, 167, 160, .09));
+}

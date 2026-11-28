@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -37 80 80" width="320" height="320" role="img" aria-labelledby="frogTitle">
+  <title id="frogTitle">专注小蛙标准角色原型</title>
+  <desc>由首页池塘与游戏画布共用的 PondEffects.frogEllipses 几何生成，透明背景。</desc>
+  <g fill="none">
+    <ellipse cx="0" cy="17" rx="29" ry="9" fill="#346951"/>
+    <ellipse cx="0" cy="7" rx="24" ry="22" fill="#609b68"/>
+    <ellipse cx="0" cy="13" rx="16" ry="13" fill="#b9cf94"/>
+    <g transform="translate(-14 -12)">
+      <ellipse cx="0" cy="0" rx="10" ry="11" fill="#609b68"/>
+      <ellipse cx="0" cy="0" rx="6" ry="7" fill="#fbf3d9"/>
+      <ellipse cx="1" cy="0" rx="3" ry="4" fill="#263b33"/>
+    </g>
+    <g transform="translate(14 -12)">
+      <ellipse cx="0" cy="0" rx="10" ry="11" fill="#609b68"/>
+      <ellipse cx="0" cy="0" rx="6" ry="7" fill="#fbf3d9"/>
+      <ellipse cx="-1" cy="0" rx="3" ry="4" fill="#263b33"/>
+    </g>
+    <path d="M -8 5 Q 0 10 8 5" stroke="#346951" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -8,7 +8,10 @@
   <link rel="stylesheet" href="assets/ui.css">
   <link rel="stylesheet" href="assets/sky.css">
   <link rel="stylesheet" href="assets/growth.css">
+  <script src="assets/icons/icons.js"></script>
   <script src="assets/sky.js"></script>
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -19,12 +22,12 @@
   <main class="growth-page">
     <div class="app-topbar">
       <div class="app-topbar__left">
-        <a class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+        <a class="home-link" href="index.html"><span class="home-link__icon" data-icon="home" aria-hidden="true"></span><span>首页</span></a>
       </div>
     </div>
     <header class="growth-top">
       <div class="growth-brand">
-        <div class="frog-dot" aria-hidden="true">🐸</div>
+        <div class="frog-dot" data-frog="growth-brand" aria-hidden="true"></div>
         <div>
           <h1>小蛙成长日记</h1>
           <p>只记录你和小蛙一起玩过的真实时光</p>
@@ -45,7 +48,7 @@
     <div id="growth-content" class="hidden">
       <section class="growth-hero">
         <div class="growth-hero__main">
-          <span class="growth-kicker">🌱 你的小小成长记录</span>
+          <span class="growth-kicker"><span data-icon="sprout" aria-hidden="true"></span> 你的小小成长记录</span>
           <h2>你好，<span id="growth-name">小蛙朋友</span>！</h2>
           <p>每一次跳上荷叶、每一次认真等待，都变成了池塘里的小星星。这里没有比较，也没有催促，只有你和小蛙一起留下的脚印。</p>
           <div class="growth-stats">
@@ -59,7 +62,7 @@
           <div class="sun"></div>
           <div class="ripple"></div>
           <div class="lily"></div>
-          <div class="frog-emoji">🐸</div>
+          <div class="frog-emoji" data-frog="growth-scene" aria-hidden="true"></div>
         </div>
       </section>
 
@@ -107,6 +110,8 @@
   </main>
 
   <script src="assets/profile-bridge.js"></script>
+  <script src="assets/pond-effects.js"></script>
+  <script src="assets/frog/frog-art.js"></script>
   <script src="assets/achievements.js"></script>
   <script src="assets/dressup.js"></script>
   <script src="assets/growth-common.js"></script>

@@ -13,10 +13,10 @@
   var MODE_NAMES = { dawn: "黎明", day: "白天", dusk: "傍晚", night: "黑夜", auto: "跟随系统时间" };
   var SKY_NAMES = { dawn: "黎明", day: "白天", dusk: "傍晚", night: "黑夜" };
   var SKY_ICONS = {
-    dawn: "\uD83C\uDF04",
-    day: "\uD83C\uDF05",
-    dusk: "\uD83C\uDF07",
-    night: "\uD83C\uDF19",
+    dawn: "sunrise",
+    day: "sun",
+    dusk: "sunset",
+    night: "moon",
   };
 
   // 四档天空的完整配色：首页 SVG 场景与游戏画布共用同一份色板，
@@ -489,7 +489,11 @@
     }
 
     var icon = document.getElementById("hero-sky-icon");
-    if (icon) icon.textContent = SKY_ICONS[sky] || SKY_ICONS.day;
+    if (icon) {
+      var iconName = SKY_ICONS[sky] || SKY_ICONS.day;
+      if (window.Icons) icon.innerHTML = window.Icons.svg(iconName);
+      else icon.textContent = "";
+    }
   }
 
   // options.animate：天空档位发生变化时是否走颜色渐变（首屏不渐变，避免开屏闪色）

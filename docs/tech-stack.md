@@ -1,7 +1,7 @@
 # 专注小蛙 · 梦境池塘 — 技术栈
 
 > 项目：`eeg-focus/`（脑波专注游戏 MVP）
-> 版本：v1.9.2（2026-11-28）
+> 版本：v1.9.3（2026-11-28）
 > 相关：接入方案与排障见 `docs/xmuse-hardware-integration.md`；架构见 `docs/ARCHITECTURE.md`
 
 ---
@@ -39,7 +39,7 @@
   - `assets/focus-round.js`：不依赖 DOM 的单轮状态机（蓄力 → 宽容期/衰减 → 唯一金色区域 → 子弹时间 → 脑电基础分/点击时机结算 → 无效点击冷却），参数集中在 `CONFIG`，浏览器与 Node 测试共用
 - 视觉与环境层：
   - `assets/style.css`：梦境池塘视觉与通用组件
-  - `assets/ui.css`：v1.9.2 全站顶部/首页入口、按钮对齐、状态与响应式规范
+  - `assets/ui.css`：v1.9.2 全站顶部/首页入口、按钮对齐、状态与响应式规范；v1.9.3 增加小蛙/图标/边框视觉层
   - `assets/sky.css` + `assets/sky.js`：全站天空模式（黎明/白天/傍晚/黑夜/跟随系统时间），按日出日落估算自动切换，`localStorage` 跨页保存；模式切换走 1.2 s 颜色渐变；`sky.js` 导出 `window.SkyTheme` 色板，首页 SVG 与游戏 Canvas 共用同一套天空 / 水面 / 远山 / 日月星配色
   - `assets/hero-pond.js`、`hero-water.js`、`pond-effects.js`、`pond-audio.js`：首页动态池塘（青蛙跳跃、荷叶弹簧、水花、鱼群、环境音效），游戏落地水花与转场卡片复用 `PondEffects`
   - `assets/music.js` + `assets/vinyl.css`：黑胶唱片机，结构由脚本注入，跨页保留曲目与进度

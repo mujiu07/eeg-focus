@@ -13,6 +13,9 @@
   <link rel="stylesheet" href="assets/shop.css">
   <link rel="stylesheet" href="assets/checkin.css">
   <link rel="stylesheet" href="assets/growth.css">
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
+  <script src="assets/icons/icons.js"></script>
   <script src="assets/sky.js"></script>
   <style>
     .logo-badge--frog {
@@ -160,8 +163,8 @@
       </div>
       <!-- 右侧入口：签到居左，成就其次，商城居中，装扮占最右侧 -->
       <div class="hero-entries">
-        <a class="btn btn-ghost" id="profile-entry" href="profiles.html" title="切换个人档案" style="padding:9px 13px;font-size:13px">👤 <span id="profile-entry-name">选择档案</span></a>
-        <a class="top-link" id="settings-entry" href="settings.html">⚙ 设置</a>
+        <a class="btn btn-ghost" id="profile-entry" href="profiles.html" title="切换个人档案" style="padding:9px 13px;font-size:13px"><span data-icon="user" aria-hidden="true"></span> <span id="profile-entry-name">选择档案</span></a>
+        <a class="top-link" id="settings-entry" href="settings.html"><span data-icon="sliders" aria-hidden="true"></span><span>设置</span></a>
         <div id="checkin-entry" class="checkin-entry"></div>
         <div id="achievement-entry" class="ach-entry"></div>
         <div id="shop-entry" class="shop-entry"></div>
@@ -169,16 +172,16 @@
     </div>
 
     <nav class="growth-nav home-growth-nav" aria-label="主要功能">
-      <button type="button" class="growth-link" onclick="window.DressUp && window.DressUp.open()">🎩 小蛙装扮</button>
-      <a class="growth-link" href="growth.html">🌱 成长日记</a>
-      <a class="growth-link" href="parent.html">👨‍👩‍👧 家长报告</a>
+      <button type="button" class="growth-link" onclick="window.DressUp && window.DressUp.open()"><span data-icon="hanger" aria-hidden="true"></span><span>小蛙装扮</span></button>
+      <a class="growth-link" href="growth.html"><span data-icon="sprout" aria-hidden="true"></span><span>成长日记</span></a>
+      <a class="growth-link" href="parent.html"><span data-icon="family" aria-hidden="true"></span><span>家长报告</span></a>
     </nav>
 
     <!-- 英雄区 -->
     <div class="card hero-card">
       <div class="hero-top">
         <div class="hero-title">
-          <span class="hero-sky-icon" id="hero-sky-icon" style="font-size:26px" aria-hidden="true">🌅</span>
+          <span class="hero-sky-icon" id="hero-sky-icon" aria-hidden="true"><span data-icon="sunrise"></span></span>
           <div>
             <div style="font-weight:800;font-size:18px">梦境池塘</div>
             <div class="hint" style="font-size:13.5px">让专注变成前进的动力</div>
@@ -186,19 +189,19 @@
         </div>
         <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
           <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式">
-            <span aria-hidden="true">🌄</span>黎明
+            <span data-icon="sunrise" aria-hidden="true"></span>黎明
           </button>
           <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式">
-            <span aria-hidden="true">☀️</span>白天
+            <span data-icon="sun" aria-hidden="true"></span>白天
           </button>
           <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式">
-            <span aria-hidden="true">🌇</span>傍晚
+            <span data-icon="sunset" aria-hidden="true"></span>傍晚
           </button>
           <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式">
-            <span aria-hidden="true">🌙</span>黑夜
+            <span data-icon="moon" aria-hidden="true"></span>黑夜
           </button>
           <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）">
-            <span aria-hidden="true">🌗</span>跟随时间
+            <span data-icon="auto" aria-hidden="true"></span>跟随时间
           </button>
         </div>
       </div>
@@ -428,17 +431,17 @@
       <div class="steps">
         <div class="step">
           <div class="num">1</div>
-          <div class="t">🧘 先做校准</div>
+          <div class="t"><span data-icon="activity" aria-hidden="true"></span> 先做校准</div>
           <div class="d">按校准页的提示完成校准<br>系统会设定你今天的专注线</div>
         </div>
         <div class="step">
           <div class="num">2</div>
-          <div class="t">🎯 专注蓄力</div>
+          <div class="t"><span data-icon="target" aria-hidden="true"></span> 专注蓄力</div>
           <div class="d">在状态时能量条会往上涨</div>
         </div>
         <div class="step">
           <div class="num">3</div>
-          <div class="t">🐸 点一下起跳</div>
+          <div class="t"><span data-frog="inline" aria-hidden="true"></span> 点一下起跳</div>
           <div class="d">金色区间内点屏幕青蛙就跳</div>
         </div>
       </div>
@@ -458,7 +461,7 @@
   <div class="duration-mask hidden" id="duration-mask" role="dialog" aria-modal="true" aria-labelledby="duration-title">
     <div class="duration-card">
       <div class="duration-head">
-        <div class="duration-icon">⏱️</div>
+        <div class="duration-icon" data-icon="clock" aria-hidden="true"></div>
         <div>
           <h2 id="duration-title">选择本局游戏时长</h2>
           <p class="hint" style="margin-top:4px;font-size:13.5px">时长越短节奏越快，建议先从 3 分钟开始</p>
@@ -685,6 +688,7 @@
     }
   </script>
   <script src="assets/pond-effects.js"></script>
+  <script src="assets/frog/frog-art.js"></script>
   <script src="assets/pond-audio.js"></script>
   <script src="assets/wallet.js"></script>
   <script src="assets/checkin.js"></script>

@@ -26,6 +26,8 @@
     .privacy-list li { margin-left:18px; }
     #status { min-height:24px; margin-top:12px; font-size:13px; color:#b45309; }
   </style>
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -35,15 +37,15 @@
   <div class="wrap">
     <div class="app-topbar">
       <div class="app-topbar__left">
-        <a class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+        <a class="home-link" href="index.html"><span class="home-link__icon" data-icon="home" aria-hidden="true"></span><span>首页</span></a>
       </div>
       <div class="app-topbar__actions">
-        <a class="top-link" href="dev.html">🛠️ 开发者工作台</a>
+        <a class="top-link" href="dev.html"><span data-icon="tool" aria-hidden="true"></span><span>开发者工作台</span></a>
       </div>
     </div>
     <div class="card settings-head">
       <div class="brand">
-        <div class="logo-badge">🔐</div>
+        <div class="logo-badge" data-icon="lock" aria-hidden="true"></div>
         <div><h1>数据与隐私</h1><div class="slogan">本地档案、备份与数据目录</div></div>
       </div>
       <div class="btn-row" style="margin:0;display:flex;gap:6px;flex-wrap:wrap">
@@ -123,7 +125,7 @@
         ].map(([k, v]) => `<div class="stat-box"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
         if (s.cloud_sync_hint) {
           $("cloud-hint").hidden = false;
-          $("cloud-hint").textContent = "⚠️ " + s.cloud_sync_hint;
+          $("cloud-hint").textContent = "注意：" + s.cloud_sync_hint;
         } else {
           $("cloud-hint").hidden = true;
         }
@@ -182,5 +184,7 @@
 
     load();
   </script>
+  <script src="assets/sky.js"></script>
+  <script src="assets/icons/icons.js"></script>
 </body>
 </html>

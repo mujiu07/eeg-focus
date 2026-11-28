@@ -91,7 +91,10 @@
     .sq-dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;flex:0 0 auto}
   </style>
   <link rel="stylesheet" href="assets/sky.css">
+  <script src="assets/icons/icons.js"></script>
   <script src="assets/sky.js"></script>
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -102,23 +105,23 @@
   <div class="wrap">
     <div class="app-topbar">
       <div class="app-topbar__left">
-        <a id="btn-home" class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+        <a id="btn-home" class="home-link" href="index.html"><span class="home-link__icon" data-icon="home" aria-hidden="true"></span><span>首页</span></a>
       </div>
     </div>
     <div class="page-skybar">
-      <span class="page-skybar-label">🎨 页面配色</span>
+      <span class="page-skybar-label"><span data-icon="palette" aria-hidden="true"></span>页面配色</span>
       <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
-        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
-        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span aria-hidden="true">☀️</span>白天</button>
-        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span aria-hidden="true">🌇</span>傍晚</button>
-        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span aria-hidden="true">🌙</span>黑夜</button>
-        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
+        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span data-icon="sunrise" aria-hidden="true"></span>黎明</button>
+        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span data-icon="sun" aria-hidden="true"></span>白天</button>
+        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span data-icon="sunset" aria-hidden="true"></span>傍晚</button>
+        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span data-icon="moon" aria-hidden="true"></span>黑夜</button>
+        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span data-icon="auto" aria-hidden="true"></span>跟随时间</button>
       </div>
     </div>
     <div class="card calib-hero" id="calib-hero">
       <div class="calib-header">
         <div class="brand">
-          <div class="logo-badge">🧠</div>
+          <div class="logo-badge" data-icon="activity" aria-hidden="true"></div>
           <div>
             <h1>脑电校准</h1>
             <div class="slogan" id="calib-slogan">先跟着视频放松一会儿</div>
@@ -128,7 +131,10 @@
 
       <!-- 待校准 -->
       <div class="stage" id="idle">
-        <div class="idle-icon">🌙</div>
+        <div class="calib-idle-art" aria-hidden="true">
+          <span class="calib-moon" data-icon="moon"></span>
+          <span class="calib-frog" data-frog="calibrate"></span>
+        </div>
         <div class="guide-text" style="margin:6px 0 2px">准备好了吗？</div>
         <p class="hint" id="idle-hint" style="font-size:15.5px;max-width:520px">
           先陪小蛙安静坐 30 秒，再看小蛙蓄力、点一下；今天的状态会这样记下来。不会计分，也不发商城币。
@@ -176,9 +182,9 @@
         </div>
         <div id="manual-ctl" class="hidden" style="width:100%;max-width:520px">
           <div class="slider-row">
-            <span>😌 放松</span>
+            <span><span data-icon="leaf" aria-hidden="true"></span> 放松</span>
             <input type="range" id="manual-slider" min="0" max="100" value="25">
-            <span>🧠 专注</span>
+            <span><span data-icon="brain" aria-hidden="true"></span> 专注</span>
           </div>
           <p class="hint" style="font-size:13.5px;text-align:center;margin-top:6px">
             手动模拟模式：把滑块保持在"放松"一侧完成校准
@@ -188,7 +194,7 @@
 
       <!-- 校准结果生成中（倒计时结束 → 结果返回的间隔） -->
       <div class="stage hidden" id="loading">
-        <div class="idle-icon" style="font-size:52px">🔮</div>
+        <div class="idle-icon" data-icon="sparkles" aria-hidden="true"></div>
         <div class="guide-text" style="margin:8px 0 2px">校准结果生成中，请稍候。</div>
         <div class="loading-bar"><div class="loading-fill"></div></div>
         <p class="hint" style="font-size:14px">正在按你今天的状态定分数……</p>
@@ -196,7 +202,7 @@
 
       <!-- 校准完成 -->
       <div class="stage hidden" id="done">
-        <div class="ripple-wrap"><div class="ripple">✅</div></div>
+        <div class="ripple-wrap"><div class="ripple"><span data-icon="check"></span></div></div>
         <div class="guide-text" style="margin-top:8px">小蛙准备好啦！</div>
         <div class="big-num" id="baseline-show">✓</div>
         <div class="hint" id="heart-rest-show" style="font-size:13.5px;margin-top:2px">—</div>
@@ -222,14 +228,14 @@
             <span>信号来源</span>
             <select id="source-select">
               <option value="hardware">Xmuse 脑电波仪</option>
-              <option value="heart">❤️ 仅心率（不接脑电）</option>
+              <option value="heart">仅心率（不接脑电）</option>
             </select>
           </label>
           <label class="field" id="heart-field">
             <span>心率辅助</span>
             <select id="heart-select">
               <option value="off">不启用（纯脑电）</option>
-              <option value="hrd">❤️ AirPods 自动读取</option>
+              <option value="hrd">AirPods 自动读取</option>
             </select>
           </label>
 
@@ -244,6 +250,8 @@
 
   <script src="assets/api.js"></script>
   <script src="assets/profile-bridge.js"></script>
+  <script src="assets/pond-effects.js"></script>
+  <script src="assets/frog/frog-art.js"></script>
   <script src="assets/achievements.js"></script>
   <script>
     const $ = id => document.getElementById(id);

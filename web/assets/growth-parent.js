@@ -105,7 +105,7 @@
         'title="' + h(day.date + (day.has_data ? " · " + C.duration(day.played_sec) : " · 无记录")) + '">' +
         '<span class="dow">周' + dows[date.getDay()] + '</span>' +
         '<span class="date">' + h(day.date.slice(5)) + '</span>' +
-        '<span class="dot">' + (low ? "⚠️" : (day.has_data ? "🐸" : "·")) + '</span>' +
+        '<span class="dot">' + (low && window.Icons ? window.Icons.markup("warning") : (day.has_data && window.FrogArt ? window.FrogArt.svg({ className: "growth-day-frog" }) : "·")) + '</span>' +
         '<span class="mins">' + (day.has_data ? Math.max(1, Math.round(day.played_sec / 60)) + " 分" : "—") + '</span>' +
         '</div>';
     }).join("");

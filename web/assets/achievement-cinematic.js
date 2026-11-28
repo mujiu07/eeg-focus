@@ -29,88 +29,10 @@
   // ---------- 图形 ----------
   // 青蛙：正面蹲坐、圆润 Q 版。睁眼 / 笑眯眯、抿嘴 / 张口笑各一套，
   // 由 .is-burst 切换；两条手臂在递金牌时抬到胸前上方。
-  const FROG_SVG = `
-    <svg viewBox="0 0 240 220" aria-hidden="true" focusable="false">
-      <defs>
-        <radialGradient id="achCineSkin" cx=".34" cy=".22" r=".9">
-          <stop offset="0" stop-color="#c1f4b2"/>
-          <stop offset=".52" stop-color="#77d67e"/>
-          <stop offset="1" stop-color="#3f9f5a"/>
-        </radialGradient>
-        <radialGradient id="achCineBelly" cx=".5" cy=".26" r=".86">
-          <stop offset="0" stop-color="#fcffe8"/>
-          <stop offset="1" stop-color="#d9f3b2"/>
-        </radialGradient>
-        <linearGradient id="achCineLeg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#6ccd78"/>
-          <stop offset="1" stop-color="#3a9152"/>
-        </linearGradient>
-      </defs>
-
-      <!-- 后腿与脚掌 -->
-      <ellipse cx="52" cy="184" rx="36" ry="21" fill="url(#achCineLeg)" transform="rotate(-14 52 184)"/>
-      <ellipse cx="188" cy="184" rx="36" ry="21" fill="url(#achCineLeg)" transform="rotate(14 188 184)"/>
-      <ellipse cx="42" cy="192" rx="17" ry="8" fill="#2c7442" opacity=".5"/>
-      <ellipse cx="198" cy="192" rx="17" ry="8" fill="#2c7442" opacity=".5"/>
-
-      <!-- 手臂（递牌时绕肩旋转上抬） -->
-      <g class="frog-arm frog-arm--l" style="transform-origin:68px 132px">
-        <path d="M68 132 q-25 12 -22 35" fill="none" stroke="#4ba963" stroke-width="17" stroke-linecap="round"/>
-        <circle cx="45" cy="168" r="10.5" fill="#95e392"/>
-      </g>
-      <g class="frog-arm frog-arm--r" style="transform-origin:172px 132px">
-        <path d="M172 132 q25 12 22 35" fill="none" stroke="#4ba963" stroke-width="17" stroke-linecap="round"/>
-        <circle cx="195" cy="168" r="10.5" fill="#95e392"/>
-      </g>
-
-      <!-- 身体与肚皮 -->
-      <ellipse cx="120" cy="140" rx="73" ry="59" fill="url(#achCineSkin)"/>
-      <ellipse cx="120" cy="152" rx="48" ry="38" fill="url(#achCineBelly)" opacity=".96"/>
-
-      <!-- 手里的小金牌：跟着小蛙一路跳进来，递牌时淡出 -->
-      <g class="frog-coin">
-        <path d="M186 112h11l-4 27h-13z" fill="#e0564a"/>
-        <path d="M209 112h-11l4 27h13z" fill="#e0564a"/>
-        <circle cx="197" cy="157" r="23" fill="#ffd97c" stroke="#c98a26" stroke-width="2.2"/>
-        <circle cx="197" cy="157" r="15.5" fill="#ffeab4"/>
-        <circle cx="191" cy="153" r="2.2" fill="#96601a"/>
-        <circle cx="203" cy="153" r="2.2" fill="#96601a"/>
-        <path d="M190 161q7 7 14 0" fill="none" stroke="#96601a" stroke-width="2.4" stroke-linecap="round"/>
-      </g>
-
-      <!-- 眼睛凸起 -->
-      <circle cx="80" cy="82" r="31" fill="url(#achCineSkin)"/>
-      <circle cx="160" cy="82" r="31" fill="url(#achCineSkin)"/>
-
-      <!-- 睁眼 -->
-      <g class="frog-eyes frog-eyes--open">
-        <circle cx="80" cy="80" r="23" fill="#fffdf0"/>
-        <circle cx="160" cy="80" r="23" fill="#fffdf0"/>
-        <circle cx="83" cy="82" r="11" fill="#1f4038"/>
-        <circle cx="157" cy="82" r="11" fill="#1f4038"/>
-        <circle cx="78.5" cy="77" r="3.8" fill="#ffffff"/>
-        <circle cx="152.5" cy="77" r="3.8" fill="#ffffff"/>
-      </g>
-
-      <!-- 笑眯眯 -->
-      <g class="frog-eyes frog-eyes--smile">
-        <path d="M65 85q15-17 30 0" fill="none" stroke="#1f4038" stroke-width="6.5" stroke-linecap="round"/>
-        <path d="M145 85q15-17 30 0" fill="none" stroke="#1f4038" stroke-width="6.5" stroke-linecap="round"/>
-      </g>
-
-      <!-- 腮红 -->
-      <ellipse cx="55" cy="133" rx="15" ry="9" fill="#ff9d92" opacity=".5"/>
-      <ellipse cx="185" cy="133" rx="15" ry="9" fill="#ff9d92" opacity=".5"/>
-
-      <!-- 嘴：抿嘴微笑 → 张口笑 -->
-      <path class="frog-mouth frog-mouth--line" d="M98 139q22 15 44 0"
-            fill="none" stroke="#2c6c46" stroke-width="5.5" stroke-linecap="round"/>
-      <g class="frog-mouth frog-mouth--open">
-        <path d="M95 136q25 34 50 0z" fill="#2c6c46"/>
-        <path d="M108 151q12 11 24 0z" fill="#ff9aa0"/>
-      </g>
-    </svg>`;
-
+  // 使用全站唯一的小蛙几何（与首页池塘 / 游戏画布一致），只保留动作容器。
+  const FROG_SVG = window.FrogArt
+    ? window.FrogArt.svg({ className: "ach-cine-frog-art" })
+    : "";
   // 金牌：红缎带 + 金圆牌 + 青蛙浮雕 + 高光
   const MEDAL_SVG = `
     <svg viewBox="0 0 140 190" aria-hidden="true" focusable="false">

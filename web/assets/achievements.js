@@ -20,39 +20,39 @@
       id: "guardian",
       name: "池塘小卫士",
       items: [
-        { id: "guardian-first", name: "池塘小卫士", desc: "第一次校准成功", icon: "🛡️", kind: "calib" },
+        { id: "guardian-first", name: "池塘小卫士", desc: "第一次校准成功", icon: "shield", kind: "calib" },
       ],
     },
     {
       id: "focus",
       name: "专注小达人",
       items: [
-        { id: "focus-1", name: "专注小达人 I", desc: "持续游玩 1 分钟", icon: "🌱", kind: "play", target: 60 },
-        { id: "focus-2", name: "专注小达人 II", desc: "持续游玩 3 分钟", icon: "🌿", kind: "play", target: 180 },
-        { id: "focus-3", name: "专注小达人 III", desc: "持续游玩 5 分钟", icon: "🌳", kind: "play", target: 300 },
-        { id: "focus-4", name: "专注小达人 IV", desc: "持续游玩 10 分钟", icon: "✨", kind: "play", target: 600 },
+        { id: "focus-1", name: "专注小达人 I", desc: "持续游玩 1 分钟", icon: "sprout", kind: "play", target: 60 },
+        { id: "focus-2", name: "专注小达人 II", desc: "持续游玩 3 分钟", icon: "leaf", kind: "play", target: 180 },
+        { id: "focus-3", name: "专注小达人 III", desc: "持续游玩 5 分钟", icon: "tree", kind: "play", target: 300 },
+        { id: "focus-4", name: "专注小达人 IV", desc: "持续游玩 10 分钟", icon: "sparkles", kind: "play", target: 600 },
       ],
     },
     {
       id: "doctor",
       name: "青蛙博士",
       items: [
-        { id: "doctor-1", name: "青蛙博士 I", desc: "累计游玩 30 分钟", icon: "📘", kind: "total", target: 1800 },
-        { id: "doctor-2", name: "青蛙博士 II", desc: "累计游玩 60 分钟", icon: "📗", kind: "total", target: 3600 },
-        { id: "doctor-3", name: "青蛙博士 III", desc: "累计游玩 150 分钟", icon: "📙", kind: "total", target: 9000 },
-        { id: "doctor-4", name: "青蛙博士 IV", desc: "累计游玩 300 分钟", icon: "📕", kind: "total", target: 18000 },
-        { id: "doctor-5", name: "青蛙博士 V", desc: "累计游玩 600 分钟", icon: "🎓", kind: "total", target: 36000 },
+        { id: "doctor-1", name: "青蛙博士 I", desc: "累计游玩 30 分钟", icon: "bookBlue", kind: "total", target: 1800 },
+        { id: "doctor-2", name: "青蛙博士 II", desc: "累计游玩 60 分钟", icon: "bookGreen", kind: "total", target: 3600 },
+        { id: "doctor-3", name: "青蛙博士 III", desc: "累计游玩 150 分钟", icon: "bookAmber", kind: "total", target: 9000 },
+        { id: "doctor-4", name: "青蛙博士 IV", desc: "累计游玩 300 分钟", icon: "bookRed", kind: "total", target: 18000 },
+        { id: "doctor-5", name: "青蛙博士 V", desc: "累计游玩 600 分钟", icon: "cap", kind: "total", target: 36000 },
       ],
     },
     {
       id: "spirit",
       name: "池塘守护神",
       items: [
-        { id: "spirit-1", name: "池塘守护神 I", desc: "连续打卡 3 天", icon: "🐸", kind: "streak", target: 3 },
-        { id: "spirit-2", name: "池塘守护神 II", desc: "连续打卡 5 天", icon: "🐢", kind: "streak", target: 5 },
-        { id: "spirit-3", name: "池塘守护神 III", desc: "连续打卡 7 天", icon: "🦆", kind: "streak", target: 7 },
-        { id: "spirit-4", name: "池塘守护神 IV", desc: "连续打卡 15 天", icon: "🦢", kind: "streak", target: 15 },
-        { id: "spirit-5", name: "池塘守护神 V", desc: "连续打卡 30 天", icon: "🐉", kind: "streak", target: 30 },
+        { id: "spirit-1", name: "池塘守护神 I", desc: "连续打卡 3 天", icon: "frog", kind: "streak", target: 3 },
+        { id: "spirit-2", name: "池塘守护神 II", desc: "连续打卡 5 天", icon: "turtle", kind: "streak", target: 5 },
+        { id: "spirit-3", name: "池塘守护神 III", desc: "连续打卡 7 天", icon: "duck", kind: "streak", target: 7 },
+        { id: "spirit-4", name: "池塘守护神 IV", desc: "连续打卡 15 天", icon: "swan", kind: "streak", target: 15 },
+        { id: "spirit-5", name: "池塘守护神 V", desc: "连续打卡 30 天", icon: "dragon", kind: "streak", target: 30 },
       ],
     },
   ];
@@ -343,6 +343,11 @@
     });
   }
 
+  function achievementIcon(item) {
+    if (item.icon === "frog" && window.FrogArt) return window.FrogArt.svg({ className: "ach-frog" });
+    return window.Icons ? window.Icons.markup(item.icon, "ach-glyph") : "";
+  }
+
   function itemHtml(item, state, streak) {
     const progress = progressOf(item, state, streak);
     const got = !!state.unlocked[item.id];
@@ -358,7 +363,7 @@
          </div>`;
     return `
       <div class="ach-item${got ? " is-unlocked" : ""}">
-        <div class="ach-item__icon" aria-hidden="true">${item.icon}</div>
+        <div class="ach-item__icon" aria-hidden="true">${achievementIcon(item)}</div>
         <div class="ach-item__main">
           <div class="ach-item__title">${item.name}${tag}</div>
           <div class="ach-item__desc">${item.desc}</div>

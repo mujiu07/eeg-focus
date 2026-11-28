@@ -302,7 +302,10 @@
     }
   </style>
   <link rel="stylesheet" href="assets/sky.css">
+  <script src="assets/icons/icons.js"></script>
   <script src="assets/sky.js"></script>
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -312,19 +315,19 @@
 
   <div class="wrap">
     <div class="page-skybar">
-      <a class="home-link home-link--compact" id="btn-home-top" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
-      <span class="page-skybar-label">🎨 页面配色</span>
+      <a class="home-link home-link--compact" id="btn-home-top" href="index.html"><span class="home-link__icon" data-icon="home" aria-hidden="true"></span><span>首页</span></a>
+      <span class="page-skybar-label"><span data-icon="palette" aria-hidden="true"></span>页面配色</span>
       <div class="sky-switch" id="sky-switch" role="group" aria-label="天空模式">
-        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span aria-hidden="true">🌄</span>黎明</button>
-        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span aria-hidden="true">☀️</span>白天</button>
-        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span aria-hidden="true">🌇</span>傍晚</button>
-        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span aria-hidden="true">🌙</span>黑夜</button>
-        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span aria-hidden="true">🌗</span>跟随时间</button>
+        <button type="button" class="sky-opt" data-mode="dawn" aria-pressed="false" title="黎明模式"><span data-icon="sunrise" aria-hidden="true"></span>黎明</button>
+        <button type="button" class="sky-opt" data-mode="day" aria-pressed="false" title="白天模式"><span data-icon="sun" aria-hidden="true"></span>白天</button>
+        <button type="button" class="sky-opt" data-mode="dusk" aria-pressed="false" title="傍晚模式"><span data-icon="sunset" aria-hidden="true"></span>傍晚</button>
+        <button type="button" class="sky-opt" data-mode="night" aria-pressed="false" title="黑夜模式"><span data-icon="moon" aria-hidden="true"></span>黑夜</button>
+        <button type="button" class="sky-opt" data-mode="auto" aria-pressed="false" title="跟随系统时间（日出日落）"><span data-icon="auto" aria-hidden="true"></span>跟随时间</button>
       </div>
     </div>
     <div class="card">
       <div class="brand">
-        <div class="logo-badge">🏆</div>
+        <div class="logo-badge" data-icon="trophy" aria-hidden="true"></div>
         <div>
           <h1>训练报告</h1>
           <div class="slogan" id="sub">看看这一局，专注有多厉害</div>
@@ -341,46 +344,7 @@
       <div class="cheer-glow" aria-hidden="true"></div>
       <div class="cheer-inner">
         <div class="cheer-frog-wrap" aria-hidden="true">
-          <div class="cheer-frog">
-            <svg viewBox="0 0 100 92" role="img" aria-label="笑着跳跃的青蛙">
-              <defs>
-                <radialGradient id="frogBody" cx="38%" cy="26%" r="80%">
-                  <stop offset="0%" stop-color="#a8eca1"/>
-                  <stop offset="55%" stop-color="#5fc96f"/>
-                  <stop offset="100%" stop-color="#36a356"/>
-                </radialGradient>
-                <linearGradient id="frogBelly" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#f6ffe4"/>
-                  <stop offset="100%" stop-color="#d9f6b9"/>
-                </linearGradient>
-              </defs>
-              <g>
-                <ellipse cx="20" cy="68" rx="12" ry="9" fill="#3fae5c" transform="rotate(-18 20 68)"/>
-                <ellipse cx="80" cy="68" rx="12" ry="9" fill="#3fae5c" transform="rotate(18 80 68)"/>
-                <ellipse cx="50" cy="56" rx="30" ry="25" fill="url(#frogBody)"/>
-                <ellipse cx="50" cy="65" rx="20" ry="15" fill="url(#frogBelly)" opacity=".85"/>
-                <ellipse cx="23" cy="63" rx="8" ry="5" fill="#4bb862" transform="rotate(22 23 63)"/>
-                <ellipse cx="77" cy="63" rx="8" ry="5" fill="#4bb862" transform="rotate(-22 77 63)"/>
-                <g class="frog-eye">
-                  <circle cx="32" cy="30" r="14" fill="#7fd98a"/>
-                  <circle cx="32" cy="29" r="10.5" fill="#ffffff"/>
-                  <circle cx="33" cy="30" r="6" fill="#1f3d36"/>
-                  <circle cx="30.4" cy="27.4" r="2.2" fill="#ffffff"/>
-                </g>
-                <g class="frog-eye">
-                  <circle cx="68" cy="30" r="14" fill="#7fd98a"/>
-                  <circle cx="68" cy="29" r="10.5" fill="#ffffff"/>
-                  <circle cx="67" cy="30" r="6" fill="#1f3d36"/>
-                  <circle cx="64.4" cy="27.4" r="2.2" fill="#ffffff"/>
-                </g>
-                <circle cx="25" cy="51" r="5.4" fill="#ff9fae" opacity=".7"/>
-                <circle cx="75" cy="51" r="5.4" fill="#ff9fae" opacity=".7"/>
-                <path d="M35 47 Q50 63 65 47" stroke="#2b7a45" stroke-width="3.4" stroke-linecap="round" fill="none"/>
-                <ellipse cx="26" cy="79" rx="13" ry="6" fill="#4bb862"/>
-                <ellipse cx="74" cy="79" rx="13" ry="6" fill="#4bb862"/>
-              </g>
-            </svg>
-          </div>
+          <div class="cheer-frog" data-frog="report-cheer" aria-hidden="true"></div>
           <span class="frog-shadow"></span>
         </div>
         <div class="cheer-copy">
@@ -428,18 +392,18 @@
     </div>
 
     <div class="card hidden" id="parent-card">
-      <div class="section-title"><span class="dot"></span>💬 给家长的话<span class="pn-badge">仅供参考</span></div>
+      <div class="section-title"><span class="dot"></span><span data-icon="chat" aria-hidden="true"></span> 给家长的话<span class="pn-badge">仅供参考</span></div>
       <p class="hint hidden" id="parent-source"></p>
       <div class="parent-note" id="parent-note">正在根据本局数据生成分析与建议……</div>
     </div>
 
     <div class="card hidden" id="export-card">
-      <div class="section-title"><span class="dot"></span>📤 导出这份报告</div>
+      <div class="section-title"><span class="dot"></span><span data-icon="upload" aria-hidden="true"></span> 导出这份报告</div>
       <p class="hint">导出内容与本页一致：概览数据、专注曲线、给家长的话。PDF 已排好版，适合打印或直接发给家长；Excel 附带逐点曲线和折线图。</p>
       <div class="export-row">
-        <button class="btn btn-primary" type="button" data-export="pdf">📄 下载 PDF</button>
-        <button class="btn btn-ghost" type="button" data-export="xlsx">📊 Excel 表格</button>
-        <button class="btn btn-ghost" type="button" data-export="docx">📝 Word 文档</button>
+        <button class="btn btn-primary" type="button" data-export="pdf"><span data-icon="download" aria-hidden="true"></span>下载 PDF</button>
+        <button class="btn btn-ghost" type="button" data-export="xlsx"><span data-icon="chart" aria-hidden="true"></span>Excel 表格</button>
+        <button class="btn btn-ghost" type="button" data-export="docx"><span data-icon="book" aria-hidden="true"></span>Word 文档</button>
       </div>
       <div class="export-meta">
         <button class="linklike" type="button" data-export="csv">逐点数据 CSV</button>
@@ -458,6 +422,8 @@
     </div>
   </div>
 
+  <script src="assets/pond-effects.js"></script>
+  <script src="assets/frog/frog-art.js"></script>
   <script src="assets/api.js"></script>
   <script src="assets/profile-bridge.js"></script>
   <script src="assets/achievements.js"></script>
@@ -843,12 +809,12 @@
 
       return `
         <div class="pn-block">
-          <div class="pn-title"><span class="emo">🔍</span>本局表现</div>
+          <div class="pn-title"><span class="emo" data-icon="search" aria-hidden="true"></span>本局表现</div>
           <div class="pn-chips">${chips.join("")}</div>
           <p class="pn-text">${summary}</p>
         </div>
         <div class="pn-block">
-          <div class="pn-title"><span class="emo">🌱</span>针对性建议</div>
+          <div class="pn-title"><span class="emo" data-icon="sprout" aria-hidden="true"></span>针对性建议</div>
           <ul class="pn-list">
             ${tips.map(t => `<li>${t}</li>`).join("")}
             <li>${helpline}</li>
@@ -868,7 +834,7 @@
         : (r.above_baseline_ratio != null ? Math.round(r.above_baseline_ratio * 100) : null);
       const hr = r.heart || {};
       const hrCard = (hr.n > 0)
-        ? `<div class="stat"><div class="icon">❤️</div><div class="label">平均心率（AirPods 辅助）</div><div class="value">${Math.round(hr.mean)}<span style="font-size:13px;font-weight:700"> BPM</span></div></div>`
+        ? `<div class="stat"><div class="icon" data-icon="heart"></div><div class="label">平均心率（AirPods 辅助）</div><div class="value">${Math.round(hr.mean)}<span style="font-size:13px;font-weight:700"> BPM</span></div></div>`
         : "";
       const source = r.source || {};
       const isReplay = source.name === "replay" || !!source.file;
@@ -934,18 +900,20 @@
         : isManual ? "滑块模拟曲线" : "专注曲线";
       $("report").innerHTML = `
         <div class="stat-grid" style="justify-content:center">
-          <div class="stat"><div class="icon">🐸</div><div class="label">本局游戏积分</div><div class="value">${r.score ?? "—"}</div></div>
-          <div class="stat"><div class="icon">⏱️</div><div class="label">高于专注线时间占比</div><div class="value">${above ?? "—"}%</div></div>
-          <div class="stat"><div class="icon">📈</div><div class="label">${recorded ? "专注分均值" : "演示信号分均值"}</div><div class="value">${r.score_mean != null ? Math.round(r.score_mean) : (r.focus_mean != null ? Math.round(r.focus_mean * 100) : "—")}</div></div>
-          <div class="stat"><div class="icon">🎯</div><div class="label">定标方式</div><div class="value">20 – 80</div></div>
-          <div class="stat"><div class="icon">⌛</div><div class="label">用时</div><div class="value">${fmtPlayed(r.played_sec)}</div></div>
-          <div class="stat"><div class="icon">✅</div><div class="label">有效数据占比</div><div class="value">${(r.n_valid_frames != null && r.n_frames) ? Math.round(r.n_valid_frames / r.n_frames * 100) + "%" : "—"}</div></div>
+          <div class="stat"><div class="icon" data-frog="report-stat"></div><div class="label">本局游戏积分</div><div class="value">${r.score ?? "—"}</div></div>
+          <div class="stat"><div class="icon" data-icon="clock"></div><div class="label">高于专注线时间占比</div><div class="value">${above ?? "—"}%</div></div>
+          <div class="stat"><div class="icon" data-icon="trend"></div><div class="label">${recorded ? "专注分均值" : "演示信号分均值"}</div><div class="value">${r.score_mean != null ? Math.round(r.score_mean) : (r.focus_mean != null ? Math.round(r.focus_mean * 100) : "—")}</div></div>
+          <div class="stat"><div class="icon" data-icon="target"></div><div class="label">定标方式</div><div class="value">20 – 80</div></div>
+          <div class="stat"><div class="icon" data-icon="hourglass"></div><div class="label">用时</div><div class="value">${fmtPlayed(r.played_sec)}</div></div>
+          <div class="stat"><div class="icon" data-icon="check"></div><div class="label">有效数据占比</div><div class="value">${(r.n_valid_frames != null && r.n_frames) ? Math.round(r.n_valid_frames / r.n_frames * 100) + "%" : "—"}</div></div>
           ${hrCard}
         </div>
         <p class="hint" style="margin-top:12px;font-size:13.5px">
           <span id="report-source"></span>
         </p>
       `;
+      Icons.mountAll($("report"));
+      FrogArt.mountAll($("report"));
       $("report-source").textContent = "信号来源 · " + srcName;
       if (isAssessment) {
         $("report-source").textContent += " · 评估 " + (r.assessment_id || r.assessment?.protocol_version || "");
@@ -970,6 +938,7 @@
       parentSource.classList.toggle("hidden", recorded);
       parentSource.textContent = recorded ? "" : "以下分析基于本局" + srcName + "数据。";
       $("parent-note").innerHTML = buildParentNote(r);
+      Icons.mountAll($("parent-note"));
       $("sub").textContent = r.created_at ? r.created_at.replace("T", " ") : "";
       celebrate();
     }
@@ -1251,7 +1220,7 @@
         ctx.font = "700 12px 'PingFang SC', sans-serif";
         ctx.textAlign = "left";
         ctx.fillStyle = "rgba(226,85,78,.95)";
-        ctx.fillText(`❤ 心率 ${lo}–${hi} BPM（右图红线，仅趋势）`, padL + 6, padT - 8);
+        ctx.fillText(`心率 ${lo}–${hi} BPM（右图红线，仅趋势）`, padL + 6, padT - 8);
       }
 
       // 基线虚线：放到最后绘制，并用背景色描边打底，

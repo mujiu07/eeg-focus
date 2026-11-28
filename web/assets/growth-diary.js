@@ -18,7 +18,7 @@
       return '<div class="growth-day ' + (day.has_data ? "has-data" : "") + '">' +
         '<span class="dow">周' + dows[date.getDay()] + '</span>' +
         '<span class="date">' + C.esc(day.date.slice(5)) + '</span>' +
-        '<span class="dot">' + (day.has_data ? "🐸" : "·") + '</span>' +
+        '<span class="dot">' + (day.has_data && window.FrogArt ? window.FrogArt.svg({ className: "growth-day-frog" }) : "·") + '</span>' +
         '<span class="mins">' + (day.has_data ? mins + " 分" : "休息") + '</span>' +
         '</div>';
     }).join("");
@@ -57,7 +57,12 @@
     const achBox = document.getElementById("growth-achievements");
     if (achBox) {
       achBox.innerHTML = got.length
-        ? got.map(item => '<span class="growth-tag">' + C.esc(item.icon || "🏅") + " " + C.esc(item.name) + '</span>').join("")
+        ? got.map(item => {
+            const art = item.icon === "frog" && window.FrogArt
+              ? window.FrogArt.svg({ className: "growth-tag-frog" })
+              : (window.Icons ? window.Icons.markup(item.icon, "growth-tag-icon") : "");
+            return '<span class="growth-tag">' + art + " " + C.esc(item.name) + '</span>';
+          }).join("")
         : '<span class="growth-tag growth-tag--locked">继续玩一玩，会解锁第一枚徽章</span>';
     }
     set("growth-achievement-count", got.length + " / " + achList.length);
@@ -65,7 +70,8 @@
     if (mileBox) {
       mileBox.innerHTML = (data.milestones || []).length
         ? data.milestones.map(m => '<div class="growth-row"><div class="main"><strong>' +
-            C.esc(m.label) + '</strong><small>' + C.esc(m.date || "日期未知") + '</small></div><span class="tail">🌱</span></div>').join("")
+            C.esc(m.label) + '</strong><small>' + C.esc(m.date || "日期未知") + '</small></div><span class="tail">' +
+            (window.Icons ? window.Icons.markup("leaf") : "") + '</span></div>').join("")
         : '<div class="growth-empty"><strong>成长纪念会在这里出现</strong>第一次游戏、累计跳跃和游玩时长都会变成小纪念。</div>';
     }
   }

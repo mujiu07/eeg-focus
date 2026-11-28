@@ -8,7 +8,10 @@
   <link rel="stylesheet" href="assets/ui.css">
   <link rel="stylesheet" href="assets/sky.css">
   <link rel="stylesheet" href="assets/growth.css">
+  <script src="assets/icons/icons.js"></script>
   <script src="assets/sky.js"></script>
+  <link rel="stylesheet" href="assets/icons/icons.css">
+  <link rel="stylesheet" href="assets/visual-v193.css">
 </head>
 <body>
   <div class="bubbles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -19,12 +22,12 @@
   <main class="growth-page">
     <div class="app-topbar">
       <div class="app-topbar__left">
-        <a class="home-link" href="index.html"><span class="home-link__icon" aria-hidden="true">🏠</span><span>首页</span></a>
+        <a class="home-link" href="index.html"><span class="home-link__icon" data-icon="home" aria-hidden="true"></span><span>首页</span></a>
       </div>
     </div>
     <header class="growth-top">
       <div class="growth-brand">
-        <div class="frog-dot" aria-hidden="true">📊</div>
+        <div class="frog-dot" data-icon="chart" aria-hidden="true"></div>
         <div>
           <h1>家长成长中心</h1>
           <p>客观记录 · 统计口径 · 不把游戏数据当作临床评价</p>
@@ -39,7 +42,7 @@
 
     <div id="parent-gate" class="parent-gate" role="dialog" aria-modal="true" aria-labelledby="parent-gate-title">
       <div class="parent-gate__card">
-        <div class="icon" aria-hidden="true">👨‍👩‍👧</div>
+        <div class="icon" data-icon="family" aria-hidden="true"></div>
         <h2 id="parent-gate-title">家长查看</h2>
         <p>这里包含孩子的使用记录、任务表现和脑电任务指标。请由家长或监护人打开；儿童游戏界面不会展示这些统计。</p>
         <button id="parent-gate-ok" type="button">我是家长，查看报告</button>
